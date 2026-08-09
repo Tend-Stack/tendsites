@@ -52,25 +52,35 @@ Privileged work is represented by a shared `sites-host-operation-request/v1` env
 
 Creation, repository inspection, isolated preview, and publishing each define a strict intent layered over that envelope. Returned evidence is monotonic and exact-request-bound. These portable contracts do not implement a queue, checkout, commit, build, deployment, route, filesystem write, or provider call; tend.host remains responsible for authorization, persistence, execution, recovery, and audit.
 
+The first host integration now persists `site.create` admission only. tend.host
+issues a 60-second context bound to the authenticated user, project, reviewed
+bundle version, and optional source revision, then recomputes the intent and
+idempotency digests before recording exact accepted evidence. The seam is not
+yet exposed to the browser and has no executor, so `accepted` never means the
+site, repository, preview, or deployment exists.
+
 No repository, draft persistence, build, preview execution, deployment, traffic routing, domain assignment, media transformation, library installation, or AI mutation exists yet. Passing a pure assessment never promotes it into authority.
 
 The compatibility inspector accepts provider-supplied file names plus parsed `package.json` and optional `tend.site.json` data. It rejects path traversal, duplicate canonical paths, conflicting lockfiles, missing build scripts, malformed metadata, and non-SvelteKit projects before producing an argv-only install/build plan. The future host remains responsible for authenticated checkout, snapshot integrity, isolation, and execution.
 
 Starter selection, adoption assessment, content indexing, change preview, draft evaluation, media planning, localization reporting, library assessment, and preview assessment are portable pure functions. Their outputs carry explicit `review_only`, `canApply: false`, `canTransform: false`, `canInstall: false`, `canDeploy: false`, or unavailable-authority fields where appropriate. A later tend.host capability may consume reviewed evidence, but the extension cannot convert these plans into source or deployment mutations by itself.
 
-## Planned capability seam
+## Capability seam
 
-Future host capabilities are narrow and assigned to a specific project:
+Host capabilities are narrow and assigned to a specific project. `site.create`
+has host-side admission but no browser delivery or executor. The remaining
+capabilities are contract coordinates only:
 
-- `repo:assigned`
-- `preview:isolated`
-- `jobs:sites`
-- `deploy:assigned`
-- `domains:assigned`
-- `media:transform`
-- `ai:user-configured`
+- `site.create` — durable admission only
+- `repository.inspect`
+- `preview.execute`
+- `publish.execute`
+- `domain.assign`
+- `ai.invoke`
 
-Capability names are roadmap coordinates, not currently implemented permissions. A capability is not declared in `extension.config.json` until tend.host supports and enforces its contract.
+Admission does not make a capability an extension permission. A capability is
+not declared in `extension.config.json` until tend.host supports and enforces
+the complete browser-to-host contract and executor boundary.
 
 ## Portability
 

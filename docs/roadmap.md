@@ -25,7 +25,14 @@ Completion is measured only from the top-level product milestones below. Nested 
 - [ ] Friendly five-step creation workflow backed by a durable host operation.
   - **Complete:** Deterministic review plan shown in the five-step workflow.
   - **Complete:** Exact-plan creation intent and shared canonical/idempotent host-operation request/evidence contracts.
-  - **Pending:** Persist and execute the reviewed plan through an assigned host capability.
+  - **Complete integration seam:** tend.host packages the exact reviewed 0.1.0
+    extension and has a route-free durable admission ledger for short-lived,
+    user/project/version-bound `site.create` contexts. Canonical requests are
+    accepted idempotently; drift, expiry, and modified extension bytes fail
+    closed.
+  - **Pending:** Deliver the assigned context to the mounted extension and
+    execute an accepted plan through a separately reviewed host worker. No
+    source creation is currently enabled.
 - [ ] Existing-repository analyzer with bounded checkout and compatibility report.
   - **Complete:** Pure snapshot classification and compatibility report.
   - **Complete:** Opaque repository selector, bounded disposable-checkout intent, host-only credential policy, and strict cleanup result.

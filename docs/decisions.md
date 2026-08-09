@@ -28,6 +28,11 @@ Portable contracts use relative POSIX paths with no alternate separators, empty 
 
 Starter selection, source adoption, site creation, content indexing, and change previews are pure portable layers. They may classify and explain immutable evidence, but cannot clone, write, execute, publish, or deploy. Host mutation capabilities will be added as separate durable operations after the review contracts are stable.
 
+The first such host seam accepts exact `site.create` evidence into a durable
+route-free ledger only. This is intentionally an admission checkpoint rather
+than mutation authority: browser delivery, source execution, and completion
+evidence remain separate reviewed milestones.
+
 ## D-008 — Focused readiness workspaces
 
 Operational evidence is presented through an at-a-glance overview and task-specific tabs, not one long settings page. Draft, media, localization, library, and preview readiness stay independently addressable in the interface and independently versioned in code. A green assessment communicates evidence quality only; it never implies that the corresponding host mutation capability exists.
