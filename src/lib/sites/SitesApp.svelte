@@ -6,17 +6,20 @@
 		Check,
 		CirclePlus,
 		Cloud,
+		DatabaseZap,
 		FileSearch,
 		FileText,
 		GitBranch,
 		Image,
 		LayoutGrid,
 		Library,
+		Languages,
 		Menu,
 		PanelLeft,
 		Rocket,
 		Settings2,
 		ShieldCheck,
+		TestTube2,
 		Sparkles,
 		X
 	} from '@lucide/svelte';
@@ -31,8 +34,16 @@
 		starterCatalog
 	} from './foundation-data';
 	import { goals, modules, projects, themes } from './fixtures';
+	import {
+		draftEvidence,
+		libraryEvidence,
+		localizationEvidence,
+		mediaEvidence,
+		previewEvidence
+	} from './readiness-data';
 
-	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'publish';
+	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
+	type ReadinessArea = 'overview' | 'drafts' | 'media' | 'languages' | 'library' | 'preview';
 
 	let { embedded = false }: { embedded?: boolean } = $props();
 	let view = $state<View>('home');
@@ -43,6 +54,7 @@
 	let siteName = $state('Weekend Notes');
 	let accent = $state('#56e6ad');
 	let mobileMenu = $state(false);
+	let readinessArea = $state<ReadinessArea>('overview');
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -113,6 +125,9 @@
 			<button class:active={view === 'home'} onclick={() => open('home')}>Your sites</button>
 			<button class:active={view === 'studio'} onclick={() => open('studio')}>Studio</button>
 			<button class:active={view === 'library'} onclick={() => open('library')}>Library</button>
+			<button class:active={view === 'readiness'} onclick={() => open('readiness')}
+				>Readiness</button
+			>
 		</nav>
 		<div class="top-actions">
 			<span class="connection"><span></span> Foundation preview</span>
@@ -470,6 +485,165 @@
 				<button class="secondary">Replace block</button>
 			</aside>
 		</main>
+	{:else if view === 'readiness'}
+		<main class="page readiness-page">
+			<section class="hero-row">
+				<div>
+					<span class="eyebrow">Evidence center</span>
+					<h1>Ready for the host, without pretending.</h1>
+					<p>
+						Inspect each portable foundation separately. Host-side persistence and execution remain
+						unavailable.
+					</p>
+				</div>
+				<span class="status live">5 contracts verified</span>
+			</section>
+			<nav class="readiness-tabs" aria-label="Readiness sections">
+				{#each [['overview', 'Overview'], ['drafts', 'Draft safety'], ['media', 'Media'], ['languages', 'Languages'], ['library', 'Library'], ['preview', 'Preview']] as tab (tab[0])}
+					<button
+						class:active={readinessArea === tab[0]}
+						onclick={() => (readinessArea = tab[0] as ReadinessArea)}>{tab[1]}</button
+					>
+				{/each}
+			</nav>
+
+			{#if readinessArea === 'overview'}
+				<section class="readiness-grid" aria-label="Foundation readiness overview">
+					<button onclick={() => (readinessArea = 'drafts')}
+						><DatabaseZap size={21} /><span
+							><strong>Draft safety</strong><small>Sequence and conflict evidence</small></span
+						><em>Verified</em></button
+					>
+					<button onclick={() => (readinessArea = 'media')}
+						><Image size={21} /><span
+							><strong>Media</strong><small
+								>{mediaEvidence.variants.length} deterministic variants</small
+							></span
+						><em>Planned</em></button
+					>
+					<button onclick={() => (readinessArea = 'languages')}
+						><Languages size={21} /><span
+							><strong>Languages</strong><small
+								>{localizationEvidence.coveragePercent}% content coverage</small
+							></span
+						><em>Measured</em></button
+					>
+					<button onclick={() => (readinessArea = 'library')}
+						><Library size={21} /><span
+							><strong>Library</strong><small>Five certification checks</small></span
+						><em>Certified</em></button
+					>
+					<button onclick={() => (readinessArea = 'preview')}
+						><TestTube2 size={21} /><span
+							><strong>Preview</strong><small>Separate-origin policy evidence</small></span
+						><em>Ready</em></button
+					>
+				</section>
+			{:else}
+				<section class="readiness-detail">
+					{#if readinessArea === 'drafts'}
+						<div class="readiness-icon"><DatabaseZap size={24} /></div>
+						<div>
+							<span class="eyebrow">Draft safety</span>
+							<h2>Autosave can detect conflicts before source changes.</h2>
+							<p>
+								Sequence {draftEvidence.revision?.sequence} is represented as durable evidence. Undo cannot
+								cross a committed source revision.
+							</p>
+						</div>
+						<dl>
+							<div>
+								<dt>Status</dt>
+								<dd>{draftEvidence.status}</dd>
+							</div>
+							<div>
+								<dt>Host persistence</dt>
+								<dd>Not connected</dd>
+							</div>
+						</dl>
+					{:else if readinessArea === 'media'}
+						<div class="readiness-icon"><Image size={24} /></div>
+						<div>
+							<span class="eyebrow">Repository media</span>
+							<h2>Variants are deterministic and accessibility-aware.</h2>
+							<p>
+								{mediaEvidence.variants.length} bounded variants are planned from one digest-bound source
+								asset.
+							</p>
+						</div>
+						<dl>
+							<div>
+								<dt>Transform</dt>
+								<dd>Host capability required</dd>
+							</div>
+							<div>
+								<dt>Upscaling</dt>
+								<dd>Rejected</dd>
+							</div>
+						</dl>
+					{:else if readinessArea === 'languages'}
+						<div class="readiness-icon"><Languages size={24} /></div>
+						<div>
+							<span class="eyebrow">Localization</span>
+							<h2>Missing translations are explicit.</h2>
+							<p>
+								{localizationEvidence.completeEntries} of {localizationEvidence.logicalEntries} entries
+								are complete across {localizationEvidence.locales.length} languages.
+							</p>
+						</div>
+						<dl>
+							<div>
+								<dt>Coverage</dt>
+								<dd>{localizationEvidence.coveragePercent}%</dd>
+							</div>
+							<div>
+								<dt>AI authority</dt>
+								<dd>Proposal only</dd>
+							</div>
+						</dl>
+					{:else if readinessArea === 'library'}
+						<div class="readiness-icon"><Library size={24} /></div>
+						<div>
+							<span class="eyebrow">Theme and component trust</span>
+							<h2>Compatibility and certification are evaluated together.</h2>
+							<p>
+								The sample component is {libraryEvidence.status}, with provenance and five required
+								checks.
+							</p>
+						</div>
+						<dl>
+							<div>
+								<dt>Install</dt>
+								<dd>Host capability required</dd>
+							</div>
+							<div>
+								<dt>Panel scripts</dt>
+								<dd>Forbidden</dd>
+							</div>
+						</dl>
+					{:else}
+						<div class="readiness-icon"><TestTube2 size={24} /></div>
+						<div>
+							<span class="eyebrow">Isolated preview</span>
+							<h2>Checks can pass without authorizing deployment.</h2>
+							<p>
+								The evidence is {previewEvidence.status}; it remains structurally unable to deploy.
+							</p>
+						</div>
+						<dl>
+							<div>
+								<dt>Panel credentials</dt>
+								<dd>Never available</dd>
+							</div>
+							<div>
+								<dt>Deploy</dt>
+								<dd>Separate authority required</dd>
+							</div>
+						</dl>
+					{/if}
+				</section>
+			{/if}
+		</main>
 	{:else if view === 'library'}
 		<main class="page library-page">
 			<div class="hero-row">
@@ -643,6 +817,113 @@
 	.filter-row button.active {
 		color: #fff;
 		background: #15201e;
+	}
+	.readiness-tabs {
+		display: flex;
+		gap: 8px;
+		margin: 22px 0 26px;
+		overflow-x: auto;
+		padding-bottom: 4px;
+	}
+	.readiness-tabs button {
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		background: transparent;
+		color: var(--muted);
+		cursor: pointer;
+		padding: 10px 16px;
+		white-space: nowrap;
+	}
+	.readiness-tabs button.active {
+		border-color: color-mix(in srgb, var(--green) 50%, var(--border));
+		background: color-mix(in srgb, var(--green) 10%, transparent);
+		color: var(--green);
+	}
+	.readiness-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 14px;
+	}
+	.readiness-grid button {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: center;
+		gap: 14px;
+		min-height: 112px;
+		padding: 20px;
+		border: 1px solid var(--border);
+		border-radius: 18px;
+		background: var(--surface);
+		color: #edf5f1;
+		cursor: pointer;
+		text-align: left;
+	}
+	.readiness-grid button:first-child {
+		grid-column: 1 / -1;
+	}
+	.readiness-grid button :global(svg),
+	.readiness-icon {
+		color: var(--green);
+	}
+	.readiness-grid span {
+		display: grid;
+		gap: 5px;
+	}
+	.readiness-grid small {
+		color: var(--muted);
+	}
+	.readiness-grid em {
+		font-style: normal;
+		font-size: 12px;
+		font-weight: 750;
+		color: var(--green);
+	}
+	.readiness-detail {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) minmax(260px, 0.55fr);
+		gap: 20px;
+		align-items: start;
+		padding: 26px;
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		background: var(--surface);
+	}
+	.readiness-icon {
+		display: grid;
+		place-items: center;
+		width: 48px;
+		height: 48px;
+		border-radius: 14px;
+		background: color-mix(in srgb, var(--green) 12%, transparent);
+	}
+	.readiness-detail h2 {
+		margin: 6px 0 8px;
+		font-size: 24px;
+	}
+	.readiness-detail p {
+		margin: 0;
+		color: var(--muted);
+		line-height: 1.65;
+	}
+	.readiness-detail dl {
+		display: grid;
+		gap: 10px;
+		margin: 0;
+	}
+	.readiness-detail dl div {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		padding-bottom: 10px;
+		border-bottom: 1px solid var(--border);
+	}
+	.readiness-detail dt {
+		color: var(--muted);
+	}
+	.readiness-detail dd {
+		margin: 0;
+		font-weight: 700;
+		text-align: right;
 	}
 	.top-actions {
 		margin-left: auto;
@@ -1532,6 +1813,12 @@
 	}
 
 	@media (max-width: 900px) {
+		.readiness-detail {
+			grid-template-columns: auto 1fr;
+		}
+		.readiness-detail dl {
+			grid-column: 1 / -1;
+		}
 		.project-grid,
 		.component-grid {
 			grid-template-columns: repeat(2, 1fr);
@@ -1555,6 +1842,24 @@
 		}
 	}
 	@media (max-width: 640px) {
+		.readiness-grid {
+			grid-template-columns: 1fr;
+		}
+		.readiness-grid button:first-child {
+			grid-column: auto;
+		}
+		.readiness-grid button {
+			grid-template-columns: auto 1fr;
+		}
+		.readiness-grid em {
+			grid-column: 2;
+		}
+		.readiness-detail {
+			grid-template-columns: 1fr;
+		}
+		.readiness-detail dl {
+			grid-column: auto;
+		}
 		.topbar {
 			height: 58px;
 			padding: 0 16px;

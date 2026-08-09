@@ -41,15 +41,25 @@ Status values are evidence-based: completed items have code and proportional tes
   - [x] Pure content/locale/collection/draft/navigation validation and summary indexing.
   - [ ] Host-backed read/write adapters and media lifecycle.
 - [ ] Autosave drafts separated from committed source.
+  - [x] Monotonic draft revision, exact-retry, stale-base conflict, and bounded undo contracts.
+  - [ ] Persist encrypted project-scoped drafts through a durable host capability.
 - [ ] Accessible block canvas with schema-driven inspector.
 - [ ] Responsive/mobile editing model and keyboard navigation.
 - [ ] Undo history and clear conflict resolution.
+- [ ] Repository media lifecycle with accessible variants.
+  - [x] Digest-bound asset and deterministic no-upscale variant-plan contracts.
+  - [ ] Upload, transform, retain, and remove media through an assigned host capability.
+- [ ] Localization coverage and reviewed translation workflow.
+  - [x] Locale coverage report and source-bound manual/user-configured-AI proposal contracts.
+  - [ ] Persist reviewed translations through repository change operations.
 
 ## 3. Isolated previews
 
 - [ ] Separate-origin preview service with no panel credentials.
 - [ ] Resource, time, network, and storage limits.
 - [ ] Frozen installs and truthful required-check evidence.
+  - [x] Separate-origin resource policy and required-check assessment with no deploy authority.
+  - [ ] Execute isolated previews and retain bounded evidence through durable host jobs.
 - [ ] Preview supersession, expiry, cleanup, and recovery.
 
 ## 4. Publishing and domains
@@ -64,6 +74,8 @@ Status values are evidence-based: completed items have code and proportional tes
 
 - [ ] Official/community/installed theme and component library.
 - [ ] Certification, provenance, compatibility, update, and removal contracts.
+  - [x] Immutable item, adapter compatibility, five-check certification, and no-install assessment contracts.
+  - [ ] Add signed catalog publication plus durable install, update, and removal operations.
 - [ ] User-configured AI providers with redaction, cost preview, and diff approval.
 - [ ] Content, translation, SEO, accessibility, and block-composition assistance.
 

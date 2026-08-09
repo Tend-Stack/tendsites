@@ -16,9 +16,14 @@ Target repositories, site templates, themes, community components, user content,
 6. AI output is data, never authority. Show an understandable change set before committing source changes.
 7. Build and preview secrets use explicit purpose-bound delivery and never appear in logs, layers, cache keys, diffs, or AI prompts.
 8. Fork and pull-request snapshots are untrusted by default and receive neither protected secrets nor production destination authority.
-9. Starter, creation, adoption, content-index, and change-preview contracts are evidence only; none can apply repository or deployment mutations.
+9. Starter, creation, adoption, content-index, change-preview, draft, media, localization, library, and preview-policy contracts are evidence only; none can apply repository or deployment mutations.
+10. Passing compatibility or preview checks never grants installation, publishing, or deployment authority.
 
-Source adoption is bound to provider installation, repository, immutable commit/tree/archive digests, actor, trust class, size limits, and an explicit expiry. The current pure assessor does not fetch or trust browser-provided repository contents. Authenticated checkout and digest verification remain host responsibilities. 8. Publishing never replaces the last healthy site until checks pass and the durable deployment operation commits.
+Source adoption is bound to provider installation, repository, immutable commit/tree/archive digests, actor, trust class, size limits, and an explicit expiry. The current pure assessor does not fetch or trust browser-provided repository contents. Authenticated checkout and digest verification remain host responsibilities.
+
+11. Publishing never replaces the last healthy site until checks pass and the durable deployment operation commits.
+
+Draft revisions are bound to one project, entry, committed base revision, and monotonic sequence. Media plans reject unsupported formats and upscaling and require localized alternative text. Translation proposals remain data until reviewed. Library certification never enables installation, and preview evidence always remains separate from deployment authority.
 
 ## Component and theme trust
 

@@ -28,15 +28,20 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/contracts/adoption.ts` separates bounded source evidence from checkout, secret, and production authority.
 - `src/lib/planning/` produces deterministic creation and change-review plans that are structurally unable to apply themselves.
 - `src/lib/content/index.ts` validates collection, locale, path, and navigation relationships without reading a repository.
-- `src/lib/sites/` contains a fixture-backed, read-only Studio experience.
+- `src/lib/contracts/drafts.ts` separates draft revisions from committed source and detects stale-base conflicts.
+- `src/lib/contracts/media.ts` plans bounded, deterministic image variants without transformation authority.
+- `src/lib/contracts/localization.ts` measures locale coverage and binds translation proposals to source evidence.
+- `src/lib/contracts/library.ts` combines immutable library identity, adapter compatibility, and certification evidence.
+- `src/lib/contracts/preview-policy.ts` evaluates separate-origin resource limits and required checks without deployment authority.
+- `src/lib/sites/` contains a fixture-backed, read-only Studio experience with an overview-first, tabbed readiness workspace.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 
-No repository, build, preview, deployment, domain, media, or AI mutation exists yet.
+No repository, draft persistence, build, preview execution, deployment, domain, media transformation, library installation, or AI mutation exists yet.
 
 The compatibility inspector accepts provider-supplied file names plus parsed `package.json` and optional `tend.site.json` data. It rejects path traversal, duplicate canonical paths, conflicting lockfiles, missing build scripts, malformed metadata, and non-SvelteKit projects before producing an argv-only install/build plan. The future host remains responsible for authenticated checkout, snapshot integrity, isolation, and execution.
 
-Starter selection, adoption assessment, content indexing, and change preview are portable pure functions. Their outputs carry explicit `review_only`, `canApply: false`, or unavailable-authority fields where appropriate. A later tend.host capability may consume reviewed evidence, but the extension cannot convert these plans into source or deployment mutations by itself.
+Starter selection, adoption assessment, content indexing, change preview, draft evaluation, media planning, localization reporting, library assessment, and preview assessment are portable pure functions. Their outputs carry explicit `review_only`, `canApply: false`, `canTransform: false`, `canInstall: false`, `canDeploy: false`, or unavailable-authority fields where appropriate. A later tend.host capability may consume reviewed evidence, but the extension cannot convert these plans into source or deployment mutations by itself.
 
 ## Planned capability seam
 

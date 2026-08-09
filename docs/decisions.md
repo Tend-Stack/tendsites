@@ -27,3 +27,7 @@ Portable contracts use relative POSIX paths with no alternate separators, empty 
 ## D-007 — Evidence before authority
 
 Starter selection, source adoption, site creation, content indexing, and change previews are pure portable layers. They may classify and explain immutable evidence, but cannot clone, write, execute, publish, or deploy. Host mutation capabilities will be added as separate durable operations after the review contracts are stable.
+
+## D-008 — Focused readiness workspaces
+
+Operational evidence is presented through an at-a-glance overview and task-specific tabs, not one long settings page. Draft, media, localization, library, and preview readiness stay independently addressable in the interface and independently versioned in code. A green assessment communicates evidence quality only; it never implies that the corresponding host mutation capability exists.

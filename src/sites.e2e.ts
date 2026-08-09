@@ -47,3 +47,24 @@ test('publishing clearly remains non-authoritative', async ({ page }) => {
 	await expect(page.getByText('Proposed files')).toBeVisible();
 	await expect(page.getByText('Deletes')).toBeVisible();
 });
+
+test('organizes readiness evidence into focused tabs', async ({ page }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Readiness', exact: true }).click();
+
+	await expect(
+		page.getByRole('heading', { name: 'Ready for the host, without pretending.' })
+	).toBeVisible();
+	await expect(page.getByLabel('Foundation readiness overview')).toBeVisible();
+	await page.getByRole('button', { name: 'Media', exact: true }).click();
+	await expect(
+		page.getByRole('heading', { name: 'Variants are deterministic and accessibility-aware.' })
+	).toBeVisible();
+	await expect(page.getByText('Host capability required')).toBeVisible();
+	await expect(page.getByText('Separate authority required')).not.toBeVisible();
+	await page.getByRole('button', { name: 'Preview', exact: true }).click();
+	await expect(
+		page.getByRole('heading', { name: 'Checks can pass without authorizing deployment.' })
+	).toBeVisible();
+	await expect(page.getByText('Separate authority required')).toBeVisible();
+});
