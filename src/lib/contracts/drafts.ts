@@ -51,9 +51,24 @@ export const DraftSaveResultSchema = z
 		}
 	});
 
+export const DraftConflictResolutionSchema = z
+	.object({
+		contract: z.literal('tend.host/sites-draft-conflict-resolution/v1'),
+		projectId: IdentifierSchema,
+		entryId: IdentifierSchema,
+		draftSha256: Sha256HexSchema,
+		repositorySha256: Sha256HexSchema,
+		choice: z.enum(['keep_draft', 'use_repository']),
+		resultSha256: Sha256HexSchema,
+		canApply: z.literal(false),
+		blockedReason: z.literal('host_repository_capability_required')
+	})
+	.strict();
+
 export type DraftSaveRequest = z.infer<typeof DraftSaveRequestSchema>;
 export type DraftRevision = z.infer<typeof DraftRevisionSchema>;
 export type DraftSaveResult = z.infer<typeof DraftSaveResultSchema>;
+export type DraftConflictResolution = z.infer<typeof DraftConflictResolutionSchema>;
 
 export function evaluateDraftSave(
 	requestInput: DraftSaveRequest,
@@ -140,4 +155,25 @@ export function appendUndoRevision(
 	}
 	if (last && revision.sequence <= last.sequence) throw new Error('Undo history must be monotonic');
 	return [...parsed, revision].slice(-limit);
+}
+
+export function planDraftConflictResolution(
+	projectId: string,
+	entryId: string,
+	draftSha256: string,
+	repositorySha256: string,
+	choice: DraftConflictResolution['choice']
+): DraftConflictResolution {
+	if (draftSha256 === repositorySha256) throw new Error('Draft is not in conflict');
+	return DraftConflictResolutionSchema.parse({
+		contract: 'tend.host/sites-draft-conflict-resolution/v1',
+		projectId,
+		entryId,
+		draftSha256,
+		repositorySha256,
+		choice,
+		resultSha256: choice === 'keep_draft' ? draftSha256 : repositorySha256,
+		canApply: false,
+		blockedReason: 'host_repository_capability_required'
+	});
 }

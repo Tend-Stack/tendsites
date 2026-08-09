@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { appendUndoRevision, evaluateDraftSave, type DraftSaveRequest } from './drafts';
+import {
+	appendUndoRevision,
+	evaluateDraftSave,
+	planDraftConflictResolution,
+	type DraftSaveRequest
+} from './drafts';
 
 const request: DraftSaveRequest = {
 	contract: 'tend.host/sites-draft-save-request/v1',
@@ -75,5 +80,20 @@ describe('draft revisions', () => {
 		expect(() =>
 			appendUndoRevision(history, { ...first, sequence: 3, baseRevision: 'f'.repeat(64) }, 2)
 		).toThrow('committed source revisions');
+	});
+
+	it('produces an explicit, non-applying conflict choice', () => {
+		const plan = planDraftConflictResolution(
+			'weekend-notes',
+			'field-notes-en',
+			'a'.repeat(64),
+			'b'.repeat(64),
+			'keep_draft'
+		);
+		expect(plan.resultSha256).toBe('a'.repeat(64));
+		expect(plan.canApply).toBe(false);
+		expect(() =>
+			planDraftConflictResolution('site', 'entry', 'a'.repeat(64), 'a'.repeat(64), 'keep_draft')
+		).toThrow('not in conflict');
 	});
 });
