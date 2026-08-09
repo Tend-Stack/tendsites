@@ -15,7 +15,8 @@ Completion is measured only from the top-level product milestones below. Nested 
 - [x] Pure bounded SvelteKit compatibility inspector with canonical path and lockfile rejection.
 - [x] Modular, responsive, read-only Studio foundation.
 - [x] tend.host extension v2 packaging with generated integrity.
-- [ ] Install the produced ZIP in an isolated tend.host fixture and verify mount/unmount cleanup.
+- [x] Install the produced ZIP in an isolated tend.host fixture and verify mount/unmount cleanup.
+  - **Complete:** The exact packaged ZIP passes tend.host schema-2 install, runtime-integrity, scoped-storage, uninstall, and filesystem cleanup checks in a disposable data directory. Browser tests mount/unmount the built module twice and prove application-tree cleanup plus stylesheet deduplication.
 
 ## 1. Create and adopt
 
@@ -23,9 +24,11 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete:** Strict catalog/revision/file manifests and four digest-certified source bundles.
 - [ ] Friendly five-step creation workflow backed by a durable host operation.
   - **Complete:** Deterministic review plan shown in the five-step workflow.
+  - **Complete:** Exact-plan creation intent and shared canonical/idempotent host-operation request/evidence contracts.
   - **Pending:** Persist and execute the reviewed plan through an assigned host capability.
 - [ ] Existing-repository analyzer with bounded checkout and compatibility report.
   - **Complete:** Pure snapshot classification and compatibility report.
+  - **Complete:** Opaque repository selector, bounded disposable-checkout intent, host-only credential policy, and strict cleanup result.
   - **Pending:** Authenticated, digest-bound, bounded checkout supplied by the host.
 - [x] Explicit change-set preview before the first commit.
   - **Complete:** Impact counts, canonical ordering, readable field diffs, destructive-review flags, and no-apply boundaries.
@@ -55,6 +58,8 @@ Completion is measured only from the top-level product milestones below. Nested 
 ## 3. Isolated previews
 
 - [ ] Separate-origin preview service with no panel credentials.
+  - **Complete:** Exact source/change/policy execution intent with project/revision binding and structurally absent panel/deployment authority.
+  - **Pending:** Durable host queue, isolated execution, separate-origin routing, and retained evidence.
 - [x] Resource, time, network, and storage limits.
 - [x] Frozen installs and truthful required-check evidence.
   - **Complete:** Separate-origin resource policy and required-check assessment with no deploy authority.
@@ -66,7 +71,8 @@ Completion is measured only from the top-level product milestones below. Nested 
 ## 4. Publishing and domains
 
 - [ ] Reviewable commit plan and durable publish operation.
-  - The immutable, non-committing review plan is complete; durable host execution remains pending.
+  - **Complete:** The immutable non-committing plan plus an assigned-deployment execution intent bound to explicit review and health-gated prior-artifact retention.
+  - **Pending:** Durable host execution and evidence persistence.
 - [ ] Build-once artifact identity and deployment handoff.
   - Commit/recipe/platform/SBOM/provenance artifact identity is complete; handoff remains pending.
 - [ ] Health-gated traffic switch with retained last-good rollback.

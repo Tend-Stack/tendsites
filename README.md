@@ -8,6 +8,8 @@ TEND Sites helps people create, edit, preview, and publish modern websites witho
 
 Four complete starter source bundles are now included and digest-certified. Content can be parsed and serialized through the bounded Markdown/JSON-frontmatter adapter, while local SEO and accessibility assistance works without sending user content anywhere.
 
+The packaged extension is exercised against tend.host's real schema-2 installer in a disposable fixture, including integrity, scoped-storage, uninstall, and file cleanup. Its browser lifecycle is also mounted and unmounted twice. Portable operation intents are ready for creation, repository inspection, isolated preview, and publishing, but remain non-executing until tend.host supplies narrow assigned capabilities.
+
 ## Product principles
 
 - **Grandma-friendly by default.** Ordinary work follows short, plain-language steps.

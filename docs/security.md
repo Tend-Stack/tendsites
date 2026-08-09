@@ -29,6 +29,8 @@ Block definitions forbid panel scripts and reject unknown inspector fields. Prev
 
 Starter files are content-addressed individually and as one canonical revision before use. Markdown frontmatter accepts canonical JSON values rather than executing a general YAML language, rejects duplicate or unsafe keys, and remains bounded. Local content assistance sends nothing and cannot apply suggestions.
 
+Future privileged work must cross the typed host-operation bridge. The extension never receives a raw provider credential, repository URL override, filesystem path, server coordinate, shell command, deployment key, or generic capability bearer. Assigned contexts are short-lived and exact-project/capability/revision bound; canonical intent and idempotency digests bind retries, while monotonic evidence rejects stale or substituted results.
+
 ## Component and theme trust
 
 - **Official** items are reviewed, versioned, and integrity-bound.

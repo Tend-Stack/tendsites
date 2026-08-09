@@ -46,6 +46,12 @@ Generated site = ordinary files + assets + Git history
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 
+## Host operation bridge
+
+Privileged work is represented by a shared `sites-host-operation-request/v1` envelope. A request is valid only inside a short-lived host-supplied context bound to one project, one capability, and, when applicable, one exact source revision. Canonical intent and idempotency digests make retries comparable without putting a bearer token in extension state.
+
+Creation, repository inspection, isolated preview, and publishing each define a strict intent layered over that envelope. Returned evidence is monotonic and exact-request-bound. These portable contracts do not implement a queue, checkout, commit, build, deployment, route, filesystem write, or provider call; tend.host remains responsible for authorization, persistence, execution, recovery, and audit.
+
 No repository, draft persistence, build, preview execution, deployment, traffic routing, domain assignment, media transformation, library installation, or AI mutation exists yet. Passing a pure assessment never promotes it into authority.
 
 The compatibility inspector accepts provider-supplied file names plus parsed `package.json` and optional `tend.site.json` data. It rejects path traversal, duplicate canonical paths, conflicting lockfiles, missing build scripts, malformed metadata, and non-SvelteKit projects before producing an argv-only install/build plan. The future host remains responsible for authenticated checkout, snapshot integrity, isolation, and execution.
