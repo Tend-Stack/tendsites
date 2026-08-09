@@ -31,3 +31,7 @@ Starter selection, source adoption, site creation, content indexing, and change 
 ## D-008 — Focused readiness workspaces
 
 Operational evidence is presented through an at-a-glance overview and task-specific tabs, not one long settings page. Draft, media, localization, library, and preview readiness stay independently addressable in the interface and independently versioned in code. A green assessment communicates evidence quality only; it never implies that the corresponding host mutation capability exists.
+
+## D-009 — Build evidence before execution services
+
+Page composition, content review, previews, publishing, domains, ecosystem changes, and AI requests receive portable evidence contracts before host mutation is enabled. The same contracts will become inputs to narrow tend.host capabilities; they are not temporary UI models and cannot execute by themselves.

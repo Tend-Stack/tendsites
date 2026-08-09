@@ -33,11 +33,17 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/contracts/localization.ts` measures locale coverage and binds translation proposals to source evidence.
 - `src/lib/contracts/library.ts` combines immutable library identity, adapter compatibility, and certification evidence.
 - `src/lib/contracts/preview-policy.ts` evaluates separate-origin resource limits and required checks without deployment authority.
+- `src/lib/contracts/blocks.ts` validates page documents against script-free, responsive block definitions and supports deterministic ordering.
+- `src/lib/planning/content-diff.ts` turns repository evidence into readable field-level changes without apply authority.
+- `src/lib/contracts/preview-lifecycle.ts` models supersession, expiry, and cleanup eligibility without performing cleanup.
+- `src/lib/contracts/publishing.ts` freezes reviewed commit, artifact, traffic, domain, and outage-recovery evidence.
+- `src/lib/contracts/library-state.ts` separates installed provenance from review-only install/update/removal plans.
+- `src/lib/contracts/ai.ts` enforces user-configured providers, browser credential denial, purpose, redaction, input, and cost policy before a request can be reviewed.
 - `src/lib/sites/` contains a fixture-backed, read-only Studio experience with an overview-first, tabbed readiness workspace.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 
-No repository, draft persistence, build, preview execution, deployment, domain, media transformation, library installation, or AI mutation exists yet.
+No repository, draft persistence, build, preview execution, deployment, traffic routing, domain assignment, media transformation, library installation, or AI mutation exists yet. Passing a pure assessment never promotes it into authority.
 
 The compatibility inspector accepts provider-supplied file names plus parsed `package.json` and optional `tend.site.json` data. It rejects path traversal, duplicate canonical paths, conflicting lockfiles, missing build scripts, malformed metadata, and non-SvelteKit projects before producing an argv-only install/build plan. The future host remains responsible for authenticated checkout, snapshot integrity, isolation, and execution.
 

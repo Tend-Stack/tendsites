@@ -43,8 +43,8 @@ Status values are evidence-based: completed items have code and proportional tes
 - [ ] Autosave drafts separated from committed source.
   - [x] Monotonic draft revision, exact-retry, stale-base conflict, and bounded undo contracts.
   - [ ] Persist encrypted project-scoped drafts through a durable host capability.
-- [ ] Accessible block canvas with schema-driven inspector.
-- [ ] Responsive/mobile editing model and keyboard navigation.
+- [x] Accessible block canvas with schema-driven inspector.
+- [x] Responsive/mobile editing model and keyboard navigation.
 - [ ] Undo history and clear conflict resolution.
 - [ ] Repository media lifecycle with accessible variants.
   - [x] Digest-bound asset and deterministic no-upscale variant-plan contracts.
@@ -61,23 +61,30 @@ Status values are evidence-based: completed items have code and proportional tes
   - [x] Separate-origin resource policy and required-check assessment with no deploy authority.
   - [ ] Execute isolated previews and retain bounded evidence through durable host jobs.
 - [ ] Preview supersession, expiry, cleanup, and recovery.
+  - Portable generation, supersession, expiry, and cleanup-eligibility evidence is complete; host cleanup remains pending.
 
 ## 4. Publishing and domains
 
 - [ ] Reviewable commit plan and durable publish operation.
+  - The immutable, non-committing review plan is complete; durable host execution remains pending.
 - [ ] Build-once artifact identity and deployment handoff.
+  - Commit/recipe/platform/SBOM/provenance artifact identity is complete; handoff remains pending.
 - [ ] Health-gated traffic switch with retained last-good rollback.
+  - The decision contract retains the prior artifact unless all checks pass; host routing remains pending.
 - [ ] Assigned-domain flow with TLS and DNS evidence.
-- [ ] Recovery matrix for provider, queue, worker, registry, and acknowledgement outages.
+  - Canonical hostname, DNS ownership, and TLS evidence contracts are complete; assignment remains pending.
+- [x] Recovery matrix for provider, queue, worker, registry, destination, and acknowledgement outages.
 
 ## 5. Ecosystem and optional AI
 
-- [ ] Official/community/installed theme and component library.
-- [ ] Certification, provenance, compatibility, update, and removal contracts.
+- [x] Official/community/installed theme and component library.
+- [x] Certification, provenance, compatibility, update, and removal contracts.
   - [x] Immutable item, adapter compatibility, five-check certification, and no-install assessment contracts.
   - [ ] Add signed catalog publication plus durable install, update, and removal operations.
 - [ ] User-configured AI providers with redaction, cost preview, and diff approval.
+  - Provider, purpose, browser-credential denial, retention, redaction, input, and cost planning is complete; sending remains pending.
 - [ ] Content, translation, SEO, accessibility, and block-composition assistance.
+  - All five assistance purposes are represented in review-only proposal/request contracts; provider execution remains pending.
 
 ## Later
 

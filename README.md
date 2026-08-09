@@ -4,7 +4,7 @@
 
 TEND Sites helps people create, edit, preview, and publish modern websites without making them learn Git, Markdown, routing, build commands, or DNS. Underneath the friendly workflow, every site remains ordinary source code and content that can build without tend.host.
 
-> Foundation status: the repository currently contains versioned content and starter contracts, safe source-adoption evidence, deterministic review-only creation/change plans, draft conflict and undo evidence, media-variant plans, localization coverage, library certification, isolated-preview policy evidence, extension packaging, and a modular read-only Studio. It does not yet persist drafts, transform media, install library items, execute previews, mutate repositories, deploy sites, configure domains, or call AI services.
+> Foundation status: the repository now includes schema-driven page blocks, keyboard/mobile Studio navigation, content-aware diffs, preview lifecycle evidence, reviewed commit and immutable artifact contracts, health-gated traffic decisions, domain/TLS evidence, outage recovery policy, library lifecycle plans, and privacy/cost-bounded AI request plans. These layers remain deliberately non-authoritative: the extension does not yet persist source, execute previews, route traffic, assign domains, install library code, or call AI services.
 
 ## Product principles
 
