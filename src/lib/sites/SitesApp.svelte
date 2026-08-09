@@ -37,6 +37,7 @@
 	} from './foundation-data';
 	import { goals, modules, projects, themes } from './fixtures';
 	import {
+		assistanceEvidence,
 		draftEvidence,
 		libraryEvidence,
 		localizationEvidence,
@@ -45,7 +46,8 @@
 	} from './readiness-data';
 
 	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
-	type ReadinessArea = 'overview' | 'drafts' | 'media' | 'languages' | 'library' | 'preview';
+	type ReadinessArea =
+		'overview' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
 
 	let { embedded = false }: { embedded?: boolean } = $props();
 	let view = $state<View>('home');
@@ -60,6 +62,7 @@
 	let pageBlocks = $state(['Split Hero', 'Field Notes']);
 	let selectedBlock = $state('Split Hero');
 	let studioPanel = $state<'outline' | 'canvas' | 'inspector'>('canvas');
+	let conflictChoice = $state<'keep_draft' | 'use_repository' | null>(null);
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -566,7 +569,7 @@
 				<span class="status live">5 contracts verified</span>
 			</section>
 			<nav class="readiness-tabs" aria-label="Readiness sections">
-				{#each [['overview', 'Overview'], ['drafts', 'Draft safety'], ['media', 'Media'], ['languages', 'Languages'], ['library', 'Library'], ['preview', 'Preview']] as tab (tab[0])}
+				{#each [['overview', 'Overview'], ['drafts', 'Draft safety'], ['media', 'Media'], ['languages', 'Languages'], ['library', 'Library'], ['preview', 'Preview'], ['guidance', 'Guidance']] as tab (tab[0])}
 					<button
 						class:active={readinessArea === tab[0]}
 						onclick={() => (readinessArea = tab[0] as ReadinessArea)}>{tab[1]}</button
@@ -605,6 +608,13 @@
 							><strong>Preview</strong><small>Separate-origin policy evidence</small></span
 						><em>Ready</em></button
 					>
+					<button onclick={() => (readinessArea = 'guidance')}
+						><Sparkles size={21} /><span
+							><strong>Guidance</strong><small
+								>{assistanceEvidence.suggestions.length} helpful suggestions</small
+							></span
+						><em>Local</em></button
+					>
 				</section>
 			{:else}
 				<section class="readiness-detail">
@@ -628,6 +638,21 @@
 								<dd>Not connected</dd>
 							</div>
 						</dl>
+						<div class="conflict-actions" aria-label="Conflict resolution preview">
+							<button
+								class="secondary"
+								aria-pressed={conflictChoice === 'keep_draft'}
+								onclick={() => (conflictChoice = 'keep_draft')}>Keep my draft</button
+							>
+							<button
+								class="secondary"
+								aria-pressed={conflictChoice === 'use_repository'}
+								onclick={() => (conflictChoice = 'use_repository')}>Use repository version</button
+							>
+							{#if conflictChoice}<small
+									>Resolution selected for review. No source was changed.</small
+								>{/if}
+						</div>
 					{:else if readinessArea === 'media'}
 						<div class="readiness-icon"><Image size={24} /></div>
 						<div>
@@ -688,7 +713,7 @@
 								<dd>Forbidden</dd>
 							</div>
 						</dl>
-					{:else}
+					{:else if readinessArea === 'preview'}
 						<div class="readiness-icon"><TestTube2 size={24} /></div>
 						<div>
 							<span class="eyebrow">Isolated preview</span>
@@ -705,6 +730,26 @@
 							<div>
 								<dt>Deploy</dt>
 								<dd>Separate authority required</dd>
+							</div>
+						</dl>
+					{:else}
+						<div class="readiness-icon"><Sparkles size={24} /></div>
+						<div>
+							<span class="eyebrow">Private local guidance</span>
+							<h2>Useful checks before involving an AI provider.</h2>
+							<p>
+								{assistanceEvidence.suggestions.length} SEO or accessibility suggestions were found locally.
+								Nothing was sent or changed.
+							</p>
+						</div>
+						<dl>
+							<div>
+								<dt>Network</dt>
+								<dd>Not used</dd>
+							</div>
+							<div>
+								<dt>Apply</dt>
+								<dd>Review required</dd>
 							</div>
 						</dl>
 					{/if}
@@ -995,6 +1040,21 @@
 		margin: 0;
 		font-weight: 700;
 		text-align: right;
+	}
+	.conflict-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		grid-column: 2 / -1;
+		flex-wrap: wrap;
+	}
+	.conflict-actions button[aria-pressed='true'] {
+		border-color: var(--green);
+		color: var(--green);
+	}
+	.conflict-actions small {
+		width: 100%;
+		color: var(--muted);
 	}
 	.top-actions {
 		margin-left: auto;
@@ -1926,6 +1986,9 @@
 			grid-template-columns: auto 1fr;
 		}
 		.readiness-detail dl {
+			grid-column: 1 / -1;
+		}
+		.conflict-actions {
 			grid-column: 1 / -1;
 		}
 		.project-grid,

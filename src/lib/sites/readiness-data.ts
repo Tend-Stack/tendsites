@@ -3,6 +3,7 @@ import { assessLibraryItem } from '../contracts/library';
 import { reportLocalizationCoverage } from '../contracts/localization';
 import { planMediaVariants } from '../contracts/media';
 import { assessPreviewEvidence } from '../contracts/preview-policy';
+import { inspectContentAssistance } from '../content/assistance';
 
 export const draftEvidence = evaluateDraftSave(
 	{
@@ -161,3 +162,10 @@ export const previewEvidence = assessPreviewEvidence(
 	'https://panel.example.test',
 	'2026-08-09T20:02:00Z'
 );
+
+export const assistanceEvidence = inspectContentAssistance('field-notes-en', {
+	title: 'Field Notes',
+	description: null,
+	body: '# Field Notes\n[Read more](/about)',
+	imageAlt: ['Open journal beside a camera']
+});

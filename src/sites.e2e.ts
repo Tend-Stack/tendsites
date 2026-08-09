@@ -56,6 +56,12 @@ test('organizes readiness evidence into focused tabs', async ({ page }) => {
 		page.getByRole('heading', { name: 'Ready for the host, without pretending.' })
 	).toBeVisible();
 	await expect(page.getByLabel('Foundation readiness overview')).toBeVisible();
+	await page.getByRole('button', { name: 'Draft safety', exact: true }).click();
+	await page.getByRole('button', { name: 'Keep my draft' }).click();
+	await expect(
+		page.getByText('Resolution selected for review. No source was changed.')
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Overview', exact: true }).click();
 	await page.getByRole('button', { name: 'Media', exact: true }).click();
 	await expect(
 		page.getByRole('heading', { name: 'Variants are deterministic and accessibility-aware.' })
@@ -67,6 +73,11 @@ test('organizes readiness evidence into focused tabs', async ({ page }) => {
 		page.getByRole('heading', { name: 'Checks can pass without authorizing deployment.' })
 	).toBeVisible();
 	await expect(page.getByText('Separate authority required')).toBeVisible();
+	await page.getByRole('button', { name: 'Guidance', exact: true }).click();
+	await expect(
+		page.getByRole('heading', { name: 'Useful checks before involving an AI provider.' })
+	).toBeVisible();
+	await expect(page.getByText('Not used')).toBeVisible();
 });
 
 test('supports keyboard block ordering and a purpose-built mobile studio', async ({ page }) => {
