@@ -1,0 +1,15 @@
+{
+	"schema": 2,
+	"id": "host.tend.sites",
+	"name": "TEND Sites",
+	"version": "0.1.0",
+	"author": "TEND Stack",
+	"description": "A calm, guided website studio for tend.host.",
+	"category": "productivity",
+	"icon": "icon.svg",
+	"ui": {
+		"module": "index.js",
+		"mount": "shell-app"
+	},
+	"permissions": []
+}

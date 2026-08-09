@@ -1,0 +1,21 @@
+# Durable decisions
+
+## D-001 — Canonical repository name
+
+The project lives at `Tend-Stack/tendsites`. Earlier handoff material used `tend-sites`; `tendsites` is canonical for repository URLs and package automation. The extension identity remains `host.tend.sites` and the display name remains TEND Sites.
+
+## D-002 — Independent extension
+
+TEND Sites remains a separate repository and release artifact. Generic host capabilities may be added to tend.host, but site-specific code and branching remain here.
+
+## D-003 — Portable, Git-native output
+
+Generated sites use normal source files, assets, commits, and package scripts. A default static site does not require a runtime connection to tend.host.
+
+## D-004 — Read-only foundation before authority
+
+The first package intentionally requests no privileged permissions. It demonstrates the information architecture and freezes portable contracts before repository, preview, deploy, domain, or AI mutation is wired.
+
+## D-005 — Separate preview origin
+
+Untrusted target code never executes inside the panel origin. Preview isolation is a prerequisite, not a later hardening task.
