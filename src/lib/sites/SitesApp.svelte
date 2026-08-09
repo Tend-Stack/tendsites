@@ -6,7 +6,9 @@
 		Check,
 		CirclePlus,
 		Cloud,
+		FileSearch,
 		FileText,
+		GitBranch,
 		Image,
 		LayoutGrid,
 		Library,
@@ -14,18 +16,28 @@
 		PanelLeft,
 		Rocket,
 		Settings2,
+		ShieldCheck,
 		Sparkles,
 		X
 	} from '@lucide/svelte';
 
+	import type { SiteGoal, SiteModule } from '../contracts/catalog';
+	import { planSiteCreation } from '../planning/site-creation';
+
+	import {
+		demoAdoptionReport,
+		demoChangePreview,
+		demoContentIndex,
+		starterCatalog
+	} from './foundation-data';
 	import { goals, modules, projects, themes } from './fixtures';
 
-	type View = 'home' | 'create' | 'studio' | 'library' | 'publish';
+	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'publish';
 
 	let { embedded = false }: { embedded?: boolean } = $props();
 	let view = $state<View>('home');
 	let wizardStep = $state(1);
-	let selectedGoal = $state('blog');
+	let selectedGoal = $state<SiteGoal>('blog');
 	let selectedTheme = $state('editorial');
 	let selectedModules = $state<string[]>(['Home', 'About', 'Blog', 'Gallery', 'Contact']);
 	let siteName = $state('Weekend Notes');
@@ -39,6 +51,37 @@
 	const selectedThemeName = $derived(
 		themes.find((theme) => theme.id === selectedTheme)?.name ?? 'Tend Editorial'
 	);
+	const moduleIds: Readonly<Record<string, SiteModule>> = {
+		Home: 'home',
+		About: 'about',
+		Blog: 'blog',
+		Documentation: 'documentation',
+		Gallery: 'gallery',
+		Projects: 'projects',
+		Contact: 'contact'
+	};
+	const selectedTemplate = $derived(
+		starterCatalog.find((template) => template.id === selectedTheme) ?? starterCatalog[1]
+	);
+	const reviewPlan = $derived.by(() =>
+		planSiteCreation(
+			{
+				contract: 'tend.host/sites-creation-selection/v1',
+				planId: '55555555-5555-4555-8555-555555555555',
+				projectId: 'planned-site',
+				name: siteName.trim() || 'Untitled site',
+				goal: selectedGoal,
+				templateId: selectedTemplate.id,
+				templateRevisionSha256: selectedTemplate.revisionSha256,
+				modules: selectedModules.map((module) => moduleIds[module]),
+				accent,
+				defaultLocale: 'en',
+				requestedAt: '2026-08-09T20:00:00Z'
+			},
+			selectedTemplate
+		)
+	);
+	const contentIndex = demoContentIndex;
 
 	function toggleModule(module: string) {
 		selectedModules = selectedModules.includes(module)
@@ -143,9 +186,7 @@
 						<h2>Connect an existing site</h2>
 						<p>Safe adoption will analyze first and propose changes second.</p>
 					</div>
-					<button class="secondary" disabled title="Host repository capability is not enabled yet"
-						>Coming next</button
-					>
+					<button class="secondary" onclick={() => open('adopt')}>View safe analysis</button>
 				</article>
 			</section>
 		</main>
@@ -242,6 +283,16 @@
 						<div>
 							<span>Sections</span><strong>{selectedModules.join(', ') || 'Start blank'}</strong>
 						</div>
+						<div>
+							<span>Starter revision</span><strong
+								>{reviewPlan.templateRevisionSha256.slice(0, 10)}…</strong
+							>
+						</div>
+						<div>
+							<span>Planned source files</span><strong
+								>{reviewPlan.files.length} reviewed files</strong
+							>
+						</div>
 					</div>
 					<div class="honesty-note">
 						<Cloud size={20} />
@@ -270,6 +321,67 @@
 				{/if}
 			</div>
 		</main>
+	{:else if view === 'adopt'}
+		<main class="page adoption-page">
+			<button class="back-link" onclick={() => open('home')}
+				><ArrowLeft size={17} /> Your sites</button
+			>
+			<div class="wizard-heading">
+				<span class="eyebrow">Safe repository adoption</span>
+				<h1>Understand first. Change nothing.</h1>
+				<p>
+					This sample report shows what TEND Sites will verify before proposing any source changes.
+				</p>
+			</div>
+			<div class="adoption-grid">
+				<section class="report-card">
+					<div class="report-heading">
+						<span class="icon-box"><FileSearch size={22} /></span>
+						<div>
+							<span class="eyebrow">Compatibility report</span>
+							<h2>Ready to review</h2>
+						</div>
+						<span class="status live">{demoAdoptionReport.status}</span>
+					</div>
+					<div class="check-list">
+						{#each demoAdoptionReport.checks as check (check.id)}
+							<div>
+								<span><Check size={15} /></span>
+								<div>
+									<strong>{check.summary}</strong><small>{check.id.replaceAll('_', ' ')}</small>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</section>
+				<aside class="evidence-card">
+					<span class="evidence-icon"><ShieldCheck size={24} /></span>
+					<h2>Protected by default</h2>
+					<p>Analysis receives no deployment destination and no protected secrets.</p>
+					<dl>
+						<div>
+							<dt>Snapshot</dt>
+							<dd>{demoAdoptionReport.snapshotId.slice(0, 8)}…</dd>
+						</div>
+						<div>
+							<dt>Commit</dt>
+							<dd>{demoAdoptionReport.commit.slice(0, 10)}…</dd>
+						</div>
+						<div>
+							<dt>Secrets</dt>
+							<dd>Not available</dd>
+						</div>
+						<div>
+							<dt>Production</dt>
+							<dd>Not available</dd>
+						</div>
+					</dl>
+					<button class="primary" disabled title="Authenticated host checkout is not connected yet"
+						><GitBranch size={17} /> Connect through tend.host</button
+					>
+				</aside>
+			</div>
+		</main>
 	{:else if view === 'studio'}
 		<main class="studio-page">
 			<aside class="studio-sidebar" aria-label="Site outline">
@@ -287,6 +399,11 @@
 						onclick={() => open('library')}><Library size={17} /> Components</button
 					>
 				</nav>
+				<div class="content-summary" aria-label="Content overview">
+					<span><strong>{contentIndex.total}</strong> entries</span>
+					<span><strong>{contentIndex.drafts}</strong> drafts</span>
+					<span><strong>{Object.keys(contentIndex.byLocale).length}</strong> languages</span>
+				</div>
 				<button class="ai-card"
 					><Sparkles size={18} /><span
 						><strong>Ask Sites AI</strong><small>Capability not connected yet</small></span
@@ -430,7 +547,13 @@
 						</div>
 					</article>
 					<article class="details">
-						<span>Operation</span><strong>Not created</strong><span>Current site</span><strong
+						<span>Proposed files</span><strong>{demoChangePreview.files.length}</strong><span
+							>Creates</span
+						><strong>{demoChangePreview.counts.create}</strong><span>Updates</span><strong
+							>{demoChangePreview.counts.update}</strong
+						><span>Deletes</span><strong>{demoChangePreview.counts.delete}</strong><span
+							>Operation</span
+						><strong>Not created</strong><span>Current site</span><strong
 							>Online and unchanged</strong
 						><span>Rollback</span><strong>Previous revision retained</strong>
 					</article>
@@ -751,6 +874,91 @@
 		grid-column: 2;
 		justify-self: start;
 	}
+	.adoption-page {
+		max-width: 1040px;
+	}
+	.adoption-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.8fr);
+		gap: 16px;
+	}
+	.report-card,
+	.evidence-card {
+		padding: 22px;
+		border: 1px solid var(--border);
+		border-radius: 16px;
+		background: linear-gradient(145deg, #11181b, #0d1315);
+	}
+	.report-heading {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: center;
+		gap: 14px;
+		padding-bottom: 18px;
+		border-bottom: 1px solid var(--border);
+	}
+	.report-heading h2,
+	.evidence-card h2 {
+		margin: 0;
+	}
+	.check-list {
+		display: grid;
+		gap: 5px;
+		margin-top: 14px;
+	}
+	.check-list > div {
+		display: grid;
+		grid-template-columns: 28px 1fr;
+		gap: 10px;
+		align-items: center;
+		padding: 10px;
+		border-radius: 10px;
+		background: #0a1113;
+	}
+	.check-list > div > span {
+		display: grid;
+		place-items: center;
+		width: 26px;
+		height: 26px;
+		color: var(--green);
+		border-radius: 50%;
+		background: #103226;
+	}
+	.check-list small {
+		display: block;
+		margin-top: 2px;
+		color: var(--muted);
+		font-size: 10px;
+		text-transform: capitalize;
+	}
+	.evidence-icon {
+		display: inline-flex;
+		color: var(--green);
+	}
+	.evidence-card p {
+		color: var(--muted);
+	}
+	.evidence-card dl {
+		display: grid;
+		gap: 8px;
+		margin: 20px 0;
+	}
+	.evidence-card dl div {
+		display: flex;
+		justify-content: space-between;
+		gap: 14px;
+		font-size: 12px;
+	}
+	.evidence-card dt {
+		color: var(--muted);
+	}
+	.evidence-card dd {
+		margin: 0;
+		font-weight: 700;
+	}
+	.evidence-card .primary {
+		width: 100%;
+	}
 	.resume-card p,
 	.quick-card p {
 		margin: 0;
@@ -1035,6 +1243,25 @@
 		border: 1px solid #245641;
 		border-radius: 11px;
 		background: #0d2019;
+	}
+	.content-summary {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 5px;
+		margin-top: 18px;
+	}
+	.content-summary span {
+		padding: 8px 4px;
+		color: #748880;
+		text-align: center;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		font-size: 8px;
+	}
+	.content-summary strong {
+		display: block;
+		color: #dbe8e3;
+		font-size: 13px;
 	}
 	.ai-card small {
 		display: block;
@@ -1322,7 +1549,8 @@
 			display: none;
 		}
 		.continue-grid,
-		.publish-grid {
+		.publish-grid,
+		.adoption-grid {
 			grid-template-columns: 1fr;
 		}
 	}

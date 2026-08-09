@@ -23,3 +23,7 @@ Untrusted target code never executes inside the panel origin. Preview isolation 
 ## D-006 — Canonical repository paths and frozen installs
 
 Portable contracts use relative POSIX paths with no alternate separators, empty segments, dot segments, traversal, drive prefixes, or control characters. Repository inspection may normalize a provider snapshot once, then rejects collisions. Execution plans require exactly one recognized package-manager lockfile and expose argv arrays rather than browser-provided shell strings.
+
+## D-007 — Evidence before authority
+
+Starter selection, source adoption, site creation, content indexing, and change previews are pure portable layers. They may classify and explain immutable evidence, but cannot clone, write, execute, publish, or deploy. Host mutation capabilities will be added as separate durable operations after the review contracts are stable.
