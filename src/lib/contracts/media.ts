@@ -50,9 +50,31 @@ export const MediaVariantPlanSchema = z
 	})
 	.strict();
 
+export const MediaLifecyclePlanSchema = z
+	.object({
+		contract: z.literal('tend.host/sites-media-lifecycle-plan/v1'),
+		projectId: IdentifierSchema,
+		assetId: IdentifierSchema,
+		action: z.enum(['upload', 'retain', 'transform', 'remove']),
+		sourceSha256: Sha256HexSchema.nullable(),
+		requiresNamedApproval: z.boolean(),
+		canApply: z.literal(false),
+		blockedReason: z.literal('host_media_capability_required')
+	})
+	.strict()
+	.superRefine((value, context) => {
+		if (value.action !== 'remove' && value.sourceSha256 === null) {
+			context.addIssue({ code: 'custom', message: 'Media action requires source evidence' });
+		}
+		if ((value.action === 'remove') !== value.requiresNamedApproval) {
+			context.addIssue({ code: 'custom', message: 'Only removal requires named approval' });
+		}
+	});
+
 export type MediaAsset = z.infer<typeof MediaAssetSchema>;
 export type MediaVariantRequest = z.infer<typeof MediaVariantRequestSchema>;
 export type MediaVariantPlan = z.infer<typeof MediaVariantPlanSchema>;
+export type MediaLifecyclePlan = z.infer<typeof MediaLifecyclePlanSchema>;
 
 export function planMediaVariants(
 	assetInput: MediaAsset,
@@ -82,5 +104,23 @@ export function planMediaVariants(
 			.sort((left, right) => left.variantId.localeCompare(right.variantId)),
 		canTransform: false,
 		blockedReason: 'host_media_transform_capability_required'
+	});
+}
+
+export function planMediaLifecycle(
+	projectId: string,
+	assetId: string,
+	action: MediaLifecyclePlan['action'],
+	sourceSha256: string | null
+): MediaLifecyclePlan {
+	return MediaLifecyclePlanSchema.parse({
+		contract: 'tend.host/sites-media-lifecycle-plan/v1',
+		projectId,
+		assetId,
+		action,
+		sourceSha256,
+		requiresNamedApproval: action === 'remove',
+		canApply: false,
+		blockedReason: 'host_media_capability_required'
 	});
 }

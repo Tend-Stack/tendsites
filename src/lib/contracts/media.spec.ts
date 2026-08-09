@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MediaAssetSchema, planMediaVariants, type MediaAsset } from './media';
+import { MediaAssetSchema, planMediaLifecycle, planMediaVariants, type MediaAsset } from './media';
 
 const asset: MediaAsset = {
 	contract: 'tend.host/sites-media-asset/v1',
@@ -60,5 +60,14 @@ describe('repository media evidence', () => {
 		expect(() => MediaAssetSchema.parse({ ...asset, bytes: 100_000_001 })).toThrow();
 		expect(() => MediaAssetSchema.parse({ ...asset, contentType: 'image/svg+xml' })).toThrow();
 		expect(() => MediaAssetSchema.parse({ ...asset, alt: {} })).toThrow('alternative text');
+	});
+
+	it('plans every lifecycle action without applying it', () => {
+		for (const action of ['upload', 'retain', 'transform'] as const) {
+			expect(planMediaLifecycle('site', 'hero', action, 'a'.repeat(64)).canApply).toBe(false);
+		}
+		const removal = planMediaLifecycle('site', 'hero', 'remove', 'a'.repeat(64));
+		expect(removal.requiresNamedApproval).toBe(true);
+		expect(() => planMediaLifecycle('site', 'hero', 'upload', null)).toThrow('source evidence');
 	});
 });
