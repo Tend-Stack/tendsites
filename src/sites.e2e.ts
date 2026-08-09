@@ -68,3 +68,19 @@ test('organizes readiness evidence into focused tabs', async ({ page }) => {
 	).toBeVisible();
 	await expect(page.getByText('Separate authority required')).toBeVisible();
 });
+
+test('supports keyboard block ordering and a purpose-built mobile studio', async ({ page }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Studio', exact: true }).click();
+	const blocks = page.getByLabel('Page blocks');
+	await blocks.getByRole('button', { name: 'Field Notes' }).focus();
+	await page.keyboard.press('Alt+ArrowUp');
+	await expect(blocks.getByRole('button').first()).toHaveText('Field Notes');
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByRole('button', { name: 'Inspector', exact: true }).click();
+	await expect(page.getByLabel('Selected block settings')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Field Notes' })).toBeVisible();
+	await page.getByRole('button', { name: 'Canvas', exact: true }).click();
+	await expect(page.locator('.browser-frame')).toBeVisible();
+});

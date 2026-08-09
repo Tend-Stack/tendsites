@@ -2,6 +2,8 @@
 	import {
 		ArrowLeft,
 		ArrowRight,
+		ArrowUp,
+		ArrowDown,
 		BookOpen,
 		Check,
 		CirclePlus,
@@ -55,6 +57,9 @@
 	let accent = $state('#56e6ad');
 	let mobileMenu = $state(false);
 	let readinessArea = $state<ReadinessArea>('overview');
+	let pageBlocks = $state(['Split Hero', 'Field Notes']);
+	let selectedBlock = $state('Split Hero');
+	let studioPanel = $state<'outline' | 'canvas' | 'inspector'>('canvas');
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -104,6 +109,15 @@
 	function open(next: View) {
 		view = next;
 		mobileMenu = false;
+	}
+
+	function moveSelectedBlock(direction: 'up' | 'down') {
+		const index = pageBlocks.indexOf(selectedBlock);
+		const target = direction === 'up' ? index - 1 : index + 1;
+		if (index < 0 || target < 0 || target >= pageBlocks.length) return;
+		const next = [...pageBlocks];
+		[next[index], next[target]] = [next[target], next[index]];
+		pageBlocks = next;
 	}
 </script>
 
@@ -399,7 +413,23 @@
 		</main>
 	{:else if view === 'studio'}
 		<main class="studio-page">
-			<aside class="studio-sidebar" aria-label="Site outline">
+			<div class="studio-mobile-tabs" aria-label="Studio workspace">
+				<button class:active={studioPanel === 'outline'} onclick={() => (studioPanel = 'outline')}
+					>Outline</button
+				>
+				<button class:active={studioPanel === 'canvas'} onclick={() => (studioPanel = 'canvas')}
+					>Canvas</button
+				>
+				<button
+					class:active={studioPanel === 'inspector'}
+					onclick={() => (studioPanel = 'inspector')}>Inspector</button
+				>
+			</div>
+			<aside
+				class:mobile-visible={studioPanel === 'outline'}
+				class="studio-sidebar"
+				aria-label="Site outline"
+			>
 				<div>
 					<span class="eyebrow">Weekend Notes</span>
 					<h2>Home</h2>
@@ -414,6 +444,27 @@
 						onclick={() => open('library')}><Library size={17} /> Components</button
 					>
 				</nav>
+				<div class="block-outline" aria-label="Page blocks">
+					<span>Page blocks</span>
+					{#each pageBlocks as block (block)}
+						<button
+							class:active={selectedBlock === block}
+							aria-pressed={selectedBlock === block}
+							onclick={() => (selectedBlock = block)}
+							onfocus={() => (selectedBlock = block)}
+							onkeydown={(event) => {
+								if (event.altKey && event.key === 'ArrowUp') {
+									event.preventDefault();
+									moveSelectedBlock('up');
+								}
+								if (event.altKey && event.key === 'ArrowDown') {
+									event.preventDefault();
+									moveSelectedBlock('down');
+								}
+							}}>{block}</button
+						>
+					{/each}
+				</div>
 				<div class="content-summary" aria-label="Content overview">
 					<span><strong>{contentIndex.total}</strong> entries</span>
 					<span><strong>{contentIndex.drafts}</strong> drafts</span>
@@ -425,7 +476,7 @@
 					></button
 				>
 			</aside>
-			<section class="canvas-area">
+			<section class:mobile-visible={studioPanel === 'canvas'} class="canvas-area">
 				<div class="studio-toolbar">
 					<div>
 						<strong>Home</strong><span>English</span><span class="saved">Saved fixture</span>
@@ -465,11 +516,27 @@
 					</div>
 				</div>
 			</section>
-			<aside class="inspector" aria-label="Selected block settings">
+			<aside
+				class:mobile-visible={studioPanel === 'inspector'}
+				class="inspector"
+				aria-label="Selected block settings"
+			>
 				<div>
 					<span class="eyebrow">Selected block</span>
-					<h2>Split Hero</h2>
+					<h2>{selectedBlock}</h2>
 					<span class="official">Official</span>
+				</div>
+				<div class="block-order-actions" aria-label="Block order">
+					<button
+						class="secondary"
+						aria-label="Move selected block up"
+						onclick={() => moveSelectedBlock('up')}><ArrowUp size={16} /> Up</button
+					>
+					<button
+						class="secondary"
+						aria-label="Move selected block down"
+						onclick={() => moveSelectedBlock('down')}><ArrowDown size={16} /> Down</button
+					>
 				</div>
 				<label><span>Eyebrow</span><input value="PERSONAL JOURNAL" readonly /></label>
 				<label
@@ -729,7 +796,11 @@
 							>Operation</span
 						><strong>Not created</strong><span>Current site</span><strong
 							>Online and unchanged</strong
-						><span>Rollback</span><strong>Previous revision retained</strong>
+						><span>Rollback</span><strong>Previous revision retained</strong><span>Artifact</span
+						><strong>Not built</strong><span>Traffic</span><strong>Current site stays online</strong
+						><span>Domain</span><strong>Unchanged</strong><span>Outage policy</span><strong
+							>Reconcile before retry</strong
+						>
 					</article>
 				</aside>
 			</div>
@@ -1477,6 +1548,44 @@
 		grid-template-columns: 210px minmax(0, 1fr) 260px;
 		min-height: calc(100dvh - 64px);
 	}
+	.studio-mobile-tabs {
+		display: none;
+	}
+	.block-outline {
+		display: grid;
+		gap: 6px;
+		margin-top: 18px;
+		padding-top: 16px;
+		border-top: 1px solid var(--border);
+	}
+	.block-outline > span {
+		padding: 0 10px 4px;
+		font-size: 11px;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.block-outline button {
+		border: 0;
+		border-radius: 9px;
+		padding: 10px 11px;
+		background: transparent;
+		color: var(--muted);
+		text-align: left;
+	}
+	.block-outline button.active {
+		background: #103226;
+		color: var(--green);
+	}
+	.block-order-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+	.block-order-actions button {
+		justify-content: center;
+	}
 	.studio-sidebar,
 	.inspector {
 		padding: 24px 16px;
@@ -1830,10 +1939,40 @@
 			grid-template-columns: repeat(2, 1fr);
 		}
 		.studio-page {
-			grid-template-columns: 180px minmax(0, 1fr);
+			grid-template-columns: 1fr;
+			position: relative;
+			padding-top: 51px;
 		}
-		.inspector {
+		.studio-mobile-tabs {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			position: absolute;
+			inset: 0 0 auto;
+			gap: 6px;
+			padding: 8px 10px;
+			border-bottom: 1px solid var(--border);
+			background: #090f12;
+		}
+		.studio-mobile-tabs button {
+			border: 0;
+			border-radius: 9px;
+			padding: 8px;
+			background: transparent;
+			color: var(--muted);
+		}
+		.studio-mobile-tabs button.active {
+			background: var(--surface-2);
+			color: var(--green);
+		}
+		.studio-sidebar,
+		.inspector,
+		.canvas-area {
 			display: none;
+		}
+		.studio-sidebar.mobile-visible,
+		.inspector.mobile-visible,
+		.canvas-area.mobile-visible {
+			display: block;
 		}
 		.continue-grid,
 		.publish-grid,
@@ -1938,13 +2077,6 @@
 		}
 		.wizard-actions .primary {
 			flex: 1;
-		}
-		.studio-page {
-			display: block;
-		}
-		.studio-sidebar,
-		.inspector {
-			display: none;
 		}
 		.canvas-area {
 			padding: 10px;
