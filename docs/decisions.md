@@ -19,3 +19,7 @@ The first package intentionally requests no privileged permissions. It demonstra
 ## D-005 — Separate preview origin
 
 Untrusted target code never executes inside the panel origin. Preview isolation is a prerequisite, not a later hardening task.
+
+## D-006 — Canonical repository paths and frozen installs
+
+Portable contracts use relative POSIX paths with no alternate separators, empty segments, dot segments, traversal, drive prefixes, or control characters. Repository inspection may normalize a provider snapshot once, then rejects collisions. Execution plans require exactly one recognized package-manager lockfile and expose argv arrays rather than browser-provided shell strings.

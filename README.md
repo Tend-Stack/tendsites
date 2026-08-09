@@ -4,7 +4,7 @@
 
 TEND Sites helps people create, edit, preview, and publish modern websites without making them learn Git, Markdown, routing, build commands, or DNS. Underneath the friendly workflow, every site remains ordinary source code and content that can build without tend.host.
 
-> Foundation status: the repository currently contains the versioned content contracts, package-manager adapter, extension packaging pipeline, and a read-only Studio experience. It does not yet create repositories, execute previews, deploy sites, configure domains, or call AI services.
+> Foundation status: the repository currently contains the versioned content contracts, strict SvelteKit compatibility inspector, package-manager adapter, extension packaging pipeline, and a read-only Studio experience. It does not yet clone or create repositories, execute previews, deploy sites, configure domains, or call AI services.
 
 ## Product principles
 

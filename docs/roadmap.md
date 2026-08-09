@@ -6,7 +6,9 @@ Status values are evidence-based: completed items have code and proportional tes
 
 - [x] Independent `Tend-Stack/tendsites` repository and toolchain.
 - [x] Strict v1 project/change/preview/publish/theme/component contracts.
+- [x] Portable content, media, `tend.site.json`, and AI-proposal contracts.
 - [x] Lockfile-aware package-manager adapter.
+- [x] Pure bounded SvelteKit compatibility inspector with canonical path and lockfile rejection.
 - [x] Modular, responsive, read-only Studio foundation.
 - [x] tend.host extension v2 packaging with generated integrity.
 - [ ] Install the produced ZIP in an isolated tend.host fixture and verify mount/unmount cleanup.
@@ -16,6 +18,8 @@ Status values are evidence-based: completed items have code and proportional tes
 - [ ] Reviewed starter catalog and immutable template revisions.
 - [ ] Friendly five-step creation workflow backed by a durable host operation.
 - [ ] Existing-repository analyzer with bounded checkout and compatibility report.
+  - [x] Pure snapshot classification and compatibility report.
+  - [ ] Authenticated, digest-bound, bounded checkout supplied by the host.
 - [ ] Explicit change-set preview before the first commit.
 - [ ] Source-snapshot integrity, fork/PR trust policy, and secret denial.
 

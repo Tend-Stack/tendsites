@@ -1,0 +1,23 @@
+{
+	"schema": 1,
+	"adapter": "sveltekit",
+	"content": {
+		"pages": "src/content/pages",
+		"posts": "src/content/posts",
+		"docs": "src/content/docs"
+	},
+	"media": {
+		"provider": "repository",
+		"directory": "static/media",
+		"publicPath": "/media"
+	},
+	"i18n": {
+		"defaultLocale": "en",
+		"locales": ["en", "es"],
+		"strategy": "multiple_folders"
+	},
+	"build": {
+		"script": "build",
+		"output": "build"
+	}
+}

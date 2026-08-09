@@ -1,0 +1,16 @@
+{
+	"contract": "tend.host/sites-content-entry/v1",
+	"id": "welcome-en",
+	"logicalId": "welcome",
+	"collectionId": "posts",
+	"locale": "en",
+	"path": "src/content/posts/en/welcome.md",
+	"title": "Welcome",
+	"slug": "welcome",
+	"description": "The first portable post.",
+	"draft": false,
+	"frontmatter": {
+		"tags": ["news"]
+	},
+	"bodySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}

@@ -22,12 +22,15 @@ Generated site = ordinary files + assets + Git history
 ## Current foundation
 
 - `src/lib/contracts/sites.ts` defines strict, versioned project and operation schemas.
-- `src/lib/adapters/package-manager.ts` derives frozen install commands from committed lockfiles.
+- `src/lib/adapters/package-manager.ts` derives frozen install commands from one unambiguous committed lockfile.
+- `src/lib/adapters/sveltekit.ts` detects and inspects bounded repository snapshots without cloning, reading the filesystem, or executing project code.
 - `src/lib/sites/` contains a fixture-backed, read-only Studio experience.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 
 No repository, build, preview, deployment, domain, media, or AI mutation exists yet.
+
+The compatibility inspector accepts provider-supplied file names plus parsed `package.json` and optional `tend.site.json` data. It rejects path traversal, duplicate canonical paths, conflicting lockfiles, missing build scripts, malformed metadata, and non-SvelteKit projects before producing an argv-only install/build plan. The future host remains responsible for authenticated checkout, snapshot integrity, isolation, and execution.
 
 ## Planned capability seam
 
