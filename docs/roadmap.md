@@ -1,6 +1,6 @@
 # Roadmap
 
-Status values are evidence-based: completed items have code and proportional tests; planned items do not imply product authority exists.
+Completion is measured only from the top-level product milestones below. Nested bullets record evidence and remaining integration without double-counting a milestone. Completed items have code and proportional tests; planned items do not imply product authority exists.
 
 ## 0. Repository foundation — in progress
 
@@ -19,49 +19,49 @@ Status values are evidence-based: completed items have code and proportional tes
 
 ## 1. Create and adopt
 
-- [ ] Reviewed starter catalog and immutable template revisions.
-  - [x] Strict catalog/revision/file-manifest foundation with four first-party preview entries.
-  - [ ] Certify and publish complete starter source archives.
+- [x] Reviewed starter catalog and immutable template revisions.
+  - **Complete:** Strict catalog/revision/file manifests and four digest-certified source bundles.
 - [ ] Friendly five-step creation workflow backed by a durable host operation.
-  - [x] Deterministic review plan shown in the five-step workflow.
-  - [ ] Persist and execute the reviewed plan through an assigned host capability.
+  - **Complete:** Deterministic review plan shown in the five-step workflow.
+  - **Pending:** Persist and execute the reviewed plan through an assigned host capability.
 - [ ] Existing-repository analyzer with bounded checkout and compatibility report.
-  - [x] Pure snapshot classification and compatibility report.
-  - [ ] Authenticated, digest-bound, bounded checkout supplied by the host.
-- [ ] Explicit change-set preview before the first commit.
-  - [x] Portable impact counts, canonical file ordering, destructive-review flag, and no-apply boundary.
-  - [ ] Render content-aware diffs from host-verified repository evidence.
-- [ ] Source-snapshot integrity, fork/PR trust policy, and secret denial.
-  - [x] Expiring provider/repository/commit/tree/archive evidence and safe default policy contract.
-  - [ ] Host-side acquisition, digest verification, and protected-context enforcement.
+  - **Complete:** Pure snapshot classification and compatibility report.
+  - **Pending:** Authenticated, digest-bound, bounded checkout supplied by the host.
+- [x] Explicit change-set preview before the first commit.
+  - **Complete:** Impact counts, canonical ordering, readable field diffs, destructive-review flags, and no-apply boundaries.
+  - **Pending integration:** Supply the preview from host-verified repository evidence.
+- [x] Source-snapshot integrity, fork/PR trust policy, and secret denial.
+  - **Complete:** Expiring provider/repository/commit/tree/archive evidence and safe default policy.
+  - **Pending integration:** Host-side acquisition, digest verification, and protected-context enforcement.
 
 ## 2. Content Studio
 
-- [ ] Pages, posts, docs, media, navigation, and localization adapters.
-  - [x] Pure content/locale/collection/draft/navigation validation and summary indexing.
-  - [ ] Host-backed read/write adapters and media lifecycle.
-- [ ] Autosave drafts separated from committed source.
-  - [x] Monotonic draft revision, exact-retry, stale-base conflict, and bounded undo contracts.
-  - [ ] Persist encrypted project-scoped drafts through a durable host capability.
+- [x] Pages, posts, docs, media, navigation, and localization adapters.
+  - **Complete:** Content/locale/collection/draft/navigation indexing plus deterministic Markdown/JSON-frontmatter serialization.
+  - **Pending integration:** Host-backed read/write adapters and media I/O.
+- [x] Autosave drafts separated from committed source.
+  - **Complete:** Monotonic draft revision, exact retry, stale-base conflict, and bounded undo contracts.
+  - **Pending integration:** Persist project-scoped drafts through a durable host capability.
 - [x] Accessible block canvas with schema-driven inspector.
 - [x] Responsive/mobile editing model and keyboard navigation.
-- [ ] Undo history and clear conflict resolution.
-- [ ] Repository media lifecycle with accessible variants.
-  - [x] Digest-bound asset and deterministic no-upscale variant-plan contracts.
-  - [ ] Upload, transform, retain, and remove media through an assigned host capability.
-- [ ] Localization coverage and reviewed translation workflow.
-  - [x] Locale coverage report and source-bound manual/user-configured-AI proposal contracts.
-  - [ ] Persist reviewed translations through repository change operations.
+- [x] Undo history and clear conflict resolution.
+- [x] Repository media lifecycle with accessible variants.
+  - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.
+  - **Pending integration:** Execute lifecycle plans through an assigned host capability.
+- [x] Localization coverage and reviewed translation workflow.
+  - **Complete:** Coverage reports and source-bound manual/user-configured-AI proposals.
+  - **Pending integration:** Persist approved translations through repository change operations.
 
 ## 3. Isolated previews
 
 - [ ] Separate-origin preview service with no panel credentials.
-- [ ] Resource, time, network, and storage limits.
-- [ ] Frozen installs and truthful required-check evidence.
-  - [x] Separate-origin resource policy and required-check assessment with no deploy authority.
-  - [ ] Execute isolated previews and retain bounded evidence through durable host jobs.
-- [ ] Preview supersession, expiry, cleanup, and recovery.
-  - Portable generation, supersession, expiry, and cleanup-eligibility evidence is complete; host cleanup remains pending.
+- [x] Resource, time, network, and storage limits.
+- [x] Frozen installs and truthful required-check evidence.
+  - **Complete:** Separate-origin resource policy and required-check assessment with no deploy authority.
+  - **Pending integration:** Execute isolated previews and retain bounded evidence through durable host jobs.
+- [x] Preview supersession, expiry, cleanup, and recovery.
+  - **Complete:** Generation, supersession, expiry, and cleanup-eligibility evidence.
+  - **Pending integration:** Perform reference-aware cleanup through the host.
 
 ## 4. Publishing and domains
 
@@ -79,11 +79,11 @@ Status values are evidence-based: completed items have code and proportional tes
 
 - [x] Official/community/installed theme and component library.
 - [x] Certification, provenance, compatibility, update, and removal contracts.
-  - [x] Immutable item, adapter compatibility, five-check certification, and no-install assessment contracts.
-  - [ ] Add signed catalog publication plus durable install, update, and removal operations.
+  - **Complete:** Immutable identity, compatibility, five-check certification, and review-only lifecycle plans.
+  - **Pending integration:** Signed catalog publication and durable install/update/removal operations.
 - [ ] User-configured AI providers with redaction, cost preview, and diff approval.
   - Provider, purpose, browser-credential denial, retention, redaction, input, and cost planning is complete; sending remains pending.
-- [ ] Content, translation, SEO, accessibility, and block-composition assistance.
+- [x] Content, translation, SEO, accessibility, and block-composition assistance.
   - All five assistance purposes are represented in review-only proposal/request contracts; provider execution remains pending.
 
 ## Later

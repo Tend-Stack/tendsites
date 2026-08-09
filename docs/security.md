@@ -27,6 +27,8 @@ Draft revisions are bound to one project, entry, committed base revision, and mo
 
 Block definitions forbid panel scripts and reject unknown inspector fields. Preview cleanup remains host-owned even when evidence says cleanup is eligible. Traffic decisions retain the previous artifact unless every required health check passes, and even a passing decision cannot route. AI provider credentials are never browser-visible; request plans expose bounded cost and redaction evidence but cannot send.
 
+Starter files are content-addressed individually and as one canonical revision before use. Markdown frontmatter accepts canonical JSON values rather than executing a general YAML language, rejects duplicate or unsafe keys, and remains bounded. Local content assistance sends nothing and cannot apply suggestions.
+
 ## Component and theme trust
 
 - **Official** items are reviewed, versioned, and integrity-bound.

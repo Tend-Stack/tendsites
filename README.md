@@ -6,6 +6,8 @@ TEND Sites helps people create, edit, preview, and publish modern websites witho
 
 > Foundation status: the repository now includes schema-driven page blocks, keyboard/mobile Studio navigation, content-aware diffs, preview lifecycle evidence, reviewed commit and immutable artifact contracts, health-gated traffic decisions, domain/TLS evidence, outage recovery policy, library lifecycle plans, and privacy/cost-bounded AI request plans. These layers remain deliberately non-authoritative: the extension does not yet persist source, execute previews, route traffic, assign domains, install library code, or call AI services.
 
+Four complete starter source bundles are now included and digest-certified. Content can be parsed and serialized through the bounded Markdown/JSON-frontmatter adapter, while local SEO and accessibility assistance works without sending user content anywhere.
+
 ## Product principles
 
 - **Grandma-friendly by default.** Ordinary work follows short, plain-language steps.

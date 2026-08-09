@@ -39,6 +39,9 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/contracts/publishing.ts` freezes reviewed commit, artifact, traffic, domain, and outage-recovery evidence.
 - `src/lib/contracts/library-state.ts` separates installed provenance from review-only install/update/removal plans.
 - `src/lib/contracts/ai.ts` enforces user-configured providers, browser credential denial, purpose, redaction, input, and cost policy before a request can be reviewed.
+- `src/lib/starters/archives.ts` ships four complete ordinary SvelteKit source bundles and verifies every file plus the canonical revision digest.
+- `src/lib/content/markdown.ts` provides a deterministic Markdown adapter with a deliberately small JSON-frontmatter grammar.
+- `src/lib/content/assistance.ts` performs local SEO and accessibility checks without sending content or applying changes.
 - `src/lib/sites/` contains a fixture-backed, read-only Studio experience with an overview-first, tabbed readiness workspace.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
