@@ -7,6 +7,7 @@ import {
 import type { SiteModule, StarterTemplate } from '../contracts/catalog';
 import type { ContentEntry, SiteProject } from '../contracts/sites';
 import { previewChangeSet } from '../planning/change-preview';
+import { starterArchives } from '../starters/archives';
 
 const allGoals = ['personal', 'blog', 'business', 'docs', 'portfolio', 'media'] as const;
 export const allStarterModules: SiteModule[] = [
@@ -23,7 +24,7 @@ function starter(
 	id: string,
 	name: string,
 	summary: string,
-	revisionCharacter: string
+	archive: (typeof starterArchives)[keyof typeof starterArchives]
 ): StarterTemplate {
 	return {
 		contract: 'tend.host/sites-starter-template/v1',
@@ -31,35 +32,31 @@ function starter(
 		name,
 		summary,
 		version: '1.0.0',
-		revisionSha256: revisionCharacter.repeat(64),
+		revisionSha256: archive.revisionSha256,
 		adapter: 'sveltekit',
 		goals: [...allGoals],
 		modules: [...allStarterModules],
 		themeId: id,
 		locales: { defaultLocale: 'en', locales: ['en'], strategy: 'multiple_folders' },
-		files: [
-			{ path: 'package.json', sha256: '1'.repeat(64), role: 'project', required: true },
-			{
-				path: 'tend.site.json',
-				sha256: '2'.repeat(64),
-				role: 'configuration',
-				required: true
-			},
-			{
-				path: 'src/routes/+page.svelte',
-				sha256: revisionCharacter.repeat(64),
-				role: 'project',
-				required: true
-			}
-		]
+		files: archive.files.map((file) => ({
+			path: file.path,
+			sha256: file.sha256,
+			role: file.path === 'tend.site.json' ? ('configuration' as const) : ('project' as const),
+			required: true
+		}))
 	};
 }
 
 export const starterCatalog: readonly StarterTemplate[] = [
-	starter('minimal', 'Tend Minimal', 'Quiet, spacious and direct.', 'a'),
-	starter('editorial', 'Tend Editorial', 'Stories, essays and publications.', 'b'),
-	starter('studio', 'Tend Studio', 'Portfolio work with visual rhythm.', 'c'),
-	starter('docs', 'Tend Docs', 'Readable navigation for knowledge.', 'd')
+	starter('minimal', 'Tend Minimal', 'Quiet, spacious and direct.', starterArchives.minimal),
+	starter(
+		'editorial',
+		'Tend Editorial',
+		'Stories, essays and publications.',
+		starterArchives.editorial
+	),
+	starter('studio', 'Tend Studio', 'Portfolio work with visual rhythm.', starterArchives.studio),
+	starter('docs', 'Tend Docs', 'Readable navigation for knowledge.', starterArchives.docs)
 ];
 
 const adoptionSnapshot: SourceSnapshot = {
