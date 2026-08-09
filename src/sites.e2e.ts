@@ -1,4 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+const extensionDistribution = resolve(import.meta.dirname, '..', 'dist', 'extension');
 
 test('presents a truthful foundation overview', async ({ page }) => {
 	await page.goto('/');
@@ -94,4 +98,64 @@ test('supports keyboard block ordering and a purpose-built mobile studio', async
 	await expect(page.getByRole('heading', { name: 'Field Notes' })).toBeVisible();
 	await page.getByRole('button', { name: 'Canvas', exact: true }).click();
 	await expect(page.locator('.browser-frame')).toBeVisible();
+});
+
+test('mounts and unmounts the packaged extension without leaking its application tree', async ({
+	page
+}) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	const lifecycle = await page.evaluate(async () => {
+		const callbacks: Array<() => void | Promise<void>> = [];
+		const host = {
+			id: 'host.tend.sites',
+			onUnmount(callback: () => void | Promise<void>) {
+				callbacks.push(callback);
+			}
+		};
+		const extensionUrl = '/test-extension/index.js';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.append(container);
+
+		const first = extension.default(host);
+		await first.mount(container);
+		const firstMounted = container.textContent?.includes('Sites you own, source and all.') ?? false;
+		await Promise.all(callbacks.splice(0).map((callback) => callback()));
+		const firstUnmounted = container.childElementCount === 0;
+
+		const second = extension.default(host);
+		await second.mount(container);
+		const secondMounted =
+			container.textContent?.includes('Sites you own, source and all.') ?? false;
+		await Promise.all(callbacks.splice(0).map((callback) => callback()));
+
+		return {
+			firstMounted,
+			firstUnmounted,
+			secondMounted,
+			secondUnmounted: container.childElementCount === 0,
+			stylesheetCount: document.querySelectorAll('#host-tend-sites-styles').length
+		};
+	});
+
+	expect(lifecycle).toEqual({
+		firstMounted: true,
+		firstUnmounted: true,
+		secondMounted: true,
+		secondUnmounted: true,
+		stylesheetCount: 1
+	});
 });

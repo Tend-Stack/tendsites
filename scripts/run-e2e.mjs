@@ -30,6 +30,14 @@ const build = spawn(process.execPath, [vite, 'build'], { cwd: root, stdio: 'inhe
 const buildResult = await waitForExit(build);
 if (buildResult.code !== 0) process.exit(buildResult.code ?? 1);
 
+const extensionBuild = spawn(
+	process.execPath,
+	[vite, 'build', '--config', 'vite.extension.config.ts'],
+	{ cwd: root, stdio: 'inherit' }
+);
+const extensionBuildResult = await waitForExit(extensionBuild);
+if (extensionBuildResult.code !== 0) process.exit(extensionBuildResult.code ?? 1);
+
 const preview = spawn(process.execPath, [vite, 'preview', '--host', '127.0.0.1'], {
 	cwd: root,
 	stdio: 'inherit'
