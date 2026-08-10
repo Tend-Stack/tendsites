@@ -2,6 +2,7 @@ export * from './adapters/package-manager';
 export * from './adapters/sveltekit';
 export * from './content/index';
 export * from './contracts/adoption';
+export * from './contracts/custom-site';
 export * from './contracts/canonical';
 export * from './contracts/catalog';
 export * from './contracts/creation-operation';

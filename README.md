@@ -4,6 +4,11 @@
 
 TEND Sites helps people create, edit, preview, and publish modern websites without making them learn Git, Markdown, routing, build commands, or DNS. Underneath the friendly workflow, every site remains ordinary source code and content that can build without tend.host.
 
+Use the visual Studio when you want the simplest path, or connect a custom developer-built site and
+keep its framework, templates, components, and styling. In custom mode, Sites acts as a Git-native
+content workspace over explicitly mapped Markdown and structured files. Hybrid adapters can offer
+both content forms and safe visual sections without taking ownership of the site's renderer.
+
 > Foundation status: the repository now includes schema-driven page blocks, keyboard/mobile Studio navigation, content-aware diffs, preview lifecycle evidence, reviewed commit and immutable artifact contracts, health-gated traffic decisions, domain/TLS evidence, outage recovery policy, library lifecycle plans, and privacy/cost-bounded AI request plans. These layers remain deliberately non-authoritative: the extension does not yet persist source, execute previews, route traffic, assign domains, install library code, or call AI services.
 
 Four complete starter source bundles are now included and digest-certified. Content can be parsed and serialized through the bounded Markdown/JSON-frontmatter adapter, while local SEO and accessibility assistance works without sending user content anywhere. The interactive example also includes a first-class post collection and a focused Content workspace, so its journal entries can be created and edited as real reusable content rather than decorative placeholder cards.

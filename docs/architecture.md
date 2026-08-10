@@ -101,4 +101,16 @@ the complete browser-to-host contract and executor boundary.
 
 ## Portability
 
-The repository, not extension storage, is authoritative. The target project uses ordinary SvelteKit source, Markdown or compatible structured content, committed configuration, assets, and standard package scripts. `.tend/` metadata may improve the Studio but cannot be required to serve an otherwise static site.
+The repository, not extension storage, is authoritative. A visual starter may use ordinary SvelteKit
+source, while an adopted custom site may retain Astro, Eleventy, Next.js, Nuxt, Hugo, Jekyll, or
+another reviewed build adapter. Content mappings may describe bounded Markdown, MDX-compatible,
+JSON, YAML, or TOML collections without transferring ownership of templates or rendering to Sites.
+Committed configuration, assets, and standard package scripts remain portable. `.tend/` metadata may
+improve the Studio but cannot be required to serve an otherwise static site.
+
+`src/lib/contracts/custom-site.ts` defines the framework-neutral review boundary. A custom-site
+profile names exact content directories and structured fields, declares whether portable visual
+blocks are supported, and always preserves repository renderer ownership. Starter-repository entries
+carry an immutable commit and tree digest plus explicit publisher, license, community/official
+identity, and review state. These contracts select no code and grant no checkout or execution
+authority.

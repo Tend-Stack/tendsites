@@ -26,9 +26,23 @@ Editing happens in a modular Studio:
 
 Each responsibility gets a distinct workspace or URL-addressable state. Mobile uses purpose-built navigation and sheets rather than a compressed desktop canvas.
 
+## Two equally supported ways to work
+
+- **Visual Sites:** Start from a reviewed template and edit responsive pages, sections, content, and
+  design directly. This remains the default and requires no knowledge of repositories or frameworks.
+- **Custom Sites:** Connect a developer-built repository and keep its framework, templates,
+  components, and styles. Sites generates a friendly content workspace from explicit collection and
+  field mappings while leaving rendering under repository control.
+- **Hybrid Sites:** Use Git-native content editing everywhere and opt into visual blocks only where a
+  reviewed framework adapter can round-trip them without damaging custom code.
+
+Advanced users may inspect content formats, collection schemas, field mappings, build evidence, and
+immutable starter provenance. Ordinary users see understandable labels such as Posts, Services, and
+Portfolio instead of file formats or configuration syntax.
+
 ## First release scope
 
-- Create reviewed SvelteKit sites.
+- Create reviewed visual sites and framework-specific starter repositories.
 - Adopt compatible existing repositories safely.
 - Manage pages, posts, docs, media, and localization.
 - Compose responsive blocks.

@@ -13,6 +13,10 @@ Completion is measured only from the top-level product milestones below. Nested 
 - [x] Portable content, locale, collection, draft, and navigation indexing.
 - [x] Lockfile-aware package-manager adapter.
 - [x] Pure bounded SvelteKit compatibility inspector with canonical path and lockfile rejection.
+- [x] Framework-neutral custom-site and community-starter review contracts.
+  - **Complete:** Repository-owned rendering, explicit Markdown/MDX-compatible/JSON/YAML/TOML
+    collection mappings, visual-vs-content-only mode, immutable starter commit/tree evidence,
+    publisher/license/trust identity, and review gating with no checkout or execution authority.
 - [x] Modular, responsive, read-only Studio foundation.
 - [x] tend.host extension v2 packaging with generated integrity.
 - [x] Install the produced ZIP in an isolated tend.host fixture and verify mount/unmount cleanup.
@@ -37,6 +41,20 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete:** Pure snapshot classification and compatibility report.
   - **Complete:** Opaque repository selector, bounded disposable-checkout intent, host-only credential policy, and strict cleanup result.
   - **Pending:** Authenticated, digest-bound, bounded checkout supplied by the host.
+  - **Complete product path:** The adoption workspace now explains visual, custom headless, and hybrid
+    modes; previews an exact content-only mapping that preserves the site's renderer; and presents
+    reviewed versus unavailable community starters without pretending to clone or create them.
+- [ ] Framework adapter and declarative content-schema catalog.
+  - **Complete foundation:** Versioned custom-site profiles and structured field mappings are strict,
+    bounded, path-confined, and framework-neutral.
+  - **Pending:** Safe detector/adapters for Astro, Eleventy, Next.js, Nuxt, Hugo, Jekyll, and custom
+    manifests; schema-driven forms; reviewed custom editor blocks; and compatibility import for
+    common Git-CMS configurations without inheriting their authority model.
+- [ ] Community starter repository catalog and certification lane.
+  - **Complete foundation:** Immutable repository identity, publisher, license, framework, content
+    formats, goals, review status, and fail-closed selection assessment.
+  - **Pending:** Provider-backed discovery, maintainer verification, certification evidence, preview,
+    version updates, deprecation, reports, and host-authorized creation.
 - [x] Explicit change-set preview before the first commit.
   - **Complete:** Impact counts, canonical ordering, readable field diffs, destructive-review flags, and no-apply boundaries.
   - **Pending integration:** Supply the preview from host-verified repository evidence.

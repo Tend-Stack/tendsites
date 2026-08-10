@@ -5,6 +5,12 @@ import {
 	type SourceSnapshot
 } from '../contracts/adoption';
 import type { SiteModule, StarterTemplate } from '../contracts/catalog';
+import {
+	assessStarterRepository,
+	planCustomSiteAdoption,
+	type CustomSiteProfile,
+	type StarterRepository
+} from '../contracts/custom-site';
 import type { ContentEntry, SiteProject } from '../contracts/sites';
 import { previewChangeSet } from '../planning/change-preview';
 import { starterArchives } from '../starters/archives';
@@ -58,6 +64,125 @@ export const starterCatalog: readonly StarterTemplate[] = [
 	starter('studio', 'Tend Studio', 'Portfolio work with visual rhythm.', starterArchives.studio),
 	starter('docs', 'Tend Docs', 'Readable navigation for knowledge.', starterArchives.docs)
 ];
+
+export const customSiteModes = [
+	{
+		id: 'visual',
+		name: 'Build visually',
+		summary: 'Choose a reviewed design, then edit pages and sections directly in Studio.',
+		bestFor: 'The easiest place to start'
+	},
+	{
+		id: 'headless',
+		name: 'Keep my custom design',
+		summary: 'Keep your framework and templates. Sites edits only the content folders you approve.',
+		bestFor: 'Developer-built websites'
+	},
+	{
+		id: 'hybrid',
+		name: 'Use both',
+		summary:
+			'Edit mapped content everywhere and use visual sections where the site adapter supports them.',
+		bestFor: 'Progressive adoption'
+	}
+] as const;
+
+const demoCustomSiteProfile: CustomSiteProfile = {
+	contract: 'tend.host/sites-custom-site-profile/v1',
+	snapshotId: '77777777-7777-4777-8777-777777777777',
+	repositoryId: 'custom-field-journal',
+	commit: '7'.repeat(40),
+	framework: 'astro',
+	rendererOwnership: 'repository',
+	configuration: 'manifest',
+	visualEditing: 'content_only',
+	collections: [
+		{
+			id: 'posts',
+			label: 'Posts',
+			kind: 'posts',
+			directory: 'src/content/posts',
+			format: 'markdown',
+			titleField: null,
+			bodyField: null,
+			slugField: null
+		},
+		{
+			id: 'authors',
+			label: 'Authors',
+			kind: 'data',
+			directory: 'src/data/authors',
+			format: 'json',
+			titleField: 'name',
+			bodyField: null,
+			slugField: 'id'
+		}
+	],
+	build: { script: 'build', output: 'dist' }
+};
+
+export const demoCustomSitePlan = planCustomSiteAdoption(demoCustomSiteProfile);
+
+export const starterRepositoryCatalog: readonly StarterRepository[] = [
+	{
+		contract: 'tend.host/sites-starter-repository/v1',
+		id: 'community-editorial-astro',
+		name: 'Editorial Journal',
+		summary: 'A magazine-style starter with Markdown posts and a clean reading experience.',
+		publisher: 'Community publisher',
+		trust: 'community',
+		reviewStatus: 'reviewed',
+		framework: 'astro',
+		provider: 'github',
+		repositoryId: 'starter-editorial-astro',
+		commit: '8'.repeat(40),
+		treeSha256: '8'.repeat(64),
+		license: 'MIT',
+		contentFormats: ['markdown'],
+		goals: ['blog', 'publication'],
+		metadata: { difficulty: 'easy' }
+	},
+	{
+		contract: 'tend.host/sites-starter-repository/v1',
+		id: 'community-docs-eleventy',
+		name: 'Clear Documentation',
+		summary: 'An accessible documentation starter with Markdown pages and simple navigation.',
+		publisher: 'Community publisher',
+		trust: 'community',
+		reviewStatus: 'reviewed',
+		framework: 'eleventy',
+		provider: 'github',
+		repositoryId: 'starter-docs-eleventy',
+		commit: '9'.repeat(40),
+		treeSha256: '9'.repeat(64),
+		license: 'MIT',
+		contentFormats: ['markdown', 'json'],
+		goals: ['docs'],
+		metadata: { difficulty: 'easy' }
+	},
+	{
+		contract: 'tend.host/sites-starter-repository/v1',
+		id: 'community-portfolio-custom',
+		name: 'Creative Portfolio',
+		summary: 'A flexible portfolio awaiting catalog review before it can be selected.',
+		publisher: 'Community publisher',
+		trust: 'community',
+		reviewStatus: 'unreviewed',
+		framework: 'custom',
+		provider: 'git',
+		repositoryId: 'starter-portfolio-custom',
+		commit: 'a'.repeat(40),
+		treeSha256: 'a'.repeat(64),
+		license: 'MIT',
+		contentFormats: ['yaml'],
+		goals: ['portfolio'],
+		metadata: { difficulty: 'advanced' }
+	}
+];
+
+export const starterRepositoryAssessments = starterRepositoryCatalog.map((starter) =>
+	assessStarterRepository(starter)
+);
 
 const adoptionSnapshot: SourceSnapshot = {
 	contract: 'tend.host/sites-source-snapshot/v1',

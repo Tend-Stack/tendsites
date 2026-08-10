@@ -19,9 +19,17 @@ Target repositories, site templates, themes, community components, user content,
 9. Starter, creation, adoption, content-index, change-preview, draft, media, localization, library, and preview-policy contracts are evidence only; none can apply repository or deployment mutations.
 10. Passing compatibility or preview checks never grants installation, publishing, or deployment authority.
 
+11. Custom-site content mappings never grant ownership of repository templates or renderer code.
+    Structured formats require explicit field mappings, and reviewed visual blocks are enabled only
+    by an adapter that can round-trip them safely.
+
+12. Community starter metadata is not trust authority. Only a host-verified immutable commit/tree
+    matching a reviewed catalog entry may proceed to a creation plan; unreviewed entries remain
+    visible but unavailable.
+
 Source adoption is bound to provider installation, repository, immutable commit/tree/archive digests, actor, trust class, size limits, and an explicit expiry. The current pure assessor does not fetch or trust browser-provided repository contents. Authenticated checkout and digest verification remain host responsibilities.
 
-11. Publishing never replaces the last healthy site until checks pass and the durable deployment operation commits.
+13. Publishing never replaces the last healthy site until checks pass and the durable deployment operation commits.
 
 Draft revisions are bound to one project, entry, committed base revision, and monotonic sequence. Media plans reject unsupported formats and upscaling and require localized alternative text. Translation proposals remain data until reviewed. Library certification never enables installation, and preview evidence always remains separate from deployment authority.
 

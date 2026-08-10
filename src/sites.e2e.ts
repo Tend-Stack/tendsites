@@ -20,6 +20,17 @@ test('shows source adoption evidence without granting mutation authority', async
 		page.getByRole('heading', { name: 'Understand first. Change nothing.' })
 	).toBeVisible();
 	await expect(page.getByText('Protected by default')).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Your website does not have to look or work like ours.' })
+	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Keep my custom design' })).toBeVisible();
+	await expect(page.getByText('Keep the renderer. Map only the content.')).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Begin with a complete site, not an empty canvas.' })
+	).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Unavailable until reviewed' })).toBeDisabled();
+	await page.getByRole('button', { name: 'Review starter' }).first().click();
+	await expect(page.getByText(/Pinned commit 88888888/)).toBeVisible();
 	await expect(page.getByText('Not available')).toHaveCount(2);
 	await expect(page.getByRole('button', { name: 'Connect through tend.host' })).toBeDisabled();
 });

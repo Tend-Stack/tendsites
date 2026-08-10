@@ -8,6 +8,11 @@ This plan tracks visitor-facing capabilities separately from host integration. A
 means its model and Studio behavior exist; it does not imply repository writes, preview deployment,
 email delivery, analytics, or external service authority.
 
+TEND Sites supports two equal source models: Sites-authored visual projects and developer-authored
+custom repositories. Custom sites keep their framework and rendering while Sites generates friendly
+editors from explicit content schemas. Hybrid sites may additionally use reviewed portable visual
+blocks where an adapter proves safe round-tripping.
+
 ## Content and site structure
 
 - [x] Pages with friendly names, unique addresses, duplication, ordering, and protected home-page
@@ -62,6 +67,12 @@ email delivery, analytics, or external service authority.
 - [ ] Safe template updates that preserve user content, show structural changes, and allow rollback.
 - [ ] Theme tokens for typography, color, spacing, radius, motion, and light/dark modes with contrast
       checks and responsive behavior built in.
+- [ ] Community starter repositories for multiple frameworks, with visible publisher/license,
+      immutable revisions, certification status, preview evidence, safe updates, and no implicit
+      trust from popularity or repository ownership.
+- [ ] Declarative collection and field schemas for developer-built sites, including friendly forms,
+      validation, relationships, conditional fields, lists/objects, media, and reviewed custom editor
+      blocks while keeping renderer code under repository ownership.
 
 ## Discovery, SEO, and sharing
 

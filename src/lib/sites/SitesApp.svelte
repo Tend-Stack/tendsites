@@ -43,7 +43,15 @@
 	import type { SiteGoal, SiteModule } from '../contracts/catalog';
 	import { planSiteCreation } from '../planning/site-creation';
 
-	import { demoAdoptionReport, demoChangePreview, starterCatalog } from './foundation-data';
+	import {
+		customSiteModes,
+		demoAdoptionReport,
+		demoChangePreview,
+		demoCustomSitePlan,
+		starterCatalog,
+		starterRepositoryAssessments,
+		starterRepositoryCatalog
+	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import { goals, modules, projects, themes } from './fixtures';
 	import {
@@ -88,6 +96,7 @@
 	let wizardStep = $state(1);
 	let selectedGoal = $state<SiteGoal>('blog');
 	let selectedTheme = $state('editorial');
+	let selectedRepositoryStarter = $state<string | null>(null);
 	let selectedModules = $state<string[]>(['Home', 'About', 'Blog', 'Gallery', 'Contact']);
 	let siteName = $state('Weekend Notes');
 	let accent = $state('#56e6ad');
@@ -1029,6 +1038,109 @@
 					This sample report shows what TEND Sites will verify before proposing any source changes.
 				</p>
 			</div>
+			<section class="adoption-paths" aria-labelledby="adoption-paths-title">
+				<div class="section-heading">
+					<div>
+						<span class="eyebrow">Choose how Sites helps</span>
+						<h2 id="adoption-paths-title">Your website does not have to look or work like ours.</h2>
+					</div>
+					<p>
+						Visual building is the easy default. Custom repositories keep their framework,
+						templates, and rendering.
+					</p>
+				</div>
+				<div class="adoption-path-grid">
+					{#each customSiteModes as mode (mode.id)}
+						<article>
+							<span class="path-icon">
+								{#if mode.id === 'visual'}<Paintbrush
+										size={21}
+									/>{:else if mode.id === 'headless'}<Code2 size={21} />{:else}<GitBranch
+										size={21}
+									/>{/if}
+							</span>
+							<small>{mode.bestFor}</small>
+							<h3>{mode.name}</h3>
+							<p>{mode.summary}</p>
+						</article>
+					{/each}
+				</div>
+			</section>
+
+			<section class="custom-site-proof" aria-label="Custom site adoption example">
+				<div>
+					<span class="eyebrow">Example custom-site plan</span>
+					<h2>Keep the renderer. Map only the content.</h2>
+					<p>
+						A detected {demoCustomSitePlan.framework} site keeps every component, route, style, and build
+						decision in its repository.
+					</p>
+				</div>
+				<dl>
+					<div>
+						<dt>Editing mode</dt>
+						<dd>Content only</dd>
+					</div>
+					<div>
+						<dt>Mapped collections</dt>
+						<dd>{demoCustomSitePlan.collectionIds.length}</dd>
+					</div>
+					<div>
+						<dt>Renderer</dt>
+						<dd>Preserved</dd>
+					</div>
+					<div>
+						<dt>Repository changes</dt>
+						<dd>Review required</dd>
+					</div>
+				</dl>
+			</section>
+
+			<section class="starter-repositories" aria-labelledby="starter-repositories-title">
+				<div class="section-heading">
+					<div>
+						<span class="eyebrow">Starter repositories</span>
+						<h2 id="starter-repositories-title">
+							Begin with a complete site, not an empty canvas.
+						</h2>
+					</div>
+					<p>
+						Community identity stays visible. Only immutable, reviewed revisions can be selected.
+					</p>
+				</div>
+				<div class="starter-repository-grid">
+					{#each starterRepositoryCatalog as starter, index (starter.id)}
+						{@const assessment = starterRepositoryAssessments[index]}
+						<article class:selected={selectedRepositoryStarter === starter.id}>
+							<div class="starter-repository-heading">
+								<span class="path-icon"><GitBranch size={19} /></span>
+								<span class:reviewed={assessment.selectable} class="review-state">
+									{assessment.selectable ? 'Reviewed' : 'Review needed'}
+								</span>
+							</div>
+							<small>{starter.framework} · {starter.publisher}</small>
+							<h3>{starter.name}</h3>
+							<p>{starter.summary}</p>
+							<div class="starter-tags">
+								{#each starter.contentFormats as format (format)}<span>{format}</span>{/each}
+							</div>
+							<button
+								class="secondary"
+								disabled={!assessment.selectable}
+								onclick={() => (selectedRepositoryStarter = starter.id)}
+							>
+								{assessment.selectable ? 'Review starter' : 'Unavailable until reviewed'}
+							</button>
+							{#if selectedRepositoryStarter === starter.id}
+								<p class="starter-evidence">
+									Pinned commit {starter.commit.slice(0, 8)}… · {starter.license}. Creation remains
+									disabled until tend.host supplies an authenticated repository capability.
+								</p>
+							{/if}
+						</article>
+					{/each}
+				</div>
+			</section>
 			<div class="adoption-grid">
 				<section class="report-card">
 					<div class="report-heading">
@@ -2896,7 +3008,149 @@
 		justify-self: start;
 	}
 	.adoption-page {
-		max-width: 1040px;
+		max-width: 1240px;
+	}
+	.section-heading {
+		display: flex;
+		align-items: end;
+		justify-content: space-between;
+		gap: 22px;
+		margin-bottom: 16px;
+	}
+	.section-heading h2 {
+		margin: 5px 0 0;
+	}
+	.section-heading > p {
+		max-width: 460px;
+		margin: 0;
+		color: var(--muted);
+	}
+	.adoption-paths,
+	.starter-repositories {
+		margin-bottom: 18px;
+		padding: 22px;
+		border: 1px solid var(--border);
+		border-radius: 18px;
+		background: #0a1214;
+	}
+	.adoption-path-grid,
+	.starter-repository-grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 12px;
+	}
+	.adoption-path-grid article,
+	.starter-repository-grid article {
+		min-width: 0;
+		padding: 18px;
+		border: 1px solid #20332f;
+		border-radius: 15px;
+		background: #0d1618;
+	}
+	.adoption-path-grid h3,
+	.starter-repository-grid h3 {
+		margin: 8px 0;
+	}
+	.adoption-path-grid p,
+	.starter-repository-grid p {
+		margin: 0;
+		color: var(--muted);
+		line-height: 1.5;
+	}
+	.adoption-path-grid small,
+	.starter-repository-grid small {
+		color: #7f9690;
+		text-transform: capitalize;
+	}
+	.path-icon {
+		display: grid;
+		place-items: center;
+		width: 42px;
+		height: 42px;
+		margin-bottom: 14px;
+		color: var(--green);
+		border-radius: 12px;
+		background: #103127;
+	}
+	.custom-site-proof {
+		display: grid;
+		grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+		gap: 22px;
+		align-items: center;
+		margin-bottom: 18px;
+		padding: 22px;
+		border: 1px solid #245b49;
+		border-radius: 18px;
+		background: linear-gradient(120deg, #0c211b, #0a1214);
+	}
+	.custom-site-proof h2 {
+		margin: 7px 0;
+	}
+	.custom-site-proof p {
+		margin: 0;
+		color: var(--muted);
+	}
+	.custom-site-proof dl {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		margin: 0;
+	}
+	.custom-site-proof dl div {
+		padding: 10px;
+		border-radius: 10px;
+		background: #08120f;
+	}
+	.custom-site-proof dt {
+		color: var(--muted);
+		font-size: 10px;
+		text-transform: uppercase;
+	}
+	.custom-site-proof dd {
+		margin: 4px 0 0;
+		font-weight: 750;
+	}
+	.starter-repository-heading {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+	}
+	.starter-repository-heading .path-icon {
+		margin-bottom: 8px;
+	}
+	.review-state {
+		color: #d6a73d;
+		font-size: 11px;
+		font-weight: 750;
+	}
+	.review-state.reviewed {
+		color: var(--green);
+	}
+	.starter-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin: 14px 0;
+	}
+	.starter-tags span {
+		padding: 5px 8px;
+		color: #9eb1ab;
+		font-size: 10px;
+		border-radius: 999px;
+		background: #15211f;
+	}
+	.starter-repository-grid .secondary {
+		width: 100%;
+	}
+	.starter-repository-grid article.selected {
+		border-color: #3a9c78;
+		box-shadow: 0 0 0 2px #1a4938;
+	}
+	.starter-repository-grid .starter-evidence {
+		margin-top: 12px;
+		padding-top: 12px;
+		border-top: 1px solid var(--border);
+		font-size: 11px;
 	}
 	.adoption-grid {
 		display: grid;
@@ -4490,8 +4744,15 @@
 		}
 		.continue-grid,
 		.publish-grid,
-		.adoption-grid {
+		.adoption-grid,
+		.custom-site-proof,
+		.adoption-path-grid,
+		.starter-repository-grid {
 			grid-template-columns: 1fr;
+		}
+		.section-heading {
+			align-items: start;
+			flex-direction: column;
 		}
 	}
 	@media (max-width: 640px) {
