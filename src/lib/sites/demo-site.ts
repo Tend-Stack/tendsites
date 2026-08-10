@@ -28,6 +28,41 @@ export type DemoSite = {
 	pages: DemoPage[];
 };
 
+export function normalizePageSlug(value: string): string {
+	const slug = value
+		.trim()
+		.toLowerCase()
+		.replace(/^https?:\/\/[^/]+/i, '')
+		.replace(/[^a-z0-9/]+/g, '-')
+		.replace(/\/{2,}/g, '/')
+		.replace(/-+/g, '-')
+		.replace(/^[-/]+|[-/]+$/g, '');
+	return slug ? `/${slug}` : '/';
+}
+
+export function uniquePageSlug(value: string, pages: DemoPage[], excludeId?: string): string {
+	const requested = normalizePageSlug(value);
+	const occupied = new Set(pages.filter((page) => page.id !== excludeId).map((page) => page.slug));
+	if (!occupied.has(requested)) return requested;
+	const base = requested === '/' ? '/page' : requested;
+	let suffix = 2;
+	while (occupied.has(`${base}-${suffix}`)) suffix += 1;
+	return `${base}-${suffix}`;
+}
+
+export function duplicateDemoPage(page: DemoPage, pages: DemoPage[], sequence: number): DemoPage {
+	const id = `${page.id.replace(/-copy-\d+$/, '')}-copy-${sequence}`;
+	return {
+		id,
+		name: `${page.name} copy`.slice(0, 50),
+		slug: uniquePageSlug(`${page.slug}-copy`, pages),
+		sections: page.sections.map((section, index) => ({
+			...section,
+			id: `${section.kind}-${sequence}-${index + 1}`
+		}))
+	};
+}
+
 export const demoImages = {
 	lake: weekendLakeImage,
 	notes: fieldNotesImage,

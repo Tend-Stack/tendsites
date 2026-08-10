@@ -7,6 +7,7 @@
 		Check,
 		CirclePlus,
 		Cloud,
+		Copy,
 		DatabaseZap,
 		FileSearch,
 		FileText,
@@ -22,6 +23,7 @@
 		Settings2,
 		ShieldCheck,
 		TestTube2,
+		Trash2,
 		Sparkles,
 		X
 	} from '@lucide/svelte';
@@ -50,7 +52,9 @@
 		createDemoSite,
 		createSection,
 		demoImages,
+		duplicateDemoPage,
 		sectionLabels,
+		uniquePageSlug,
 		type DemoSectionKind,
 		type DemoSite
 	} from './demo-site';
@@ -79,6 +83,12 @@
 	let showAddSection = $state(false);
 	let showPreview = $state(false);
 	let newPageName = $state('');
+	let deleteTarget = $state<
+		| { kind: 'page'; id: string; name: string }
+		| { kind: 'section'; id: string; name: string }
+		| null
+	>(null);
+	let deleteConfirmation = $state('');
 	let studioPanel = $state<'outline' | 'canvas' | 'inspector'>('canvas');
 	let conflictChoice = $state<'keep_draft' | 'use_repository' | null>(null);
 	const draftStorageKey = 'studio-draft-v1';
@@ -203,13 +213,67 @@
 			next.pages.push({
 				id,
 				name: name.slice(0, 50),
-				slug: `/${id.replace(/-\d+$/, '')}`,
+				slug: uniquePageSlug(name, next.pages),
 				sections: [createSection('hero', Date.now())]
 			});
 		});
 		selectPage(id);
 		newPageName = '';
 		showAddPage = false;
+	}
+
+	function updatePage(field: 'name' | 'slug', value: string) {
+		changeDraft((next) => {
+			const page = next.pages.find((item) => item.id === selectedPageId);
+			if (!page) return;
+			if (field === 'name') {
+				const name = value.trim().slice(0, 50);
+				if (name) page.name = name;
+				return;
+			}
+			page.slug = uniquePageSlug(value, next.pages, page.id);
+		});
+	}
+
+	function duplicateSelectedPage() {
+		if (!selectedPage) return;
+		const copy = duplicateDemoPage(selectedPage, siteDraft.pages, Date.now());
+		changeDraft((next) => next.pages.push(copy));
+		selectPage(copy.id);
+	}
+
+	function requestDeletePage() {
+		if (!selectedPage || selectedPage.id === 'home' || siteDraft.pages.length <= 1) return;
+		deleteTarget = { kind: 'page', id: selectedPage.id, name: selectedPage.name };
+		deleteConfirmation = '';
+	}
+
+	function requestDeleteSection() {
+		if (!selectedSection || (selectedPage?.sections.length ?? 0) <= 1) return;
+		deleteTarget = { kind: 'section', id: selectedSection.id, name: selectedSection.label };
+		deleteConfirmation = '';
+	}
+
+	function confirmDelete() {
+		if (!deleteTarget || deleteConfirmation.trim() !== deleteTarget.name) return;
+		if (deleteTarget.kind === 'page') {
+			const targetId = deleteTarget.id;
+			const fallback = siteDraft.pages.find((page) => page.id !== targetId);
+			changeDraft((next) => {
+				next.pages = next.pages.filter((page) => page.id !== targetId);
+			});
+			if (fallback) selectPage(fallback.id);
+		} else {
+			const targetId = deleteTarget.id;
+			const fallback = selectedPage?.sections.find((section) => section.id !== targetId);
+			changeDraft((next) => {
+				const page = next.pages.find((item) => item.id === selectedPageId);
+				if (page) page.sections = page.sections.filter((section) => section.id !== targetId);
+			});
+			selectedSectionId = fallback?.id ?? '';
+		}
+		deleteTarget = null;
+		deleteConfirmation = '';
 	}
 
 	function addSection(kind: DemoSectionKind) {
@@ -693,6 +757,39 @@
 				class="inspector"
 				aria-label="Selected block settings"
 			>
+				<section class="inspector-section" aria-labelledby="page-settings-title">
+					<div>
+						<span class="eyebrow">Current page</span>
+						<h2 id="page-settings-title">Page settings</h2>
+					</div>
+					<label
+						><span>Page name</span><input
+							value={selectedPage?.name ?? ''}
+							maxlength="50"
+							onchange={(event) => updatePage('name', event.currentTarget.value)}
+						/></label
+					>
+					<label
+						><span>Page address</span><input
+							value={selectedPage?.slug ?? '/'}
+							maxlength="80"
+							disabled={selectedPage?.id === 'home'}
+							onchange={(event) => updatePage('slug', event.currentTarget.value)}
+						/></label
+					>
+					<div class="page-actions">
+						<button class="secondary" onclick={duplicateSelectedPage}
+							><Copy size={15} /> Duplicate page</button
+						>
+						<button
+							class="danger-button"
+							disabled={selectedPage?.id === 'home' || siteDraft.pages.length <= 1}
+							title={selectedPage?.id === 'home' ? 'The home page cannot be removed.' : undefined}
+							onclick={requestDeletePage}><Trash2 size={15} /> Remove page</button
+						>
+					</div>
+				</section>
+				<hr />
 				<div>
 					<span class="eyebrow">Selected block</span>
 					<h2>{selectedSection?.label ?? 'Choose a section'}</h2>
@@ -745,6 +842,14 @@
 				</div>
 				<button class="secondary" onclick={() => (showAddSection = true)}
 					>Add another section</button
+				>
+				<button
+					class="danger-button"
+					disabled={(selectedPage?.sections.length ?? 0) <= 1}
+					title={(selectedPage?.sections.length ?? 0) <= 1
+						? 'Every page needs at least one section.'
+						: undefined}
+					onclick={requestDeleteSection}><Trash2 size={15} /> Remove selected section</button
 				>
 			</aside>
 		</main>
@@ -807,6 +912,43 @@
 													: 'A focused feature with supporting imagery.'}</small
 								></button
 							>{/each}
+					</div>
+				</div>
+			</div>
+		{/if}
+		{#if deleteTarget}
+			<div class="modal-backdrop" role="presentation">
+				<div
+					class="studio-modal"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="delete-item-title"
+				>
+					<button class="modal-close" aria-label="Close" onclick={() => (deleteTarget = null)}
+						><X size={18} /></button
+					>
+					<span class="eyebrow">Protected action</span>
+					<h2 id="delete-item-title">Remove {deleteTarget.name}?</h2>
+					<p>
+						This removes the {deleteTarget.kind} from the local draft. You can still use Undo until this
+						Studio session closes.
+					</p>
+					<label
+						><span>Type <strong>{deleteTarget.name}</strong> to confirm</span><input
+							aria-label="Confirmation name"
+							bind:value={deleteConfirmation}
+							onkeydown={(event) => {
+								if (event.key === 'Enter') confirmDelete();
+								if (event.key === 'Escape') deleteTarget = null;
+							}}
+						/></label
+					>
+					<div class="modal-actions">
+						<button class="secondary" onclick={() => (deleteTarget = null)}>Cancel</button><button
+							class="danger-button"
+							disabled={deleteConfirmation.trim() !== deleteTarget.name}
+							onclick={confirmDelete}>Remove {deleteTarget.kind}</button
+						>
 					</div>
 				</div>
 			</div>
@@ -1447,6 +1589,7 @@
 	}
 	.primary,
 	.secondary,
+	.danger-button,
 	.card-action,
 	.back-link {
 		display: inline-flex;
@@ -1475,6 +1618,25 @@
 	.secondary:hover {
 		border-color: #3d544c;
 		background: #14201e;
+	}
+	.danger-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		min-height: 42px;
+		padding: 0 17px;
+		color: #fecaca;
+		font-weight: 750;
+		background: #2a1114;
+		border: 1px solid #7f3038;
+		border-radius: 11px;
+		cursor: pointer;
+	}
+	.danger-button:hover:not(:disabled) {
+		color: #fff1f2;
+		border-color: #dc5b67;
+		background: #3a171c;
 	}
 	.project-grid,
 	.component-grid {
@@ -2234,6 +2396,25 @@
 		align-content: start;
 		gap: 16px;
 		border-left: 1px solid var(--border);
+	}
+	.inspector-section {
+		display: grid;
+		gap: 13px;
+	}
+	.inspector hr {
+		width: 100%;
+		margin: 2px 0;
+		border: 0;
+		border-top: 1px solid var(--border);
+	}
+	.page-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+	.page-actions button {
+		padding-inline: 10px;
+		font-size: 11px;
 	}
 	.official {
 		display: inline-block;

@@ -56,6 +56,9 @@ Completion is measured only from the top-level product milestones below. Nested 
     replace newer edits.
   - **Pending integration:** Persist project-scoped drafts through a durable host capability.
 - [x] Accessible block canvas with schema-driven inspector.
+- [x] Safe local page and section management.
+  - **Complete:** Friendly unique addresses, page duplication, protected home
+    and last-section invariants, named destructive confirmation, and session undo.
 - [x] Responsive/mobile editing model and keyboard navigation.
 - [x] Undo history and clear conflict resolution.
 - [x] Repository media lifecycle with accessible variants.

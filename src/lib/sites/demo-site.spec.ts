@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { cloneDemoSite, createDemoSite, createSection, isDemoSite } from './demo-site';
+import {
+	cloneDemoSite,
+	createDemoSite,
+	createSection,
+	duplicateDemoPage,
+	isDemoSite,
+	normalizePageSlug,
+	uniquePageSlug
+} from './demo-site';
 
 describe('interactive demo site', () => {
 	it('ships a complete navigable example with real content', () => {
@@ -36,5 +44,23 @@ describe('interactive demo site', () => {
 			sections: []
 		}));
 		expect(isDemoSite(tooManyPages)).toBe(false);
+	});
+
+	it('normalizes and de-duplicates friendly page addresses', () => {
+		const pages = createDemoSite().pages;
+		expect(normalizePageSlug('  Field Notes & Photos  ')).toBe('/field-notes-photos');
+		expect(uniquePageSlug('/about', pages)).toBe('/about-2');
+		expect(uniquePageSlug('/about', pages, 'about')).toBe('/about');
+	});
+
+	it('duplicates a page without reusing page, section, or address identities', () => {
+		const site = createDemoSite();
+		const copy = duplicateDemoPage(site.pages[0], site.pages, 42);
+		expect(copy.name).toBe('Home copy');
+		expect(copy.id).not.toBe(site.pages[0].id);
+		expect(copy.slug).not.toBe(site.pages[0].slug);
+		expect(copy.sections.map((section) => section.id)).not.toEqual(
+			site.pages[0].sections.map((section) => section.id)
+		);
 	});
 });

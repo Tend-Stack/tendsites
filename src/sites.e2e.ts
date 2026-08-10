@@ -131,6 +131,33 @@ test('edits a full example site with pages, sections, undo and preview', async (
 	).toBeVisible();
 });
 
+test('manages page identity and requires named confirmation before removal', async ({ page }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+	await page.getByRole('button', { name: 'About', exact: true }).first().click();
+
+	const inspector = page.getByLabel('Selected block settings');
+	const pageName = inspector.getByLabel('Page name');
+	await pageName.fill('Our Story');
+	await pageName.press('Tab');
+	await expect(page.getByRole('button', { name: 'Our Story', exact: true }).first()).toBeVisible();
+
+	const address = inspector.getByLabel('Page address');
+	await address.fill('/story');
+	await address.press('Tab');
+	await expect(address).toHaveValue('/story');
+
+	await inspector.getByRole('button', { name: 'Duplicate page' }).click();
+	await expect(page.getByRole('button', { name: 'Our Story copy', exact: true })).toBeVisible();
+	await inspector.getByRole('button', { name: 'Remove page' }).click();
+
+	const dialog = page.getByRole('dialog', { name: 'Remove Our Story copy?' });
+	await expect(dialog.getByRole('button', { name: 'Remove page' })).toBeDisabled();
+	await dialog.getByLabel('Confirmation name').fill('Our Story copy');
+	await dialog.getByRole('button', { name: 'Remove page' }).click();
+	await expect(page.getByRole('button', { name: 'Our Story copy', exact: true })).toHaveCount(0);
+});
+
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({
 	page
 }) => {
