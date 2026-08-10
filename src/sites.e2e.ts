@@ -219,6 +219,69 @@ test('recovers an unreadable extension-scoped draft without changing source', as
 	await expect(page.getByText('Saved in this panel')).toBeVisible();
 });
 
+test('keeps embedded pages spacious without clipping site or library labels', async ({ page }) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.setViewportSize({ width: 1600, height: 1000 });
+	await page.goto('/');
+	await page.evaluate(async () => {
+		const host = { id: 'host.tend.sites', onUnmount() {} };
+		const extensionUrl = '/test-extension/index.js';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension.default(host).mount(container);
+	});
+
+	const shell = page.locator('.sites-shell.embedded');
+	await expect(shell).toBeVisible();
+	await expect(page.locator('.project-card .status.live')).toHaveCount(2);
+	await expect(page.locator('.project-card .status:not(.live)')).toHaveCount(1);
+
+	const homeLayout = await page.evaluate(() => {
+		const shellRect = document.querySelector('.sites-shell.embedded')?.getBoundingClientRect();
+		const pageRect = document.querySelector('.sites-shell.embedded .page')?.getBoundingClientRect();
+		const labelsFit = [...document.querySelectorAll('.project-card .status')].every((label) => {
+			const labelRect = label.getBoundingClientRect();
+			const cardRect = label.closest('.project-card')?.getBoundingClientRect();
+			return Boolean(
+				cardRect && labelRect.left >= cardRect.left && labelRect.right <= cardRect.right
+			);
+		});
+		return {
+			contentInset:
+				shellRect && pageRect ? pageRect.left - shellRect.left : Number.POSITIVE_INFINITY,
+			labelsFit
+		};
+	});
+	expect(homeLayout.contentInset).toBeLessThanOrEqual(20);
+	expect(homeLayout.labelsFit).toBe(true);
+
+	await page.getByRole('button', { name: 'Library', exact: true }).click();
+	await expect(page.locator('.component-grid .status.live')).toHaveCount(6);
+	const libraryLabelsFit = await page.evaluate(() =>
+		[...document.querySelectorAll('.component-grid .status')].every((label) => {
+			const labelRect = label.getBoundingClientRect();
+			const cardRect = label.closest('article')?.getBoundingClientRect();
+			return Boolean(
+				cardRect && labelRect.left >= cardRect.left && labelRect.right <= cardRect.right
+			);
+		})
+	);
+	expect(libraryLabelsFit).toBe(true);
+});
+
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({
 	page
 }) => {
