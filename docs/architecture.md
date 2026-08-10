@@ -47,8 +47,10 @@ Generated site = ordinary files + assets + Git history
   tabbed readiness evidence. Its versioned local draft envelope is serialized
   through scoped extension storage so rapid edits cannot be persisted out of
   order. Read or write failures preserve the visible draft and offer an explicit,
-  local-only retry or replacement flow. This convenience draft is not repository
-  or publishing authority.
+  local-only retry or replacement flow. Contextual title and paragraph editing
+  serializes a bounded Markdown subset rather than arbitrary browser HTML; raw
+  HTML is escaped, links are protocol-validated, and pasted markup becomes plain
+  text. This convenience draft is not repository or publishing authority.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 

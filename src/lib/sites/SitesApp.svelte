@@ -4,6 +4,7 @@
 		ArrowRight,
 		ArrowUp,
 		ArrowDown,
+		Bold,
 		Check,
 		CirclePlus,
 		Cloud,
@@ -13,14 +14,18 @@
 		FileText,
 		GitBranch,
 		Image,
+		Italic,
 		LayoutGrid,
 		Library,
 		Languages,
+		Link2,
+		List,
 		Menu,
 		MonitorPlay,
 		Paintbrush,
 		PanelLeft,
 		Rocket,
+		RemoveFormatting,
 		Settings2,
 		ShieldCheck,
 		TestTube2,
@@ -70,6 +75,7 @@
 		type DemoLibraryComponent,
 		type DemoTheme
 	} from './library-catalog';
+	import { normalizeRichTextLink, renderRichMarkdown, richElementToMarkdown } from './rich-text';
 
 	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
 	type ReadinessArea =
@@ -108,6 +114,17 @@
 	let libraryPreview = $state<DemoLibraryComponent | null>(null);
 	let libraryNotice = $state('');
 	let writingToolsExpanded = $state(false);
+	type RichField = 'title' | 'body';
+	let activeRichEdit = $state<{
+		sectionId: string;
+		field: RichField;
+		element: HTMLElement;
+	} | null>(null);
+	let richToolbar = $state<HTMLElement | null>(null);
+	let linkEditorOpen = $state(false);
+	let linkUrl = $state('');
+	let richLinkError = $state('');
+	let richSelection: Range | null = null;
 	let outlineWidth = $state(230);
 	let inspectorWidth = $state(300);
 	let panelResize = $state<{
@@ -167,6 +184,17 @@
 		)
 	);
 	const contentIndex = demoContentIndex;
+
+	function richContent(node: HTMLElement, markdown: string) {
+		const update = (next: string) => {
+			// renderRichMarkdown escapes raw HTML and validates every link before
+			// this bounded projection reaches the DOM. Never overwrite an active
+			// editing host because doing so would destroy its live selection.
+			if (document.activeElement !== node) node.innerHTML = renderRichMarkdown(next);
+		};
+		update(markdown);
+		return { update };
+	}
 
 	onMount(() => {
 		if (!storage) {
@@ -361,7 +389,164 @@
 		updateSection(field, value);
 	}
 
+	function beginRichEdit(sectionId: string, field: RichField, element: HTMLElement) {
+		selectedSectionId = sectionId;
+		activeRichEdit = { sectionId, field, element };
+		writingToolsExpanded = false;
+		linkEditorOpen = false;
+		linkUrl = '';
+		richLinkError = '';
+		captureRichSelection();
+	}
+
+	function captureRichSelection() {
+		if (!activeRichEdit) return;
+		const selection = window.getSelection();
+		if (!selection?.rangeCount) return;
+		const range = selection.getRangeAt(0);
+		if (activeRichEdit.element.contains(range.commonAncestorContainer)) {
+			richSelection = range.cloneRange();
+		}
+	}
+
+	function commitActiveRichEdit() {
+		if (!activeRichEdit) return;
+		const { sectionId, field, element } = activeRichEdit;
+		const value = richElementToMarkdown(element).slice(0, field === 'body' ? 600 : 240);
+		const section = selectedPage?.sections.find((item) => item.id === sectionId);
+		if (!section || section[field] === value) return;
+		selectedSectionId = sectionId;
+		updateSection(field, value);
+	}
+
+	function handleRichBlur() {
+		window.setTimeout(() => {
+			if (richToolbar?.contains(document.activeElement)) {
+				if (!linkEditorOpen) commitActiveRichEdit();
+				return;
+			}
+			commitActiveRichEdit();
+			activeRichEdit = null;
+			linkEditorOpen = false;
+			richSelection = null;
+		}, 0);
+	}
+
+	function selectedRichRange(): Range | null {
+		if (!activeRichEdit) return null;
+		const range = richSelection?.cloneRange() ?? document.createRange();
+		const belongsToEditor =
+			activeRichEdit.element.contains(range.startContainer) &&
+			activeRichEdit.element.contains(range.endContainer);
+		if (!belongsToEditor || range.collapsed) range.selectNodeContents(activeRichEdit.element);
+		return range;
+	}
+
+	function selectRichResult(node: Node) {
+		if (!activeRichEdit) return;
+		activeRichEdit.element.focus();
+		const range = document.createRange();
+		range.selectNodeContents(node);
+		const selection = window.getSelection();
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+		richSelection = range.cloneRange();
+	}
+
+	function wrapRichSelection(tag: 'strong' | 'em' | 'div' | 'h2' | 'h3') {
+		const range = selectedRichRange();
+		if (!range) return;
+		const wrapper = document.createElement(tag);
+		wrapper.append(range.extractContents());
+		range.insertNode(wrapper);
+		selectRichResult(wrapper);
+	}
+
+	function preserveRichSelection(event: PointerEvent) {
+		captureRichSelection();
+		event.preventDefault();
+	}
+
+	function applyRichCommand(command: 'bold' | 'italic' | 'insertUnorderedList' | 'removeFormat') {
+		if (!activeRichEdit) return;
+		const range = selectedRichRange();
+		if (!range) return;
+		if (command === 'bold' || command === 'italic') {
+			wrapRichSelection(command === 'bold' ? 'strong' : 'em');
+		} else if (command === 'insertUnorderedList') {
+			const list = document.createElement('ul');
+			for (const line of range.toString().split(/\n+/).filter(Boolean)) {
+				const item = document.createElement('li');
+				item.textContent = line;
+				list.append(item);
+			}
+			range.deleteContents();
+			range.insertNode(list);
+			selectRichResult(list);
+		} else {
+			const text = document.createTextNode(range.toString());
+			range.deleteContents();
+			range.insertNode(text);
+			selectRichResult(text);
+		}
+	}
+
+	function applyTextStyle(event: Event & { currentTarget: HTMLSelectElement }) {
+		if (!activeRichEdit) return;
+		const tag = event.currentTarget.value;
+		wrapRichSelection(tag === 'h2' ? 'h2' : tag === 'h3' ? 'h3' : 'div');
+	}
+
+	function openLinkEditor() {
+		captureRichSelection();
+		linkEditorOpen = true;
+		linkUrl = '';
+		richLinkError = '';
+	}
+
+	function applyRichLink() {
+		const href = normalizeRichTextLink(linkUrl);
+		if (!href) {
+			richLinkError = 'Use a web, email, or site link.';
+			return;
+		}
+		const range = selectedRichRange();
+		if (!range) return;
+		const anchor = document.createElement('a');
+		anchor.href = href;
+		anchor.target = '_blank';
+		anchor.rel = 'noopener noreferrer';
+		anchor.append(range.extractContents());
+		range.insertNode(anchor);
+		selectRichResult(anchor);
+		linkEditorOpen = false;
+		linkUrl = '';
+		richLinkError = '';
+		captureRichSelection();
+	}
+
+	function closeRichEditor() {
+		commitActiveRichEdit();
+		activeRichEdit?.element.blur();
+		activeRichEdit = null;
+		linkEditorOpen = false;
+		richSelection = null;
+	}
+
+	function handleRichPaste(event: ClipboardEvent) {
+		event.preventDefault();
+		const text = event.clipboardData?.getData('text/plain') ?? '';
+		const selection = window.getSelection();
+		if (!selection?.rangeCount) return;
+		const range = selection.getRangeAt(0);
+		range.deleteContents();
+		const textNode = document.createTextNode(text);
+		range.insertNode(textNode);
+		selectRichResult(textNode);
+	}
+
 	function handleInlineKeydown(event: KeyboardEvent, multiline = false) {
+		if (event.key === 'Tab' && activeRichEdit) commitActiveRichEdit();
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			(event.currentTarget as HTMLElement).blur();
@@ -943,33 +1128,39 @@
 										onblur={(event) => commitInlineEdit(section.id, 'eyebrow', event.currentTarget)}
 										>{section.eyebrow}</span
 									>
-									<span
+									<div
 										class="inline-title"
-										contenteditable="plaintext-only"
+										contenteditable="true"
 										role="textbox"
 										tabindex="0"
 										aria-label="Edit {section.label} title"
 										data-inline-section={section.id}
 										data-inline-field="title"
-										onfocus={() => (selectedSectionId = section.id)}
+										onfocus={(event) => beginRichEdit(section.id, 'title', event.currentTarget)}
+										onmouseup={captureRichSelection}
+										onkeyup={captureRichSelection}
 										onkeydown={handleInlineKeydown}
-										onblur={(event) => commitInlineEdit(section.id, 'title', event.currentTarget)}
-										>{section.title}</span
-									>
-									<span
+										onpaste={handleRichPaste}
+										onblur={handleRichBlur}
+										use:richContent={section.title}
+									></div>
+									<div
 										class="inline-body"
-										contenteditable="plaintext-only"
+										contenteditable="true"
 										role="textbox"
 										tabindex="0"
 										aria-multiline="true"
 										aria-label="Edit {section.label} text"
 										data-inline-section={section.id}
 										data-inline-field="body"
-										onfocus={() => (selectedSectionId = section.id)}
+										onfocus={(event) => beginRichEdit(section.id, 'body', event.currentTarget)}
+										onmouseup={captureRichSelection}
+										onkeyup={captureRichSelection}
 										onkeydown={(event) => handleInlineKeydown(event, true)}
-										onblur={(event) => commitInlineEdit(section.id, 'body', event.currentTarget)}
-										>{section.body}</span
-									>
+										onpaste={handleRichPaste}
+										onblur={handleRichBlur}
+										use:richContent={section.body}
+									></div>
 									{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
 										>{/if}
 								</div>
@@ -980,22 +1171,99 @@
 						>
 					</div>
 				</div>
-				<div class:expanded={writingToolsExpanded} class="writing-tools" aria-label="Writing tools">
-					<button
-						class="writing-tools-toggle"
-						aria-expanded={writingToolsExpanded}
-						onclick={() => (writingToolsExpanded = !writingToolsExpanded)}
-						><Paintbrush size={16} />
-						{writingToolsExpanded ? 'Hide tools' : 'Writing tools'}</button
+				{#if activeRichEdit}
+					<div bind:this={richToolbar} class="rich-toolbar" aria-label="Text formatting tools">
+						<div class="rich-toolbar-main">
+							<strong>{activeRichEdit.field === 'title' ? 'Title' : 'Text'}</strong>
+							<span aria-hidden="true"></span>
+							<button
+								aria-label="Bold"
+								title="Bold"
+								onpointerdown={preserveRichSelection}
+								onclick={() => applyRichCommand('bold')}><Bold size={15} /></button
+							>
+							<button
+								aria-label="Italic"
+								title="Italic"
+								onpointerdown={preserveRichSelection}
+								onclick={() => applyRichCommand('italic')}><Italic size={15} /></button
+							>
+							{#if activeRichEdit.field === 'body'}
+								<select
+									aria-label="Text style"
+									onpointerdown={captureRichSelection}
+									onchange={applyTextStyle}
+								>
+									<option value="div">Normal</option>
+									<option value="h2">Heading</option>
+									<option value="h3">Subheading</option>
+								</select>
+								<button
+									aria-label="Bulleted list"
+									title="Bulleted list"
+									onpointerdown={preserveRichSelection}
+									onclick={() => applyRichCommand('insertUnorderedList')}><List size={15} /></button
+								>
+							{/if}
+							<button
+								aria-label="Add link"
+								title="Add link"
+								onpointerdown={preserveRichSelection}
+								onclick={openLinkEditor}><Link2 size={15} /></button
+							>
+							<button
+								aria-label="Clear formatting"
+								title="Clear formatting"
+								onpointerdown={preserveRichSelection}
+								onclick={() => applyRichCommand('removeFormat')}
+								><RemoveFormatting size={15} /></button
+							>
+							<button
+								class="close-rich-toolbar"
+								aria-label="Close text tools"
+								onclick={closeRichEditor}><X size={15} /></button
+							>
+						</div>
+						{#if linkEditorOpen}
+							<div class="link-editor">
+								<label>
+									<span>Link address</span>
+									<input
+										placeholder="https://example.com or /about"
+										bind:value={linkUrl}
+										onkeydown={(event) => {
+											if (event.key === 'Enter') applyRichLink();
+											if (event.key === 'Escape') linkEditorOpen = false;
+										}}
+									/>
+								</label>
+								<button class="apply-link" onclick={applyRichLink}>Apply link</button>
+								{#if richLinkError}<small role="alert">{richLinkError}</small>{/if}
+							</div>
+						{/if}
+					</div>
+				{:else}
+					<div
+						class:expanded={writingToolsExpanded}
+						class="writing-tools"
+						aria-label="Writing tools"
 					>
-					{#if writingToolsExpanded}
-						<span></span>
-						<button onclick={() => focusInlineField('title')}>Edit title</button>
-						<button onclick={() => focusInlineField('body')}>Edit text</button>
-						<button onclick={() => (showAddSection = true)}>Add section</button>
-						<button onclick={() => open('library')}>Library</button>
-					{/if}
-				</div>
+						<button
+							class="writing-tools-toggle"
+							aria-expanded={writingToolsExpanded}
+							onclick={() => (writingToolsExpanded = !writingToolsExpanded)}
+							><Paintbrush size={16} />
+							{writingToolsExpanded ? 'Hide tools' : 'Writing tools'}</button
+						>
+						{#if writingToolsExpanded}
+							<span></span>
+							<button onclick={() => focusInlineField('title')}>Edit title</button>
+							<button onclick={() => focusInlineField('body')}>Edit text</button>
+							<button onclick={() => (showAddSection = true)}>Add section</button>
+							<button onclick={() => open('library')}>Library</button>
+						{/if}
+					</div>
+				{/if}
 			</section>
 			<div
 				class="panel-resizer"
@@ -1299,8 +1567,13 @@
 								{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
 								<div>
 									<small>{section.eyebrow}</small>
-									<h1>{section.title}</h1>
-									<p>{section.body}</p>
+									<div
+										class="preview-title"
+										role="heading"
+										aria-level="1"
+										use:richContent={section.title}
+									></div>
+									<div class="preview-body" use:richContent={section.body}></div>
 								</div>
 							</section>
 						{/each}
@@ -2934,16 +3207,149 @@
 		color: #51605a;
 		line-height: 1.6;
 	}
-	.canvas-section [contenteditable='plaintext-only'] {
+	.canvas-section [contenteditable] {
 		border-radius: 5px;
 		outline: none;
 		cursor: text;
 	}
-	.canvas-section [contenteditable='plaintext-only']:hover {
+	.canvas-section [contenteditable]:hover {
 		box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
 	}
-	.canvas-section [contenteditable='plaintext-only']:focus {
+	.canvas-section [contenteditable]:focus {
 		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 36%, transparent);
+	}
+	.canvas-section .inline-body :global(h1),
+	.canvas-section .inline-body :global(h2),
+	.canvas-section .inline-body :global(h3),
+	.canvas-section .inline-body :global(div),
+	.canvas-section .inline-body :global(ul) {
+		margin: 0;
+	}
+	.canvas-section .inline-body :global(h2) {
+		color: var(--site-ink);
+		font-size: 1.35em;
+		line-height: 1.25;
+	}
+	.canvas-section .inline-body :global(h3) {
+		color: var(--site-ink);
+		font-size: 1.12em;
+		line-height: 1.35;
+	}
+	.canvas-section .inline-body :global(ul) {
+		padding-left: 1.25em;
+	}
+	.canvas-section [contenteditable] :global(a) {
+		color: color-mix(in srgb, var(--accent) 72%, #0d4733);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.rich-toolbar {
+		position: sticky;
+		z-index: 14;
+		bottom: 16px;
+		display: grid;
+		gap: 6px;
+		width: fit-content;
+		max-width: min(100%, 720px);
+		margin: 14px auto 0;
+		padding: 6px;
+		border: 1px solid #3b6254;
+		border-radius: 14px;
+		background: #07100def;
+		box-shadow: 0 16px 48px #000b;
+		backdrop-filter: blur(18px);
+	}
+	.rich-toolbar-main {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.rich-toolbar-main > strong {
+		padding: 0 8px;
+		color: var(--green);
+		font-size: 10px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.rich-toolbar-main > span {
+		width: 1px;
+		height: 22px;
+		background: #2d423a;
+	}
+	.rich-toolbar button,
+	.rich-toolbar select {
+		min-height: 34px;
+		color: #c7d7d1;
+		border: 0;
+		border-radius: 9px;
+		background: transparent;
+	}
+	.rich-toolbar button {
+		display: inline-grid;
+		place-items: center;
+		min-width: 34px;
+		padding: 0 9px;
+		cursor: pointer;
+	}
+	.rich-toolbar button:hover,
+	.rich-toolbar button:focus-visible,
+	.rich-toolbar select:hover,
+	.rich-toolbar select:focus-visible {
+		color: white;
+		background: #17251f;
+		outline: none;
+	}
+	.rich-toolbar select {
+		padding: 0 26px 0 9px;
+		font: inherit;
+		font-size: 11px;
+		cursor: pointer;
+	}
+	.rich-toolbar .close-rich-toolbar {
+		margin-left: 2px;
+		color: #90a49c;
+	}
+	.link-editor {
+		display: grid;
+		grid-template-columns: minmax(220px, 1fr) auto;
+		gap: 6px;
+		padding: 6px;
+		border-top: 1px solid #263b34;
+	}
+	.link-editor label {
+		display: grid;
+		gap: 3px;
+	}
+	.link-editor label > span {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+	}
+	.link-editor input {
+		width: 100%;
+		min-height: 34px;
+		padding: 0 10px;
+		color: white;
+		border: 1px solid #355247;
+		border-radius: 9px;
+		outline: none;
+		background: #0d1915;
+	}
+	.link-editor input:focus {
+		border-color: var(--green);
+	}
+	.link-editor .apply-link {
+		color: #06150f;
+		background: var(--green);
+		font-size: 11px;
+		font-weight: 800;
+	}
+	.link-editor small {
+		grid-column: 1 / -1;
+		color: #ffaeae;
+		font-size: 10px;
 	}
 	.writing-tools {
 		position: sticky;
@@ -3251,15 +3657,23 @@
 		font-weight: 800;
 		letter-spacing: 0.15em;
 	}
-	.preview-section h1 {
+	.preview-section .preview-title {
 		margin: 12px 0 16px;
 		font-family: Georgia, serif;
 		font-size: clamp(38px, 6vw, 74px);
 		line-height: 1;
 	}
-	.preview-section p {
+	.preview-section .preview-title :global(*) {
+		margin: 0;
+		font: inherit;
+		line-height: inherit;
+	}
+	.preview-section .preview-body {
 		color: #506159;
 		font-size: 17px;
+	}
+	.preview-section .preview-body :global(*) {
+		margin: 0 0 8px;
 	}
 	.preview-section.story img,
 	.preview-section.gallery img {
@@ -3731,6 +4145,23 @@
 			flex-wrap: wrap;
 			justify-content: center;
 		}
+		.rich-toolbar {
+			position: sticky;
+			bottom: 8px;
+			width: 100%;
+		}
+		.rich-toolbar-main {
+			flex-wrap: wrap;
+		}
+		.rich-toolbar-main > strong {
+			flex: 1;
+		}
+		.link-editor {
+			grid-template-columns: 1fr;
+		}
+		.link-editor .apply-link {
+			width: 100%;
+		}
 		.site-canvas {
 			min-height: 520px;
 			padding: 25px 18px;
@@ -3752,7 +4183,7 @@
 			grid-column: 1;
 			grid-row: auto;
 		}
-		.canvas-section h1 {
+		.canvas-section .inline-title {
 			font-size: 34px;
 		}
 		.filter-row {

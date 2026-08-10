@@ -4,6 +4,12 @@ TEND Sites will make ordinary Markdown content feel like editing the finished pa
 experience stays approachable: click the words, type, and use a small floating toolbar only when
 needed. Expert structure and source evidence remain available without becoming prerequisites.
 
+Current local preview: titles and paragraphs now expose a compact contextual toolbar with bold,
+italic, headings, lists, safe links, and clear formatting. The draft stores a constrained Markdown
+subset, escapes raw HTML, validates link protocols, and normalizes pasted content to plain text.
+The richer node model, media picker, typography tokens, cross-block selection, and repository
+round-trip remain later gates rather than implied authority.
+
 ## Interaction model
 
 - Clicking a heading, paragraph, caption, button label, or list enters direct editing in place.

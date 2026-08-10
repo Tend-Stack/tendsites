@@ -69,8 +69,11 @@ Completion is measured only from the top-level product milestones below. Nested 
 - [x] Resizable desktop Studio panels and direct local canvas editing.
   - **Complete foundation:** Outline and Inspector widths have bounded drag handles, section copy
     can be edited directly on the canvas, and a compact writing toolbar expands only when needed.
-  - **Pending:** The portable rich-text/Markdown node model, safe links, repository media picker,
-    typography tokens, paste sanitization, and selection-aware history in
+  - **Complete local rich-text slice:** Focusing a title or paragraph opens a dismissible contextual
+    toolbar for emphasis, headings, lists, safe web/email/site links, and clear formatting. Drafts
+    retain a bounded Markdown subset, raw HTML is escaped, and pasted HTML is reduced to plain text.
+  - **Pending:** The full portable rich-text node model, repository media picker, reviewed typography
+    tokens, cross-block selection, and selection-aware history in
     [`rich-editor-plan.md`](rich-editor-plan.md).
 - [x] Undo history and clear conflict resolution.
 - [x] Repository media lifecycle with accessible variants.

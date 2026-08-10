@@ -135,6 +135,38 @@ test('resizes desktop Studio panels and edits section copy directly on canvas', 
 	await expect(page.getByRole('button', { name: 'Edit text' })).toHaveCount(0);
 });
 
+test('opens contextual rich text tools and saves portable Markdown formatting', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+
+	const title = page.getByRole('textbox', { name: 'Edit Lake hero title' });
+	await title.click();
+	await expect(page.getByLabel('Text formatting tools')).toBeVisible();
+	await expect(page.getByLabel('Text formatting tools')).toContainText('Title');
+	await title.press('Control+A');
+	await page.getByRole('button', { name: 'Bold' }).click();
+	await expect(title.locator('strong')).toHaveText('Stories, sound & places worth remembering.');
+	await page.getByRole('button', { name: 'Close text tools' }).click();
+	await expect(page.getByLabel('Selected block settings').getByLabel('Title')).toHaveValue(
+		'**Stories, sound & places worth remembering.**'
+	);
+
+	const body = page.getByRole('textbox', { name: 'Edit Lake hero text' });
+	await body.click();
+	await body.press('Control+A');
+	await page.getByRole('button', { name: 'Add link' }).click();
+	await page.getByLabel('Link address').fill('https://example.com/journal');
+	await page.getByRole('button', { name: 'Apply link' }).click();
+	await expect(body.locator('a')).toHaveAttribute('href', 'https://example.com/journal');
+	await page.getByRole('button', { name: 'Close text tools' }).click();
+	await expect(page.getByLabel('Selected block settings').getByLabel('Body')).toHaveValue(
+		'[A personal corner for essays, field recordings and the occasional experiment.](https://example.com/journal)'
+	);
+});
+
 test('previews reviewed components and applies a real local theme', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Library', exact: true }).click();
@@ -411,9 +443,9 @@ test('replaces a stale extension stylesheet before mounting updated code', async
 		const stale = document.createElement('link');
 		stale.id = 'host-tend-sites-styles';
 		stale.rel = 'stylesheet';
-		stale.href = '/test-extension/style.css?v=0.2.1';
+		stale.href = '/test-extension/style.css?v=0.2.3';
 		document.head.append(stale);
-		const extensionUrl = '/test-extension/index.js?v=0.2.3';
+		const extensionUrl = '/test-extension/index.js?v=0.3.0';
 		const extension = await import(/* @vite-ignore */ extensionUrl);
 		const container = document.createElement('div');
 		document.body.replaceChildren(container);
@@ -421,7 +453,7 @@ test('replaces a stale extension stylesheet before mounting updated code', async
 		return (document.getElementById('host-tend-sites-styles') as HTMLLinkElement | null)?.href;
 	});
 
-	expect(stylesheetHref).toContain('/test-extension/style.css?v=0.2.3');
+	expect(stylesheetHref).toContain('/test-extension/style.css?v=0.3.0');
 	await page.getByRole('button', { name: 'Studio', exact: true }).click();
 	await expect(page.locator('.browser-frame')).toBeVisible();
 });
