@@ -37,7 +37,34 @@ test('guides creation without pretending to create source', async ({ page }) => 
 	await expect(page.getByText('3 reviewed files')).toBeVisible();
 	await page.getByRole('button', { name: 'Open Studio preview' }).click();
 	await expect(page.getByText('Local demo session')).toBeVisible();
-	await expect(page.getByLabel('Content overview')).toContainText('1 entries');
+	await expect(page.getByLabel('Content overview')).toContainText('3 entries');
+});
+
+test('edits real posts in a focused content workspace', async ({ page }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Content', exact: true }).click();
+
+	await expect(
+		page.getByRole('heading', { name: 'Stories, organized and ready to reuse.' })
+	).toBeVisible();
+	await expect(page.locator('.post-list > button')).toHaveCount(3);
+	await page
+		.getByLabel('Posts')
+		.getByRole('button', { name: /A cabin reading list/ })
+		.click();
+	await expect(page.locator('.post-editor > header h2')).toHaveText('A cabin reading list');
+
+	const title = page.getByLabel('Title');
+	await title.fill('Books for a rainy cabin weekend');
+	await title.blur();
+	await expect(page.locator('.post-editor > header h2')).toHaveText(
+		'Books for a rainy cabin weekend'
+	);
+
+	await page.getByLabel('Status').selectOption('published');
+	await expect(page.locator('.post-list em.published')).toHaveCount(3);
+	await page.getByRole('button', { name: 'New post' }).first().click();
+	await expect(page.locator('.post-editor > header h2')).toHaveText('Untitled post');
 });
 
 test('publishing clearly remains non-authoritative', async ({ page }) => {

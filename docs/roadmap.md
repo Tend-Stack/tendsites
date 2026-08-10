@@ -87,6 +87,10 @@ Completion is measured only from the top-level product milestones below. Nested 
     navigation, media, forms, SEO/share metadata, sitemap/robots/feeds, redirects, structured data,
     accessibility, performance, localization, and editorial workflow are mapped in
     [`complete-site-plan.md`](complete-site-plan.md).
+  - **Complete blog foundation:** The local site draft now owns validated post collections, migrates
+    older drafts forward, and exposes a focused Content workspace for searching, creating, editing,
+    featuring, publishing, previewing, and safely deleting posts. Collection-fed page blocks,
+    scheduling, repository persistence, and deployment remain pending.
 - [x] Undo history and clear conflict resolution.
 - [x] Repository media lifecycle with accessible variants.
   - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.

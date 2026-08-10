@@ -26,13 +26,59 @@ export type DemoPage = {
 	sections: DemoSection[];
 };
 
+export type DemoPostStatus = 'draft' | 'published';
+
+export type DemoPost = {
+	id: string;
+	title: string;
+	slug: string;
+	summary: string;
+	body: string;
+	coverImage?: string;
+	coverImageAlt?: string;
+	author: string;
+	tags: string[];
+	status: DemoPostStatus;
+	featured: boolean;
+	publishedAt: string | null;
+};
+
+export type DemoCollection = {
+	id: string;
+	name: string;
+	slug: string;
+	kind: 'posts';
+	items: DemoPost[];
+};
+
 export type DemoSite = {
 	name: string;
 	tagline: string;
 	accent: string;
 	themeId?: DemoThemeId;
 	pages: DemoPage[];
+	collections: DemoCollection[];
 };
+
+export function normalizePostSlug(value: string): string {
+	return (
+		value
+			.trim()
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/-+/g, '-')
+			.replace(/^-|-$/g, '') || 'untitled-post'
+	);
+}
+
+export function uniquePostSlug(value: string, posts: DemoPost[], excludeId?: string): string {
+	const requested = normalizePostSlug(value);
+	const occupied = new Set(posts.filter((post) => post.id !== excludeId).map((post) => post.slug));
+	if (!occupied.has(requested)) return requested;
+	let suffix = 2;
+	while (occupied.has(`${requested}-${suffix}`)) suffix += 1;
+	return `${requested}-${suffix}`;
+}
 
 export function normalizePageSlug(value: string): string {
 	const slug = value
@@ -74,6 +120,78 @@ export const demoImages = {
 	notes: fieldNotesImage,
 	cabin: forestCabinImage
 } as const;
+
+export function createDemoCollections(): DemoCollection[] {
+	return [
+		{
+			id: 'journal-posts',
+			name: 'Journal posts',
+			slug: '/journal',
+			kind: 'posts',
+			items: [
+				{
+					id: 'field-notes-long-way-home',
+					title: 'Field Notes from the long way home',
+					slug: 'field-notes-long-way-home',
+					summary:
+						'A weekend route, a camera, and a few places that deserved more than a drive-by.',
+					body: 'We left before sunrise with no schedule beyond the old lake road.\n\n## A slower route\n\nThe best stop was not marked on the map: a quiet shoreline, warm coffee, and enough time to listen.',
+					coverImage: fieldNotesImage,
+					coverImageAlt: 'An open field notebook beside a camera and wildflowers',
+					author: 'Willow Hart',
+					tags: ['Field notes', 'Slow travel'],
+					status: 'published',
+					featured: true,
+					publishedAt: '2026-08-02T14:00:00.000Z'
+				},
+				{
+					id: 'morning-at-the-lake',
+					title: 'Morning at the lake',
+					slug: 'morning-at-the-lake',
+					summary: 'Mist, still water, and the first trail before breakfast.',
+					body: 'The trail was empty except for a pair of loons crossing the cove.\n\nI kept the camera packed and listened instead.',
+					coverImage: weekendLakeImage,
+					coverImageAlt: 'A quiet lake reflecting distant green hills',
+					author: 'Willow Hart',
+					tags: ['Lakes', 'Photography'],
+					status: 'published',
+					featured: false,
+					publishedAt: '2026-07-26T13:30:00.000Z'
+				},
+				{
+					id: 'cabin-reading-list',
+					title: 'A cabin reading list',
+					slug: 'cabin-reading-list',
+					summary: 'Books and field guides for a rainy weekend in the woods.',
+					body: 'A working list for the next quiet weekend. Add notes before publishing.',
+					coverImage: forestCabinImage,
+					coverImageAlt: 'A warm wooden cabin surrounded by tall forest trees',
+					author: 'Willow Hart',
+					tags: ['Reading', 'Cabins'],
+					status: 'draft',
+					featured: false,
+					publishedAt: null
+				}
+			]
+		}
+	];
+}
+
+export function createDemoPost(sequence: number, posts: DemoPost[]): DemoPost {
+	const title = 'Untitled post';
+	return {
+		id: `post-${sequence}`,
+		title,
+		slug: uniquePostSlug(title, posts),
+		summary: 'Add a short description that helps readers decide what this story is about.',
+		body: 'Start writing here.',
+		author: 'Willow Hart',
+		tags: [],
+		status: 'draft',
+		featured: false,
+		publishedAt: null
+	};
+}
 
 export const sectionLabels: Record<DemoSectionKind, string> = {
 	hero: 'Hero',
@@ -217,7 +335,8 @@ export function createDemoSite(): DemoSite {
 					}
 				]
 			}
-		]
+		],
+		collections: createDemoCollections()
 	};
 }
 
@@ -225,6 +344,15 @@ export function cloneDemoSite(site: DemoSite): DemoSite {
 	// Svelte deep-state values are proxies in the browser. A schema-owned JSON
 	// round trip creates a plain bounded draft that can safely cross storage.
 	return JSON.parse(JSON.stringify(site)) as DemoSite;
+}
+
+export function upgradeDemoSite(value: unknown): DemoSite | null {
+	if (isDemoSite(value)) return cloneDemoSite(value);
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+	const legacy = value as Record<string, unknown>;
+	if ('collections' in legacy) return null;
+	const upgraded = { ...legacy, collections: createDemoCollections() };
+	return isDemoSite(upgraded) ? cloneDemoSite(upgraded) : null;
 }
 
 export function isDemoSite(value: unknown): value is DemoSite {
@@ -236,7 +364,9 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		typeof candidate.accent !== 'string' ||
 		!Array.isArray(candidate.pages) ||
 		candidate.pages.length === 0 ||
-		candidate.pages.length > 24
+		candidate.pages.length > 24 ||
+		!Array.isArray(candidate.collections) ||
+		candidate.collections.length > 12
 	)
 		return false;
 	if (
@@ -244,7 +374,7 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		!['minimal', 'editorial', 'studio', 'docs'].includes(candidate.themeId)
 	)
 		return false;
-	return candidate.pages.every(
+	const pagesValid = candidate.pages.every(
 		(page) =>
 			Boolean(page) &&
 			typeof page.id === 'string' &&
@@ -266,4 +396,51 @@ export function isDemoSite(value: unknown): value is DemoSite {
 					(section.kind === 'embed' ? isEmbedReference(section.embed) : section.embed === undefined)
 			)
 	);
+	if (!pagesValid) return false;
+
+	const collectionIds = new Set<string>();
+	return candidate.collections.every((collection) => {
+		if (
+			!collection ||
+			typeof collection.id !== 'string' ||
+			collectionIds.has(collection.id) ||
+			typeof collection.name !== 'string' ||
+			typeof collection.slug !== 'string' ||
+			collection.kind !== 'posts' ||
+			!Array.isArray(collection.items) ||
+			collection.items.length > 250
+		)
+			return false;
+		collectionIds.add(collection.id);
+		const postIds = new Set<string>();
+		const postSlugs = new Set<string>();
+		return collection.items.every((post) => {
+			if (
+				!post ||
+				typeof post.id !== 'string' ||
+				postIds.has(post.id) ||
+				typeof post.title !== 'string' ||
+				typeof post.slug !== 'string' ||
+				post.slug !== normalizePostSlug(post.slug) ||
+				postSlugs.has(post.slug) ||
+				typeof post.summary !== 'string' ||
+				typeof post.body !== 'string' ||
+				typeof post.author !== 'string' ||
+				!Array.isArray(post.tags) ||
+				post.tags.length > 20 ||
+				!post.tags.every((tag) => typeof tag === 'string' && tag.length <= 40) ||
+				!['draft', 'published'].includes(post.status) ||
+				typeof post.featured !== 'boolean' ||
+				(post.publishedAt !== null &&
+					(typeof post.publishedAt !== 'string' ||
+						!Number.isFinite(Date.parse(post.publishedAt)))) ||
+				(post.coverImage !== undefined && typeof post.coverImage !== 'string') ||
+				(post.coverImageAlt !== undefined && typeof post.coverImageAlt !== 'string')
+			)
+				return false;
+			postIds.add(post.id);
+			postSlugs.add(post.slug);
+			return true;
+		});
+	});
 }

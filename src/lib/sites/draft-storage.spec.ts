@@ -40,6 +40,20 @@ describe('versioned local draft storage', () => {
 		]);
 	});
 
+	it('adds the first content collection when loading a pre-content draft', () => {
+		const legacy = createDemoSite() as unknown as Record<string, unknown>;
+		delete legacy.collections;
+		const parsed = parseDemoDraft({
+			contract: DEMO_DRAFT_CONTRACT,
+			revision: 7,
+			savedAt: '2026-08-10T00:00:00.000Z',
+			site: legacy
+		});
+		expect(parsed?.revision).toBe(7);
+		expect(parsed?.site.collections[0]).toMatchObject({ id: 'journal-posts', kind: 'posts' });
+		expect(parsed?.site.collections[0].items).toHaveLength(3);
+	});
+
 	it('rejects malformed and unbounded stored drafts', () => {
 		expect(parseDemoDraft({ contract: DEMO_DRAFT_CONTRACT, revision: -1 })).toBeNull();
 		expect(parseDemoDraft({ ...createDemoSite(), tagline: 'x'.repeat(300_000) })).toBeNull();

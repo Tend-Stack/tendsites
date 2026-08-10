@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	cloneDemoSite,
+	createDemoPost,
 	createDemoSite,
 	createSection,
 	duplicateDemoPage,
 	isDemoSite,
 	normalizePageSlug,
+	normalizePostSlug,
+	uniquePostSlug,
 	uniquePageSlug
 } from './demo-site';
 import { parseEmbedUrl } from './embed';
@@ -21,6 +24,27 @@ describe('interactive demo site', () => {
 		).toBe(true);
 		expect(site.pages[0].sections[0].image).toMatch(/weekend-lake/);
 		expect(site.themeId).toBe('editorial');
+		expect(site.collections[0].items.map((post) => post.status)).toEqual([
+			'published',
+			'published',
+			'draft'
+		]);
+		expect(site.collections[0].items[0]).toMatchObject({
+			featured: true,
+			slug: 'field-notes-long-way-home'
+		});
+	});
+
+	it('creates unique, safe post identities for the content workspace', () => {
+		const posts = createDemoSite().collections[0].items;
+		expect(normalizePostSlug('  A Lake & A Map  ')).toBe('a-lake-a-map');
+		expect(uniquePostSlug('Morning at the lake', posts)).toBe('morning-at-the-lake-2');
+		expect(createDemoPost(42, posts)).toMatchObject({
+			id: 'post-42',
+			slug: 'untitled-post',
+			status: 'draft',
+			publishedAt: null
+		});
 	});
 
 	it('creates editable starter sections without sharing mutable state', () => {
@@ -54,6 +78,14 @@ describe('interactive demo site', () => {
 		expect(isDemoSite(withEmbed)).toBe(true);
 		withEmbed.pages[0].sections.at(-1)!.embed!.sourceUrl = 'https://example.com/video';
 		expect(isDemoSite(withEmbed)).toBe(false);
+		const duplicatePostSlug = createDemoSite();
+		duplicatePostSlug.collections[0].items[1].slug = duplicatePostSlug.collections[0].items[0].slug;
+		expect(isDemoSite(duplicatePostSlug)).toBe(false);
+		const tooManyPosts = createDemoSite();
+		tooManyPosts.collections[0].items = Array.from({ length: 251 }, (_, index) =>
+			createDemoPost(index, [])
+		);
+		expect(isDemoSite(tooManyPosts)).toBe(false);
 	});
 
 	it('normalizes and de-duplicates friendly page addresses', () => {

@@ -14,9 +14,16 @@ email delivery, analytics, or external service authority.
       behavior.
 - [ ] First-class collections for blog posts, documentation, projects, team members, testimonials,
       events, and other repeatable content.
+  - **Complete blog foundation:** Posts now live in a bounded, validated collection with stable IDs,
+    unique friendly addresses, featured state, tags, publication state, and forward migration for
+    existing local drafts. Additional collection types remain pending.
 - [ ] A guided post editor with title, summary, author, publish date, cover image, categories, tags,
       draft/scheduled state, body, related content, and SEO. The default view shows only the fields most
       people need.
+  - **Complete editing foundation:** A dedicated Content workspace provides post search, draft and
+    published filters, title/address/summary/body/author/tag editing, reader preview, featured state,
+    explicit publication state, safe local autosave, and named-confirmation deletion. Scheduling,
+    cover-media selection, relationships, and entry SEO remain pending.
 - [ ] Collection relationships so a home page can show latest posts, featured projects, related
       articles, category groups, and “read more” cards without duplicating content.
 - [ ] Navigation builder for header, footer, nested menus, external links, social links, and a

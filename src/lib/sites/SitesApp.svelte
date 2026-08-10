@@ -43,12 +43,8 @@
 	import type { SiteGoal, SiteModule } from '../contracts/catalog';
 	import { planSiteCreation } from '../planning/site-creation';
 
-	import {
-		demoAdoptionReport,
-		demoChangePreview,
-		demoContentIndex,
-		starterCatalog
-	} from './foundation-data';
+	import { demoAdoptionReport, demoChangePreview, starterCatalog } from './foundation-data';
+	import ContentWorkspace from './ContentWorkspace.svelte';
 	import { goals, modules, projects, themes } from './fixtures';
 	import {
 		assistanceEvidence,
@@ -82,7 +78,8 @@
 	} from './library-catalog';
 	import { normalizeRichTextLink, renderRichMarkdown, richElementToMarkdown } from './rich-text';
 
-	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
+	type View =
+		'home' | 'content' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
 	type ReadinessArea =
 		'overview' | 'health' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
 
@@ -194,7 +191,14 @@
 			selectedTemplate
 		)
 	);
-	const contentIndex = demoContentIndex;
+	const contentIndex = $derived.by(() => {
+		const posts = siteDraft.collections.flatMap((collection) => collection.items);
+		return {
+			total: posts.length,
+			drafts: posts.filter((post) => post.status === 'draft').length,
+			byLocale: { en: posts.length }
+		};
+	});
 
 	function richContent(node: HTMLElement, markdown: string) {
 		const update = (next: string) => {
@@ -772,6 +776,12 @@
 				onclick={() => open('studio')}><Paintbrush size={17} /><span>Studio</span></button
 			>
 			<button
+				class:active={view === 'content'}
+				aria-label="Content"
+				title="Content"
+				onclick={() => open('content')}><FileText size={17} /><span>Content</span></button
+			>
+			<button
 				class:active={view === 'library'}
 				aria-label="Library"
 				title="Library"
@@ -874,6 +884,8 @@
 				</article>
 			</section>
 		</main>
+	{:else if view === 'content'}
+		<ContentWorkspace site={siteDraft} onchange={changeDraft} />
 	{:else if view === 'create'}
 		<main class="page wizard-page">
 			<button class="back-link" onclick={() => open('home')}

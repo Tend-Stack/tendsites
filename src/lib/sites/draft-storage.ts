@@ -1,4 +1,4 @@
-import { cloneDemoSite, isDemoSite, type DemoSite } from './demo-site';
+import { cloneDemoSite, upgradeDemoSite, type DemoSite } from './demo-site';
 
 export const DEMO_DRAFT_CONTRACT = 'tend.host/sites-local-draft/v1' as const;
 
@@ -30,12 +30,13 @@ export function parseDemoDraft(value: unknown): DemoDraftEnvelope | null {
 
 	// 0.2.0 previews stored the bare site before the versioned envelope was
 	// introduced. Accept it once and migrate on the next successful save.
-	if (isDemoSite(value)) {
+	const legacySite = upgradeDemoSite(value);
+	if (legacySite) {
 		return {
 			contract: DEMO_DRAFT_CONTRACT,
 			revision: 0,
 			savedAt: new Date(0).toISOString(),
-			site: cloneDemoSite(value)
+			site: legacySite
 		};
 	}
 
@@ -50,15 +51,17 @@ export function parseDemoDraft(value: unknown): DemoDraftEnvelope | null {
 		revision < 0 ||
 		typeof savedAt !== 'string' ||
 		!Number.isFinite(Date.parse(savedAt)) ||
-		!isDemoSite(candidate.site)
+		!upgradeDemoSite(candidate.site)
 	)
 		return null;
+	const upgradedSite = upgradeDemoSite(candidate.site);
+	if (!upgradedSite) return null;
 
 	return {
 		contract: DEMO_DRAFT_CONTRACT,
 		revision,
 		savedAt,
-		site: cloneDemoSite(candidate.site)
+		site: upgradedSite
 	};
 }
 
