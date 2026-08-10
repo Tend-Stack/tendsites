@@ -84,6 +84,8 @@
 	let showAddPage = $state(false);
 	let showAddSection = $state(false);
 	let showPreview = $state(false);
+	let showDraftRecovery = $state(false);
+	let recoveryBusy = $state(false);
 	let newPageName = $state('');
 	let deleteTarget = $state<
 		| { kind: 'page'; id: string; name: string }
@@ -175,6 +177,34 @@
 			.catch(() => {
 				if (request === latestSaveRequest) saveStatus = 'error';
 			});
+	}
+
+	async function retryDraftSave() {
+		if (!draftStore || recoveryBusy) return;
+		recoveryBusy = true;
+		try {
+			await draftStore.retryLoad();
+			showDraftRecovery = false;
+			saveDraft(siteDraft);
+		} catch {
+			saveStatus = 'error';
+		} finally {
+			recoveryBusy = false;
+		}
+	}
+
+	async function replaceSavedDraft() {
+		if (!draftStore || recoveryBusy) return;
+		recoveryBusy = true;
+		try {
+			await draftStore.reset();
+			showDraftRecovery = false;
+			saveDraft(siteDraft);
+		} catch {
+			saveStatus = 'error';
+		} finally {
+			recoveryBusy = false;
+		}
 	}
 
 	function changeDraft(mutator: (next: DemoSite) => void) {
@@ -305,6 +335,15 @@
 		open('studio');
 	}
 
+	function handleGlobalKeydown(event: KeyboardEvent) {
+		if (event.key !== 'Escape') return;
+		if (showDraftRecovery && !recoveryBusy) showDraftRecovery = false;
+		else if (deleteTarget) deleteTarget = null;
+		else if (showAddPage) showAddPage = false;
+		else if (showAddSection) showAddSection = false;
+		else if (showPreview) showPreview = false;
+	}
+
 	function toggleModule(module: string) {
 		selectedModules = selectedModules.includes(module)
 			? selectedModules.filter((item) => item !== module)
@@ -336,6 +375,8 @@
 		content="A Git-native publishing studio for tend.host. This foundation preview does not modify repositories."
 	/>
 </svelte:head>
+
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <div class:embedded class="sites-shell">
 	<header class="topbar">
@@ -713,6 +754,7 @@
 						<strong>{selectedPage?.name ?? 'Page'}</strong><span>English</span><span
 							class:saved={saveStatus !== 'error'}
 							class="save-state"
+							aria-live="polite"
 							>{saveStatus === 'loading'
 								? 'Saving…'
 								: saveStatus === 'saved'
@@ -721,6 +763,10 @@
 										? 'Could not save'
 										: 'Local demo session'}</span
 						>
+						{#if saveStatus === 'error'}<button
+								class="save-recovery"
+								onclick={() => (showDraftRecovery = true)}>Resolve save issue</button
+							>{/if}
 					</div>
 					<div>
 						<button class="secondary" disabled={history.length === 0} onclick={undoDraft}
@@ -944,6 +990,43 @@
 													: 'A focused feature with supporting imagery.'}</small
 								></button
 							>{/each}
+					</div>
+				</div>
+			</div>
+		{/if}
+		{#if showDraftRecovery}
+			<div class="modal-backdrop" role="presentation">
+				<div
+					class="studio-modal"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="draft-recovery-title"
+				>
+					<button
+						class="modal-close"
+						aria-label="Close"
+						disabled={recoveryBusy}
+						onclick={() => (showDraftRecovery = false)}><X size={18} /></button
+					>
+					<span class="eyebrow">Draft recovery</span>
+					<h2 id="draft-recovery-title">Your visible work is still here.</h2>
+					<p>
+						TEND Sites could not read or update its saved copy. Try the storage connection again, or
+						replace only that saved copy with the draft currently visible in Studio.
+					</p>
+					<div class="recovery-note">
+						<ShieldCheck size={18} /><span
+							><strong>No repository or published site will change.</strong><small
+								>Recovery is limited to this extension's private local storage.</small
+							></span
+						>
+					</div>
+					<div class="modal-actions">
+						<button class="secondary" disabled={recoveryBusy} onclick={retryDraftSave}
+							>{recoveryBusy ? 'Working…' : 'Try again'}</button
+						><button class="primary" disabled={recoveryBusy} onclick={replaceSavedDraft}
+							>Replace saved copy</button
+						>
 					</div>
 				</div>
 			</div>
@@ -2383,6 +2466,15 @@
 	.save-state:not(.saved) {
 		color: #ffb77c;
 	}
+	.save-recovery {
+		padding: 5px 9px;
+		color: #ffd4b2;
+		font-size: 10px;
+		background: #3a2116;
+		border: 1px solid #754026;
+		border-radius: 999px;
+		cursor: pointer;
+	}
 	.browser-frame {
 		width: min(820px, 100%);
 		margin: 0 auto;
@@ -2620,6 +2712,25 @@
 		border: 1px solid var(--border);
 		border-radius: 11px;
 		padding: 13px;
+	}
+	.recovery-note {
+		display: flex;
+		align-items: flex-start;
+		gap: 11px;
+		margin-top: 18px;
+		padding: 14px;
+		color: var(--green);
+		background: #0b211a;
+		border: 1px solid #235842;
+		border-radius: 12px;
+	}
+	.recovery-note span {
+		display: grid;
+		gap: 3px;
+	}
+	.recovery-note small {
+		color: var(--muted);
+		font-size: 11px;
 	}
 	.modal-close {
 		position: absolute;

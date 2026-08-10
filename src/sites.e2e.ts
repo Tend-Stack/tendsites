@@ -173,6 +173,52 @@ test('finds a local site-health issue and returns to the exact editor section', 
 	await expect(page.getByLabel('Selected block settings').getByLabel('Title')).toHaveValue('');
 });
 
+test('recovers an unreadable extension-scoped draft without changing source', async ({ page }) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	await page.evaluate(async () => {
+		let stored: unknown = { contract: 'invalid-draft' };
+		const host = {
+			id: 'host.tend.sites',
+			storage: {
+				get: async () => stored,
+				set: async (_key: string, value: unknown) => {
+					stored = value;
+				},
+				delete: async () => {
+					stored = null;
+				}
+			},
+			onUnmount() {}
+		};
+		const extensionUrl = '/test-extension/index.js';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension.default(host).mount(container);
+	});
+
+	await page.getByRole('button', { name: 'Studio', exact: true }).click();
+	await expect(page.getByText('Could not save')).toBeVisible();
+	await page.getByRole('button', { name: 'Resolve save issue' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Your visible work is still here.' });
+	await expect(dialog.getByText('No repository or published site will change.')).toBeVisible();
+	await dialog.getByRole('button', { name: 'Replace saved copy' }).click();
+	await expect(page.getByText('Saved in this panel')).toBeVisible();
+});
+
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({
 	page
 }) => {

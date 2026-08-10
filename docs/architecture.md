@@ -46,7 +46,9 @@ Generated site = ordinary files + assets + Git history
   example site, editable pages and sections, an overview-first workspace, and
   tabbed readiness evidence. Its versioned local draft envelope is serialized
   through scoped extension storage so rapid edits cannot be persisted out of
-  order. This convenience draft is not repository or publishing authority.
+  order. Read or write failures preserve the visible draft and offer an explicit,
+  local-only retry or replacement flow. This convenience draft is not repository
+  or publishing authority.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 

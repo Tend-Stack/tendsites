@@ -110,4 +110,22 @@ export class DemoDraftStore {
 	async flush(): Promise<void> {
 		await this.#tail;
 	}
+
+	async retryLoad(): Promise<DemoDraftEnvelope | null> {
+		await this.#tail.catch(() => undefined);
+		this.#loadPromise = null;
+		return this.load();
+	}
+
+	reset(): Promise<void> {
+		const reset = this.#tail
+			.catch(() => undefined)
+			.then(async () => {
+				await this.#storage.delete(this.#key);
+				this.#revision = 0;
+				this.#loadPromise = Promise.resolve(null);
+			});
+		this.#tail = reset;
+		return reset;
+	}
 }

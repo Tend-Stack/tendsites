@@ -92,4 +92,23 @@ describe('versioned local draft storage', () => {
 		await expect(store.save(createDemoSite())).rejects.toThrow('temporary failure');
 		await expect(store.save(createDemoSite())).resolves.toMatchObject({ revision: 2 });
 	});
+
+	it('can replace an unreadable saved copy with the visible draft', async () => {
+		let stored: unknown = { contract: DEMO_DRAFT_CONTRACT, revision: -1 };
+		const storage: DraftStorage = {
+			get: async () => stored,
+			set: async (_key, value) => {
+				stored = value;
+			},
+			delete: async () => {
+				stored = null;
+			}
+		};
+		const store = new DemoDraftStore(storage, 'draft');
+
+		await expect(store.load()).rejects.toThrow('invalid or too large');
+		await store.reset();
+		await expect(store.save(createDemoSite())).resolves.toMatchObject({ revision: 1 });
+		expect(parseDemoDraft(stored)?.site.name).toBe('Willow Journal');
+	});
 });

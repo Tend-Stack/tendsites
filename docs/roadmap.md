@@ -54,6 +54,9 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete local preview:** Versioned extension-scoped draft storage migrates
     the earlier bare-site shape and serializes rapid saves so older writes cannot
     replace newer edits.
+  - **Complete recovery UX:** Failed or unreadable local saves preserve the visible
+    draft and expose explicit retry or local-copy replacement without touching a
+    repository or published site.
   - **Pending integration:** Persist project-scoped drafts through a durable host capability.
 - [x] Accessible block canvas with schema-driven inspector.
 - [x] Safe local page and section management.
