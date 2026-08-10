@@ -12,22 +12,59 @@ type ExtensionHost = {
 	onUnmount(callback: () => void): void;
 };
 
-function ensureStylesheet(): void {
+function stylesheetUrl(): string {
+	const moduleUrl = new URL(import.meta.url);
+	const stylesheet = new URL('./style.css', moduleUrl);
+	// Relative URL resolution intentionally drops the module query. Copy it
+	// back so a safe extension update never combines new JavaScript with a
+	// stylesheet cached for the previous version.
+	stylesheet.search = moduleUrl.search;
+	return stylesheet.href;
+}
+
+async function ensureStylesheet(): Promise<void> {
 	const id = 'host-tend-sites-styles';
-	if (document.getElementById(id)) return;
+	const href = stylesheetUrl();
+	const current = document.getElementById(id);
+	if (current instanceof HTMLLinkElement && current.href === href) {
+		if (current.sheet) return;
+		await new Promise<void>((resolve, reject) => {
+			current.addEventListener('load', () => resolve(), { once: true });
+			current.addEventListener(
+				'error',
+				() => reject(new Error('TEND Sites styles failed to load.')),
+				{
+					once: true
+				}
+			);
+		});
+		return;
+	}
+	current?.remove();
 
 	const stylesheet = document.createElement('link');
 	stylesheet.id = id;
 	stylesheet.rel = 'stylesheet';
-	const moduleUrl = import.meta.url;
-	stylesheet.href = new URL('./style.css', moduleUrl).href;
+	stylesheet.href = href;
+	const loaded = new Promise<void>((resolve, reject) => {
+		stylesheet.addEventListener('load', () => resolve(), { once: true });
+		stylesheet.addEventListener(
+			'error',
+			() => {
+				stylesheet.remove();
+				reject(new Error('TEND Sites styles failed to load.'));
+			},
+			{ once: true }
+		);
+	});
 	document.head.append(stylesheet);
+	await loaded;
 }
 
 export default function activate(host: ExtensionHost) {
 	return {
-		mount(container: HTMLElement) {
-			ensureStylesheet();
+		async mount(container: HTMLElement) {
+			await ensureStylesheet();
 			const app = mount(SitesApp, {
 				target: container,
 				props: { embedded: true, storage: host.storage }

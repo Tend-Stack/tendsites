@@ -347,6 +347,85 @@ test('keeps embedded pages spacious without clipping site or library labels', as
 	expect(libraryLabelsFit).toBe(true);
 });
 
+test('keeps the embedded Studio canvas between its resizable side panels', async ({ page }) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.setViewportSize({ width: 2048, height: 1200 });
+	await page.goto('/');
+	await page.evaluate(async () => {
+		const host = { id: 'host.tend.sites', onUnmount() {} };
+		const extensionUrl = '/test-extension/index.js';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension.default(host).mount(container);
+	});
+	await page.getByRole('button', { name: 'Studio', exact: true }).click();
+
+	const outline = await page.getByRole('complementary', { name: 'Site outline' }).boundingBox();
+	const canvas = await page.locator('.canvas-area').boundingBox();
+	const browser = await page.locator('.browser-frame').boundingBox();
+	const inspector = await page
+		.getByRole('complementary', { name: 'Selected block settings' })
+		.boundingBox();
+	expect(outline).not.toBeNull();
+	expect(canvas).not.toBeNull();
+	expect(browser).not.toBeNull();
+	expect(inspector).not.toBeNull();
+	expect(canvas!.x).toBeGreaterThanOrEqual(outline!.x + outline!.width);
+	expect(inspector!.x).toBeGreaterThanOrEqual(canvas!.x + canvas!.width);
+	expect(canvas!.width).toBeGreaterThan(700);
+	expect(browser!.width).toBeGreaterThan(600);
+	expect(browser!.x).toBeGreaterThanOrEqual(canvas!.x);
+	expect(browser!.x + browser!.width).toBeLessThanOrEqual(canvas!.x + canvas!.width);
+});
+
+test('replaces a stale extension stylesheet before mounting updated code', async ({ page }) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.setViewportSize({ width: 1600, height: 1000 });
+	await page.goto('/');
+	const stylesheetHref = await page.evaluate(async () => {
+		const stale = document.createElement('link');
+		stale.id = 'host-tend-sites-styles';
+		stale.rel = 'stylesheet';
+		stale.href = '/test-extension/style.css?v=0.2.1';
+		document.head.append(stale);
+		const extensionUrl = '/test-extension/index.js?v=0.2.3';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension.default({ id: 'host.tend.sites', onUnmount() {} }).mount(container);
+		return (document.getElementById('host-tend-sites-styles') as HTMLLinkElement | null)?.href;
+	});
+
+	expect(stylesheetHref).toContain('/test-extension/style.css?v=0.2.3');
+	await page.getByRole('button', { name: 'Studio', exact: true }).click();
+	await expect(page.locator('.browser-frame')).toBeVisible();
+});
+
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({
 	page
 }) => {
