@@ -31,6 +31,18 @@ Source adoption is bound to provider installation, repository, immutable commit/
 
 13. Publishing never replaces the last healthy site until checks pass and the durable deployment operation commits.
 
+14. Every project has exactly one explicit canonical source adapter. Customer-server repositories
+    stay outside live containers and disposable build workspaces; external repositories remain bound
+    to an immutable revision. A managed vault is never inferred and requires separate consent.
+
+15. Resumable drafts are encrypted, byte- and time-bounded, exact-user/project/base-revision bound,
+    and structurally noncanonical. They grant no commit or publish authority and are purged after
+    commit, discard, retention expiry, project deletion, or account deletion.
+
+16. Durability labels come from exact live evidence. Local history without a verified recovery copy
+    is `versioned_only`; stale or incomplete source evidence is `at_risk`. A container image, preview,
+    build cache, successful deployment, or control-plane draft can never promote recovery status.
+
 Draft revisions are bound to one project, entry, committed base revision, and monotonic sequence. Media plans reject unsupported formats and upscaling and require localized alternative text. Translation proposals remain data until reviewed. Library certification never enables installation, and preview evidence always remains separate from deployment authority.
 
 Block definitions forbid panel scripts and reject unknown inspector fields. Preview cleanup remains host-owned even when evidence says cleanup is eligible. Traffic decisions retain the previous artifact unless every required health check passes, and even a passing decision cannot route. AI provider credentials are never browser-visible; request plans expose bounded cost and redaction evidence but cannot send.

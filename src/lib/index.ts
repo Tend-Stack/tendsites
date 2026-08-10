@@ -18,6 +18,7 @@ export * from './contracts/preview-lifecycle';
 export * from './contracts/publishing';
 export * from './contracts/publish-operation';
 export * from './contracts/repository-inspection';
+export * from './contracts/source-storage';
 export * from './contracts/ai';
 export * from './contracts/library-state';
 export * from './planning/content-diff';

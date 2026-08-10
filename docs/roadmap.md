@@ -17,6 +17,15 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete:** Repository-owned rendering, explicit Markdown/MDX-compatible/JSON/YAML/TOML
     collection mappings, visual-vs-content-only mode, immutable starter commit/tree evidence,
     publisher/license/trust identity, and review gating with no checkout or execution authority.
+- [x] Customer-controlled source location, resumable-draft retention, and durability contracts.
+  - **Complete:** One canonical adapter distinguishes customer-server repositories, external Git,
+    customer repository adapters, and an explicitly consented optional managed vault. Draft leases
+    are encrypted, byte/time bounded, noncanonical, and require every terminal purge event.
+    Revision-bound evidence derives `protected`, `external_repository`, `versioned_only`, or
+    `at_risk` without treating containers, artifacts, successful deploys, or local history as backup.
+  - **Pending integration:** Persist source bindings and draft leases through tend.host, connect
+    customer-owned backup evidence and restore drills, and expose the truthful durability state in
+    the project overview.
 - [x] Modular, responsive, read-only Studio foundation.
 - [x] tend.host extension v2 packaging with generated integrity.
 - [x] Install the produced ZIP in an isolated tend.host fixture and verify mount/unmount cleanup.

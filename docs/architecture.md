@@ -26,6 +26,9 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/adapters/sveltekit.ts` detects and inspects bounded repository snapshots without cloning, reading the filesystem, or executing project code.
 - `src/lib/contracts/catalog.ts` pins starter identity to an immutable revision and per-file digests.
 - `src/lib/contracts/adoption.ts` separates bounded source evidence from checkout, secret, and production authority.
+- `src/lib/contracts/source-storage.ts` names one canonical source adapter, keeps resumable drafts
+  structurally noncanonical, and derives honest durability states only from exact revision-bound
+  source, history, backup, and restore evidence.
 - `src/lib/planning/` produces deterministic creation and change-review plans that are structurally unable to apply themselves.
 - `src/lib/content/index.ts` validates collection, locale, path, and navigation relationships without reading a repository.
 - `src/lib/contracts/drafts.ts` separates draft revisions from committed source and detects stale-base conflicts.
@@ -114,3 +117,11 @@ blocks are supported, and always preserves repository renderer ownership. Starte
 carry an immutable commit and tree digest plus explicit publisher, license, community/official
 identity, and review state. These contracts select no code and grant no checkout or execution
 authority.
+
+The canonical repository may be a protected local Git repository outside every application
+container on a selected customer server, an external Git provider, or another customer-controlled
+adapter. tend.host may retain encrypted, quota- and expiry-bounded working drafts plus immutable
+revision, artifact, and operation metadata, but those drafts are never source authority. A future
+tend.host-managed vault implements the same adapter contract only after explicit consent and must
+remain optional and exportable. Builds and previews consume immutable snapshots in disposable
+workspaces; running containers, build caches, and artifacts are not repository backups.

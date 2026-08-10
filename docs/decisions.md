@@ -54,3 +54,16 @@ Community starter repositories are separate from first-party starter bundles. Th
 license, framework, review state, immutable commit, and tree digest remain visible. Community status
 never self-promotes to official, and mutable branches or arbitrary repository URLs are not execution
 authority.
+
+## D-011 — Customer-controlled canonical source
+
+TEND Sites orchestrates project source rather than silently hosting it. A project selects one
+canonical source adapter: a protected repository outside app containers on a customer server, an
+external Git provider, or another customer-controlled adapter. tend.host stores bounded resumable
+drafts and authoritative metadata, not the durable repository. A future managed source vault may
+implement the same versioned adapter only through explicit consent, export, retention, deletion,
+encryption, billing, and restore guarantees; no existing workflow may depend on it.
+
+Local version history is not a backup. The product reports `protected`, `external_repository`,
+`versioned_only`, or `at_risk` from revision-bound evidence and keeps source, media, and history
+separate from replaceable containers, build workspaces, caches, and artifacts.
