@@ -4,6 +4,11 @@ import SitesApp from '../lib/sites/SitesApp.svelte';
 
 type ExtensionHost = {
 	id: string;
+	storage?: {
+		get(key: string): Promise<unknown>;
+		set(key: string, value: unknown): Promise<void>;
+		delete(key: string): Promise<void>;
+	};
 	onUnmount(callback: () => void): void;
 };
 
@@ -23,7 +28,10 @@ export default function activate(host: ExtensionHost) {
 	return {
 		mount(container: HTMLElement) {
 			ensureStylesheet();
-			const app = mount(SitesApp, { target: container, props: { embedded: true } });
+			const app = mount(SitesApp, {
+				target: container,
+				props: { embedded: true, storage: host.storage }
+			});
 			let active = true;
 
 			const cleanup = () => {

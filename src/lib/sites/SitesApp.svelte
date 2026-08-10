@@ -4,7 +4,6 @@
 		ArrowRight,
 		ArrowUp,
 		ArrowDown,
-		BookOpen,
 		Check,
 		CirclePlus,
 		Cloud,
@@ -17,6 +16,7 @@
 		Library,
 		Languages,
 		Menu,
+		MonitorPlay,
 		PanelLeft,
 		Rocket,
 		Settings2,
@@ -25,6 +25,7 @@
 		Sparkles,
 		X
 	} from '@lucide/svelte';
+	import { onMount } from 'svelte';
 
 	import type { SiteGoal, SiteModule } from '../contracts/catalog';
 	import { planSiteCreation } from '../planning/site-creation';
@@ -44,12 +45,27 @@
 		mediaEvidence,
 		previewEvidence
 	} from './readiness-data';
+	import {
+		cloneDemoSite,
+		createDemoSite,
+		createSection,
+		demoImages,
+		isDemoSite,
+		sectionLabels,
+		type DemoSectionKind,
+		type DemoSite
+	} from './demo-site';
 
 	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
 	type ReadinessArea =
 		'overview' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
 
-	let { embedded = false }: { embedded?: boolean } = $props();
+	type ScopedStorage = {
+		get(key: string): Promise<unknown>;
+		set(key: string, value: unknown): Promise<void>;
+		delete(key: string): Promise<void>;
+	};
+	let { embedded = false, storage }: { embedded?: boolean; storage?: ScopedStorage } = $props();
 	let view = $state<View>('home');
 	let wizardStep = $state(1);
 	let selectedGoal = $state<SiteGoal>('blog');
@@ -59,10 +75,26 @@
 	let accent = $state('#56e6ad');
 	let mobileMenu = $state(false);
 	let readinessArea = $state<ReadinessArea>('overview');
-	let pageBlocks = $state(['Split Hero', 'Field Notes']);
-	let selectedBlock = $state('Split Hero');
+	let siteDraft = $state<DemoSite>(createDemoSite());
+	let selectedPageId = $state('home');
+	let selectedSectionId = $state('hero-1');
+	let history = $state<DemoSite[]>([]);
+	let saveStatus = $state<'loading' | 'saved' | 'local' | 'error'>('loading');
+	let showAddPage = $state(false);
+	let showAddSection = $state(false);
+	let showPreview = $state(false);
+	let newPageName = $state('');
 	let studioPanel = $state<'outline' | 'canvas' | 'inspector'>('canvas');
 	let conflictChoice = $state<'keep_draft' | 'use_repository' | null>(null);
+	const draftStorageKey = 'studio-draft-v1';
+	const selectedPage = $derived(
+		siteDraft.pages.find((page) => page.id === selectedPageId) ?? siteDraft.pages[0]
+	);
+	const selectedSection = $derived(
+		selectedPage?.sections.find((section) => section.id === selectedSectionId) ??
+			selectedPage?.sections[0]
+	);
+	const projectImages = [demoImages.lake, demoImages.notes, demoImages.cabin];
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -103,6 +135,99 @@
 	);
 	const contentIndex = demoContentIndex;
 
+	onMount(() => {
+		if (!storage) {
+			saveStatus = 'local';
+			return;
+		}
+		void storage
+			.get(draftStorageKey)
+			.then((stored) => {
+				if (isDemoSite(stored)) siteDraft = cloneDemoSite(stored);
+				saveStatus = 'saved';
+			})
+			.catch(() => (saveStatus = 'error'));
+	});
+
+	function saveDraft(next: DemoSite) {
+		if (!storage) {
+			saveStatus = 'local';
+			return;
+		}
+		saveStatus = 'loading';
+		void storage
+			.set(draftStorageKey, cloneDemoSite(next))
+			.then(() => (saveStatus = 'saved'))
+			.catch(() => (saveStatus = 'error'));
+	}
+
+	function changeDraft(mutator: (next: DemoSite) => void) {
+		history = [...history.slice(-19), cloneDemoSite(siteDraft)];
+		const next = cloneDemoSite(siteDraft);
+		mutator(next);
+		siteDraft = next;
+		saveDraft(next);
+	}
+
+	function undoDraft() {
+		const previous = history.at(-1);
+		if (!previous) return;
+		history = history.slice(0, -1);
+		siteDraft = cloneDemoSite(previous);
+		if (!siteDraft.pages.some((page) => page.id === selectedPageId)) {
+			selectedPageId = siteDraft.pages[0].id;
+		}
+		selectedSectionId =
+			siteDraft.pages.find((page) => page.id === selectedPageId)?.sections[0]?.id ?? '';
+		saveDraft(siteDraft);
+	}
+
+	function selectPage(pageId: string) {
+		selectedPageId = pageId;
+		selectedSectionId = siteDraft.pages.find((page) => page.id === pageId)?.sections[0]?.id ?? '';
+	}
+
+	function addPage() {
+		const name = newPageName.trim();
+		if (!name) return;
+		const id = `${
+			name
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, '-')
+				.replace(/^-|-$/g, '') || 'page'
+		}-${Date.now()}`;
+		changeDraft((next) => {
+			next.pages.push({
+				id,
+				name: name.slice(0, 50),
+				slug: `/${id.replace(/-\d+$/, '')}`,
+				sections: [createSection('hero', Date.now())]
+			});
+		});
+		selectPage(id);
+		newPageName = '';
+		showAddPage = false;
+	}
+
+	function addSection(kind: DemoSectionKind) {
+		const section = createSection(kind, Date.now());
+		changeDraft((next) => {
+			const page = next.pages.find((item) => item.id === selectedPageId);
+			page?.sections.push(section);
+		});
+		selectedSectionId = section.id;
+		showAddSection = false;
+	}
+
+	function updateSection(field: 'eyebrow' | 'title' | 'body', value: string) {
+		changeDraft((next) => {
+			const section = next.pages
+				.find((page) => page.id === selectedPageId)
+				?.sections.find((item) => item.id === selectedSectionId);
+			if (section) section[field] = value.slice(0, field === 'body' ? 600 : 160);
+		});
+	}
+
 	function toggleModule(module: string) {
 		selectedModules = selectedModules.includes(module)
 			? selectedModules.filter((item) => item !== module)
@@ -114,13 +239,16 @@
 		mobileMenu = false;
 	}
 
-	function moveSelectedBlock(direction: 'up' | 'down') {
-		const index = pageBlocks.indexOf(selectedBlock);
+	function moveSelectedBlock(direction: 'up' | 'down', sectionId = selectedSectionId) {
+		const sections = selectedPage?.sections ?? [];
+		const index = sections.findIndex((section) => section.id === sectionId);
 		const target = direction === 'up' ? index - 1 : index + 1;
-		if (index < 0 || target < 0 || target >= pageBlocks.length) return;
-		const next = [...pageBlocks];
-		[next[index], next[target]] = [next[target], next[index]];
-		pageBlocks = next;
+		if (index < 0 || target < 0 || target >= sections.length) return;
+		changeDraft((next) => {
+			const page = next.pages.find((item) => item.id === selectedPageId);
+			if (!page) return;
+			[page.sections[index], page.sections[target]] = [page.sections[target], page.sections[index]];
+		});
 	}
 </script>
 
@@ -172,11 +300,19 @@
 			</section>
 
 			<section class="project-grid" aria-label="Your sites">
-				{#each projects as project (project.id)}
+				{#each projects as project, projectIndex (project.id)}
 					<article class="project-card">
-						<div class="site-preview" aria-hidden="true">
-							<div class="preview-lines"><span></span><span></span><span></span></div>
-							<div class="preview-image"></div>
+						<div class="site-preview rich-preview" aria-hidden="true">
+							<img src={projectImages[projectIndex]} alt="" />
+							<div>
+								<small
+									>{projectIndex === 0
+										? 'TRAVEL JOURNAL'
+										: projectIndex === 1
+											? 'FIELD GUIDE'
+											: 'WEEKEND NOTES'}</small
+								><strong>{project.name}</strong>
+							</div>
 						</div>
 						<div class="project-heading">
 							<div>
@@ -194,8 +330,14 @@
 									: 's'}</span
 							>
 						</div>
-						<button class="card-action" onclick={() => open('studio')}
-							>Open Studio <ArrowRight size={16} /></button
+						<button
+							class="card-action"
+							onclick={() => {
+								selectPage('home');
+								open('studio');
+							}}
+							>{projectIndex === 0 ? 'Open interactive demo' : 'Open Studio'}
+							<ArrowRight size={16} /></button
 						>
 					</article>
 				{/each}
@@ -434,46 +576,55 @@
 				aria-label="Site outline"
 			>
 				<div>
-					<span class="eyebrow">Weekend Notes</span>
-					<h2>Home</h2>
+					<span class="eyebrow">{siteDraft.name}</span>
+					<h2>{selectedPage?.name ?? 'Page'}</h2>
 				</div>
-				<nav>
-					<span>Content</span>
-					<button class="active"><PanelLeft size={17} /> Home</button><button
-						><FileText size={17} /> About</button
-					><button><BookOpen size={17} /> Blog</button><button><Image size={17} /> Media</button>
+				<nav class="page-list">
+					<span>Pages</span>
+					{#each siteDraft.pages as page (page.id)}
+						<button class:active={selectedPageId === page.id} onclick={() => selectPage(page.id)}>
+							{#if page.id === 'home'}<PanelLeft size={17} />{:else}<FileText size={17} />{/if}
+							{page.name}
+						</button>
+					{/each}
+					<button class="add-page-button" onclick={() => (showAddPage = true)}
+						><CirclePlus size={17} /> Add page</button
+					>
 					<span>Design</span>
 					<button onclick={() => open('library')}><Settings2 size={17} /> Theme</button><button
 						onclick={() => open('library')}><Library size={17} /> Components</button
 					>
 				</nav>
 				<div class="block-outline" aria-label="Page blocks">
-					<span>Page blocks</span>
-					{#each pageBlocks as block (block)}
+					<span>Sections</span>
+					{#each selectedPage?.sections ?? [] as section (section.id)}
 						<button
-							class:active={selectedBlock === block}
-							aria-pressed={selectedBlock === block}
-							onclick={() => (selectedBlock = block)}
-							onfocus={() => (selectedBlock = block)}
+							class:active={selectedSectionId === section.id}
+							aria-pressed={selectedSectionId === section.id}
+							onclick={() => (selectedSectionId = section.id)}
+							onfocus={() => (selectedSectionId = section.id)}
 							onkeydown={(event) => {
 								if (event.altKey && event.key === 'ArrowUp') {
 									event.preventDefault();
-									moveSelectedBlock('up');
+									moveSelectedBlock('up', section.id);
 								}
 								if (event.altKey && event.key === 'ArrowDown') {
 									event.preventDefault();
-									moveSelectedBlock('down');
+									moveSelectedBlock('down', section.id);
 								}
-							}}>{block}</button
+							}}>{section.label}</button
 						>
 					{/each}
+					<button class="add-section-outline" onclick={() => (showAddSection = true)}
+						><CirclePlus size={15} /> Add section</button
+					>
 				</div>
 				<div class="content-summary" aria-label="Content overview">
 					<span><strong>{contentIndex.total}</strong> entries</span>
 					<span><strong>{contentIndex.drafts}</strong> drafts</span>
 					<span><strong>{Object.keys(contentIndex.byLocale).length}</strong> languages</span>
 				</div>
-				<button class="ai-card"
+				<button class="ai-card" disabled title="AI guidance is not connected in this release."
 					><Sparkles size={18} /><span
 						><strong>Ask Sites AI</strong><small>Capability not connected yet</small></span
 					></button
@@ -482,40 +633,55 @@
 			<section class:mobile-visible={studioPanel === 'canvas'} class="canvas-area">
 				<div class="studio-toolbar">
 					<div>
-						<strong>Home</strong><span>English</span><span class="saved">Saved fixture</span>
+						<strong>{selectedPage?.name ?? 'Page'}</strong><span>English</span><span
+							class:saved={saveStatus !== 'error'}
+							class="save-state"
+							>{saveStatus === 'loading'
+								? 'Saving…'
+								: saveStatus === 'saved'
+									? 'Saved in this panel'
+									: saveStatus === 'error'
+										? 'Could not save'
+										: 'Local demo session'}</span
+						>
 					</div>
 					<div>
-						<button class="secondary">Preview</button><button
-							class="primary"
-							onclick={() => open('publish')}>Publish</button
+						<button class="secondary" disabled={history.length === 0} onclick={undoDraft}
+							>Undo</button
 						>
+						<button class="secondary" onclick={() => (showPreview = true)}
+							><MonitorPlay size={16} /> Preview site</button
+						><button class="primary" onclick={() => open('publish')}>Publish</button>
 					</div>
 				</div>
 				<div class="browser-frame">
 					<div class="browser-top"><i></i><i></i><i></i><span>weekend-notes.example</span></div>
-					<div class="site-canvas" style:--accent={accent}>
+					<div class="site-canvas complete-demo" style:--accent={siteDraft.accent}>
 						<nav>
-							<strong>{siteName || 'Weekend Notes'}</strong><span
-								>About&nbsp;&nbsp; Blog&nbsp;&nbsp; Gallery</span
+							<strong>{siteDraft.name}</strong><span
+								>{siteDraft.pages.map((page) => page.name).join('   ·   ')}</span
 							>
 						</nav>
-						<section class="selected-block">
-							<span class="block-label">Split Hero</span><small>PERSONAL JOURNAL</small>
-							<h1>Stories, sound & places worth remembering.</h1>
-							<p>A personal corner for essays, podcast episodes and the occasional experiment.</p>
-							<button>Read the latest story</button>
-						</section>
-						<section class="story-block">
-							<div></div>
-							<article>
-								<small>LATEST STORY</small>
-								<h2>Field Notes</h2>
-								<p>
-									A weekend route, a camera, and a few places that deserved more than a drive-by.
-								</p>
-							</article>
-						</section>
-						<button class="add-section"><CirclePlus size={15} /> Add section</button>
+						{#each selectedPage?.sections ?? [] as section (section.id)}
+							<button
+								class:selected-section={selectedSectionId === section.id}
+								class="canvas-section {section.kind}"
+								onclick={() => (selectedSectionId = section.id)}
+							>
+								<span class="block-label">{sectionLabels[section.kind]}</span>
+								{#if section.image}<img src={section.image} alt="" />{/if}
+								<div>
+									<small>{section.eyebrow}</small>
+									<h1>{section.title}</h1>
+									<p>{section.body}</p>
+									{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
+										>{/if}
+								</div>
+							</button>
+						{/each}
+						<button class="add-section" onclick={() => (showAddSection = true)}
+							><CirclePlus size={15} /> Add section</button
+						>
 					</div>
 				</div>
 			</section>
@@ -526,7 +692,7 @@
 			>
 				<div>
 					<span class="eyebrow">Selected block</span>
-					<h2>{selectedBlock}</h2>
+					<h2>{selectedSection?.label ?? 'Choose a section'}</h2>
 					<span class="official">Official</span>
 				</div>
 				<div class="block-order-actions" aria-label="Block order">
@@ -541,20 +707,155 @@
 						onclick={() => moveSelectedBlock('down')}><ArrowDown size={16} /> Down</button
 					>
 				</div>
-				<label><span>Eyebrow</span><input value="PERSONAL JOURNAL" readonly /></label>
 				<label
-					><span>Title</span><textarea rows="3" readonly
-						>Stories, sound & places worth remembering.</textarea
+					><span>Eyebrow</span><input
+						value={selectedSection?.eyebrow ?? ''}
+						oninput={(event) => updateSection('eyebrow', event.currentTarget.value)}
+					/></label
+				>
+				<label
+					><span>Title</span><textarea
+						rows="3"
+						value={selectedSection?.title ?? ''}
+						oninput={(event) => updateSection('title', event.currentTarget.value)}
+					></textarea></label
+				>
+				<label
+					><span>Body</span><textarea
+						rows="5"
+						value={selectedSection?.body ?? ''}
+						oninput={(event: Event & { currentTarget: HTMLTextAreaElement }) =>
+							updateSection('body', event.currentTarget.value)}></textarea></label
+				>
+				<label
+					><span>Layout</span><select disabled
+						><option>{selectedSection ? sectionLabels[selectedSection.kind] : 'Section'}</option
+						></select
 					></label
 				>
-				<label><span>Layout</span><select><option>Text left / media right</option></select></label>
 				<label><span>Theme</span><select><option>{selectedThemeName}</option></select></label>
-				<div class="media-drop">
-					<Image size={24} /><span>Drag image here<br />or choose Media</span>
+				<div class="media-drop" class:has-image={Boolean(selectedSection?.image)}>
+					{#if selectedSection?.image}<img
+							src={selectedSection.image}
+							alt="Selected section"
+						/>{:else}<Image size={24} /><span>No image needed for this section</span>{/if}
 				</div>
-				<button class="secondary">Replace block</button>
+				<button class="secondary" onclick={() => (showAddSection = true)}
+					>Add another section</button
+				>
 			</aside>
 		</main>
+		{#if showAddPage}
+			<div class="modal-backdrop" role="presentation">
+				<div class="studio-modal" role="dialog" aria-modal="true" aria-labelledby="add-page-title">
+					<button class="modal-close" aria-label="Close" onclick={() => (showAddPage = false)}
+						><X size={18} /></button
+					>
+					<span class="eyebrow">Site structure</span>
+					<h2 id="add-page-title">Add a page</h2>
+					<p>Give the page a clear name. TEND Sites will create a starter hero you can edit.</p>
+					<label
+						><span>Page name</span><input
+							maxlength="50"
+							bind:value={newPageName}
+							onkeydown={(event) => {
+								if (event.key === 'Enter') addPage();
+								if (event.key === 'Escape') showAddPage = false;
+							}}
+						/></label
+					>
+					<div class="modal-actions">
+						<button class="secondary" onclick={() => (showAddPage = false)}>Cancel</button><button
+							class="primary"
+							disabled={!newPageName.trim()}
+							onclick={addPage}>Add page</button
+						>
+					</div>
+				</div>
+			</div>
+		{/if}
+		{#if showAddSection}
+			<div class="modal-backdrop" role="presentation">
+				<div
+					class="studio-modal wide"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="add-section-title"
+				>
+					<button class="modal-close" aria-label="Close" onclick={() => (showAddSection = false)}
+						><X size={18} /></button
+					>
+					<span class="eyebrow">Page sections</span>
+					<h2 id="add-section-title">What should come next?</h2>
+					<p>Choose a polished starting point, then make the words yours.</p>
+					<div class="section-picker">
+						{#each Object.entries(sectionLabels) as [kind, label] (kind)}<button
+								onclick={() => addSection(kind as DemoSectionKind)}
+								><span class="choice-icon"><LayoutGrid size={18} /></span><strong>{label}</strong
+								><small
+									>{kind === 'hero'
+										? 'A strong opening statement with an image.'
+										: kind === 'gallery'
+											? 'A visual collection for places and work.'
+											: kind === 'newsletter'
+												? 'A calm invitation to stay in touch.'
+												: kind === 'quote'
+													? 'A memorable thought with room to breathe.'
+													: 'A focused feature with supporting imagery.'}</small
+								></button
+							>{/each}
+					</div>
+				</div>
+			</div>
+		{/if}
+		{#if showPreview}
+			<div class="modal-backdrop preview-backdrop" role="presentation">
+				<div
+					class="site-preview-modal"
+					role="dialog"
+					aria-modal="true"
+					aria-label="Full example website preview"
+				>
+					<header>
+						<div>
+							<strong>Interactive preview</strong><span>Panel-local draft · not published</span>
+						</div>
+						<button
+							class="modal-close"
+							aria-label="Close preview"
+							onclick={() => (showPreview = false)}><X size={20} /></button
+						>
+					</header>
+					<div class="full-demo-site" style:--accent={siteDraft.accent}>
+						<nav>
+							<strong>{siteDraft.name}</strong>
+							<div>
+								{#each siteDraft.pages as page (page.id)}<button
+										class:active={selectedPageId === page.id}
+										onclick={() => selectPage(page.id)}>{page.name}</button
+									>{/each}
+							</div>
+						</nav>
+						{#each selectedPage?.sections ?? [] as section (section.id)}
+							<section class="preview-section {section.kind}">
+								{#if section.image}<img
+										src={section.image}
+										alt="Landscape for {section.title}"
+									/>{/if}
+								<div>
+									<small>{section.eyebrow}</small>
+									<h1>{section.title}</h1>
+									<p>{section.body}</p>
+								</div>
+							</section>
+						{/each}
+						<footer>
+							<strong>{siteDraft.name}</strong><span>Example site created in TEND Sites</span>
+						</footer>
+					</div>
+				</div>
+			</div>
+		{/if}
 	{:else if view === 'readiness'}
 		<main class="page readiness-page">
 			<section class="hero-row">
@@ -1227,6 +1528,40 @@
 		border-radius: 10px;
 		background: #174b38;
 	}
+	.rich-preview {
+		position: relative;
+		align-items: end;
+		height: 170px;
+		padding: 0;
+		background: #0c1715;
+	}
+	.rich-preview img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.rich-preview::after {
+		content: '';
+		position: absolute;
+		inset: 35% 0 0;
+		background: linear-gradient(transparent, #07100ee8);
+	}
+	.rich-preview > div {
+		position: relative;
+		z-index: 1;
+		display: grid;
+		gap: 3px;
+		padding: 16px;
+		text-shadow: 0 2px 16px #000;
+	}
+	.rich-preview small {
+		color: var(--green);
+		font-size: 8px;
+		font-weight: 800;
+		letter-spacing: 0.14em;
+	}
 	.project-heading {
 		display: flex;
 		justify-content: space-between;
@@ -1746,6 +2081,9 @@
 	.studio-toolbar .saved {
 		color: var(--green);
 	}
+	.save-state:not(.saved) {
+		color: #ffb77c;
+	}
 	.browser-frame {
 		width: min(820px, 100%);
 		margin: 0 auto;
@@ -1790,13 +2128,59 @@
 		justify-content: space-between;
 		font-size: 11px;
 	}
-	.selected-block {
+	.canvas-section {
 		position: relative;
-		margin-top: 58px;
-		padding: 28px;
-		border: 2px solid var(--accent);
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(130px, 0.7fr);
+		gap: 24px;
+		width: 100%;
+		margin-top: 20px;
+		padding: 22px;
+		color: #1c2420;
+		text-align: left;
+		border: 2px solid transparent;
 		border-radius: 12px;
 		background: #f8fbf9;
+		cursor: pointer;
+	}
+	.canvas-section:first-of-type {
+		margin-top: 48px;
+	}
+	.canvas-section.selected-section {
+		border-color: var(--accent);
+		box-shadow: 0 8px 30px #173d2b20;
+	}
+	.canvas-section img {
+		width: 100%;
+		height: 180px;
+		object-fit: cover;
+		border-radius: 10px;
+		grid-column: 2;
+		grid-row: 1;
+	}
+	.canvas-section > div {
+		grid-column: 1;
+		grid-row: 1;
+		align-self: center;
+	}
+	.canvas-section.story,
+	.canvas-section.gallery {
+		grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
+	}
+	.canvas-section.story img,
+	.canvas-section.gallery img {
+		grid-column: 1;
+	}
+	.canvas-section.story > div,
+	.canvas-section.gallery > div {
+		grid-column: 2;
+	}
+	.canvas-section.quote,
+	.canvas-section.newsletter {
+		display: block;
+		text-align: center;
+		padding: 38px;
+		background: #dce8df;
 	}
 	.block-label {
 		position: absolute;
@@ -1809,44 +2193,28 @@
 		font-size: 9px;
 		font-weight: 800;
 	}
-	.selected-block small,
-	.story-block small {
+	.canvas-section small {
 		font-size: 9px;
 		letter-spacing: 0.12em;
 	}
-	.selected-block h1 {
+	.canvas-section h1 {
 		max-width: 600px;
 		margin: 10px 0;
-		font-size: clamp(31px, 5vw, 58px);
+		font-size: clamp(24px, 3.2vw, 46px);
 	}
-	.selected-block p {
+	.canvas-section p {
 		max-width: 570px;
 		color: #51605a;
 	}
-	.selected-block button {
+	.demo-cta {
+		display: inline-block;
+		margin-top: 8px;
 		color: #09251c;
 		background: var(--accent);
 		border: 0;
 		border-radius: 8px;
 		padding: 10px 13px;
 		font-weight: 800;
-	}
-	.story-block {
-		display: grid;
-		grid-template-columns: 140px 1fr;
-		gap: 24px;
-		margin-top: 18px;
-		padding: 18px;
-		border-radius: 12px;
-		background: #dce8df;
-	}
-	.story-block > div {
-		min-height: 120px;
-		border-radius: 9px;
-		background: #71867d;
-	}
-	.story-block p {
-		color: #4b5b54;
 	}
 	.add-section {
 		display: flex;
@@ -1879,6 +2247,216 @@
 		border: 1px dashed #355047;
 		border-radius: 10px;
 		background: #0d1815;
+	}
+	.media-drop.has-image {
+		display: block;
+		overflow: hidden;
+		border-style: solid;
+	}
+	.media-drop img {
+		display: block;
+		width: 100%;
+		height: 130px;
+		object-fit: cover;
+	}
+	.add-page-button,
+	.add-section-outline {
+		color: var(--green) !important;
+		border: 1px dashed #2e6150 !important;
+	}
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 80;
+		display: grid;
+		place-items: center;
+		padding: 20px;
+		background: #020504d9;
+		backdrop-filter: blur(12px);
+	}
+	.studio-modal {
+		position: relative;
+		width: min(480px, 100%);
+		padding: 28px;
+		border: 1px solid #2b4139;
+		border-radius: 20px;
+		background: #0d1517;
+		box-shadow: 0 35px 100px #000;
+	}
+	.studio-modal.wide {
+		width: min(800px, 100%);
+	}
+	.studio-modal h2 {
+		margin: 4px 0 8px;
+		font-size: 28px;
+	}
+	.studio-modal label {
+		display: grid;
+		gap: 8px;
+		color: var(--muted);
+		font-size: 12px;
+	}
+	.studio-modal input {
+		color: #fff;
+		background: #080d0f;
+		border: 1px solid var(--border);
+		border-radius: 11px;
+		padding: 13px;
+	}
+	.modal-close {
+		position: absolute;
+		top: 16px;
+		right: 16px;
+		display: grid;
+		place-items: center;
+		width: 38px;
+		height: 38px;
+		color: #d7e4df;
+		background: #111b1d;
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		cursor: pointer;
+	}
+	.modal-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 9px;
+		margin-top: 22px;
+	}
+	.section-picker {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 10px;
+		margin-top: 22px;
+	}
+	.section-picker button {
+		display: grid;
+		gap: 8px;
+		min-height: 150px;
+		padding: 16px;
+		color: #edf5f1;
+		text-align: left;
+		background: #10191b;
+		border: 1px solid var(--border);
+		border-radius: 14px;
+		cursor: pointer;
+	}
+	.section-picker button:hover {
+		border-color: #428268;
+		background: #11231d;
+	}
+	.section-picker small {
+		color: var(--muted);
+		line-height: 1.45;
+	}
+	.preview-backdrop {
+		align-items: start;
+		overflow-y: auto;
+	}
+	.site-preview-modal {
+		width: min(1180px, 100%);
+		margin: 20px auto;
+		overflow: hidden;
+		border: 1px solid #2b4139;
+		border-radius: 20px;
+		background: #0d1517;
+		box-shadow: 0 35px 100px #000;
+	}
+	.site-preview-modal > header {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		min-height: 68px;
+		padding: 12px 70px 12px 20px;
+		border-bottom: 1px solid var(--border);
+	}
+	.site-preview-modal > header div {
+		display: grid;
+		gap: 4px;
+	}
+	.site-preview-modal > header span {
+		color: var(--muted);
+		font-size: 11px;
+	}
+	.full-demo-site {
+		color: #183027;
+		background: #f1f1e9;
+	}
+	.full-demo-site > nav {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 20px;
+		padding: 22px clamp(24px, 6vw, 80px);
+		border-bottom: 1px solid #cfd8d1;
+	}
+	.full-demo-site nav div {
+		display: flex;
+		gap: 5px;
+	}
+	.full-demo-site nav button {
+		padding: 8px 10px;
+		color: #40544c;
+		background: transparent;
+		border: 0;
+		border-radius: 8px;
+		cursor: pointer;
+	}
+	.full-demo-site nav button.active {
+		color: #0b3b2a;
+		background: color-mix(in srgb, var(--accent) 25%, transparent);
+	}
+	.preview-section {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		align-items: center;
+		gap: clamp(26px, 6vw, 80px);
+		min-height: 420px;
+		padding: clamp(40px, 8vw, 100px);
+	}
+	.preview-section:nth-child(odd) {
+		background: #e6ece6;
+	}
+	.preview-section img {
+		width: 100%;
+		max-height: 430px;
+		object-fit: cover;
+		border-radius: 18px;
+		box-shadow: 0 24px 60px #213b2d30;
+	}
+	.preview-section small {
+		color: #12744f;
+		font-weight: 800;
+		letter-spacing: 0.15em;
+	}
+	.preview-section h1 {
+		margin: 12px 0 16px;
+		font-family: Georgia, serif;
+		font-size: clamp(38px, 6vw, 74px);
+		line-height: 1;
+	}
+	.preview-section p {
+		color: #506159;
+		font-size: 17px;
+	}
+	.preview-section.story img,
+	.preview-section.gallery img {
+		order: -1;
+	}
+	.preview-section.quote,
+	.preview-section.newsletter {
+		display: block;
+		min-height: auto;
+		text-align: center;
+	}
+	.full-demo-site footer {
+		display: flex;
+		justify-content: space-between;
+		gap: 20px;
+		padding: 30px clamp(24px, 6vw, 80px);
+		color: #cde0d7;
+		background: #102b22;
 	}
 	.filter-row {
 		display: flex;
@@ -1982,6 +2560,12 @@
 	}
 
 	@media (max-width: 900px) {
+		.section-picker {
+			grid-template-columns: repeat(2, 1fr);
+		}
+		.preview-section {
+			grid-template-columns: 1fr;
+		}
 		.readiness-detail {
 			grid-template-columns: auto 1fr;
 		}
@@ -2044,6 +2628,20 @@
 		}
 	}
 	@media (max-width: 640px) {
+		.section-picker {
+			grid-template-columns: 1fr;
+		}
+		.full-demo-site > nav {
+			align-items: start;
+			flex-direction: column;
+		}
+		.full-demo-site nav div {
+			flex-wrap: wrap;
+		}
+		.preview-section {
+			min-height: auto;
+			padding: 42px 24px;
+		}
 		.readiness-grid {
 			grid-template-columns: 1fr;
 		}
@@ -2161,19 +2759,22 @@
 		.site-canvas nav span {
 			display: none;
 		}
-		.selected-block {
+		.canvas-section {
+			grid-template-columns: 1fr;
 			margin-top: 30px;
 			padding: 22px 18px;
 		}
-		.selected-block h1 {
+		.canvas-section img,
+		.canvas-section > div,
+		.canvas-section.story img,
+		.canvas-section.story > div,
+		.canvas-section.gallery img,
+		.canvas-section.gallery > div {
+			grid-column: 1;
+			grid-row: auto;
+		}
+		.canvas-section h1 {
 			font-size: 34px;
-		}
-		.story-block {
-			grid-template-columns: 90px 1fr;
-			gap: 13px;
-		}
-		.story-block > div {
-			min-height: 100px;
 		}
 		.filter-row {
 			overflow-x: auto;

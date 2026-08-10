@@ -36,7 +36,7 @@ test('guides creation without pretending to create source', async ({ page }) => 
 	await expect(page.getByText('Source creation is intentionally disabled.')).toBeVisible();
 	await expect(page.getByText('3 reviewed files')).toBeVisible();
 	await page.getByRole('button', { name: 'Open Studio preview' }).click();
-	await expect(page.getByText('Saved fixture')).toBeVisible();
+	await expect(page.getByText('Local demo session')).toBeVisible();
 	await expect(page.getByLabel('Content overview')).toContainText('1 entries');
 });
 
@@ -88,8 +88,7 @@ test('supports keyboard block ordering and a purpose-built mobile studio', async
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Studio', exact: true }).click();
 	const blocks = page.getByLabel('Page blocks');
-	await blocks.getByRole('button', { name: 'Field Notes' }).focus();
-	await page.keyboard.press('Alt+ArrowUp');
+	await blocks.getByRole('button', { name: 'Field Notes' }).press('Alt+ArrowUp');
 	await expect(blocks.getByRole('button').first()).toHaveText('Field Notes');
 
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -98,6 +97,38 @@ test('supports keyboard block ordering and a purpose-built mobile studio', async
 	await expect(page.getByRole('heading', { name: 'Field Notes' })).toBeVisible();
 	await page.getByRole('button', { name: 'Canvas', exact: true }).click();
 	await expect(page.locator('.browser-frame')).toBeVisible();
+});
+
+test('edits a full example site with pages, sections, undo and preview', async ({ page }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+
+	await expect(page.locator('.canvas-section img').first()).toBeVisible();
+	await page.getByRole('button', { name: 'Add page' }).click();
+	const addPageDialog = page.getByRole('dialog', { name: 'Add a page' });
+	await addPageDialog.getByLabel('Page name').fill('Places');
+	await addPageDialog.getByRole('button', { name: 'Add page', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Places', exact: true })).toBeVisible();
+
+	await page.getByRole('button', { name: 'Add section', exact: true }).last().click();
+	await page.getByRole('button', { name: /Photo gallery/ }).click();
+	await expect(page.getByRole('heading', { name: 'Photo gallery' })).toBeVisible();
+
+	const title = page.getByLabel('Title');
+	await title.fill('Places that made us slow down');
+	await expect(page.getByRole('button', { name: /Places that made us slow down/ })).toBeVisible();
+	await page.getByRole('button', { name: 'Undo' }).click();
+	await expect(title).not.toHaveValue('Places that made us slow down');
+
+	await page.getByRole('button', { name: 'Preview site' }).click();
+	await expect(page.getByRole('dialog', { name: 'Full example website preview' })).toBeVisible();
+	await expect(page.getByText('Panel-local draft · not published')).toBeVisible();
+	await page.getByRole('button', { name: 'Home', exact: true }).last().click();
+	await expect(
+		page
+			.getByRole('dialog', { name: 'Full example website preview' })
+			.getByRole('heading', { name: 'Stories, sound & places worth remembering.' })
+	).toBeVisible();
 });
 
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({

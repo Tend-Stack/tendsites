@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 
 import { unzipSync, zipSync } from 'fflate';
@@ -15,6 +15,12 @@ const inputs = new Map([
 	['icon.svg', resolve(root, 'static', 'icon.svg')],
 	['README.md', resolve(root, 'README.md')]
 ]);
+
+const assetDirectory = resolve(distribution, 'assets');
+for (const entry of await readdir(assetDirectory, { withFileTypes: true }).catch(() => [])) {
+	if (!entry.isFile()) continue;
+	inputs.set(`assets/${entry.name}`, resolve(assetDirectory, entry.name));
+}
 
 const files = {};
 const integrity = {};
