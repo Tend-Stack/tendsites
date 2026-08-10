@@ -50,22 +50,17 @@
 		createDemoSite,
 		createSection,
 		demoImages,
-		isDemoSite,
 		sectionLabels,
 		type DemoSectionKind,
 		type DemoSite
 	} from './demo-site';
+	import { DemoDraftStore, type DraftStorage } from './draft-storage';
 
 	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
 	type ReadinessArea =
 		'overview' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
 
-	type ScopedStorage = {
-		get(key: string): Promise<unknown>;
-		set(key: string, value: unknown): Promise<void>;
-		delete(key: string): Promise<void>;
-	};
-	let { embedded = false, storage }: { embedded?: boolean; storage?: ScopedStorage } = $props();
+	let { embedded = false, storage }: { embedded?: boolean; storage?: DraftStorage } = $props();
 	let view = $state<View>('home');
 	let wizardStep = $state(1);
 	let selectedGoal = $state<SiteGoal>('blog');
@@ -87,6 +82,8 @@
 	let studioPanel = $state<'outline' | 'canvas' | 'inspector'>('canvas');
 	let conflictChoice = $state<'keep_draft' | 'use_repository' | null>(null);
 	const draftStorageKey = 'studio-draft-v1';
+	let draftStore: DemoDraftStore | null = null;
+	let latestSaveRequest = 0;
 	const selectedPage = $derived(
 		siteDraft.pages.find((page) => page.id === selectedPageId) ?? siteDraft.pages[0]
 	);
@@ -140,25 +137,31 @@
 			saveStatus = 'local';
 			return;
 		}
-		void storage
-			.get(draftStorageKey)
+		draftStore = new DemoDraftStore(storage, draftStorageKey);
+		void draftStore
+			?.load()
 			.then((stored) => {
-				if (isDemoSite(stored)) siteDraft = cloneDemoSite(stored);
+				if (stored && latestSaveRequest === 0) siteDraft = cloneDemoSite(stored.site);
 				saveStatus = 'saved';
 			})
 			.catch(() => (saveStatus = 'error'));
 	});
 
 	function saveDraft(next: DemoSite) {
-		if (!storage) {
+		if (!draftStore) {
 			saveStatus = 'local';
 			return;
 		}
+		const request = ++latestSaveRequest;
 		saveStatus = 'loading';
-		void storage
-			.set(draftStorageKey, cloneDemoSite(next))
-			.then(() => (saveStatus = 'saved'))
-			.catch(() => (saveStatus = 'error'));
+		void draftStore
+			.save(next)
+			.then(() => {
+				if (request === latestSaveRequest) saveStatus = 'saved';
+			})
+			.catch(() => {
+				if (request === latestSaveRequest) saveStatus = 'error';
+			});
 	}
 
 	function changeDraft(mutator: (next: DemoSite) => void) {

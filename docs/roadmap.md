@@ -51,6 +51,9 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Pending integration:** Host-backed read/write adapters and media I/O.
 - [x] Autosave drafts separated from committed source.
   - **Complete:** Monotonic draft revision, exact retry, stale-base conflict, and bounded undo contracts.
+  - **Complete local preview:** Versioned extension-scoped draft storage migrates
+    the earlier bare-site shape and serializes rapid saves so older writes cannot
+    replace newer edits.
   - **Pending integration:** Persist project-scoped drafts through a durable host capability.
 - [x] Accessible block canvas with schema-driven inspector.
 - [x] Responsive/mobile editing model and keyboard navigation.

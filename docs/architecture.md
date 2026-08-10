@@ -42,7 +42,11 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/starters/archives.ts` ships four complete ordinary SvelteKit source bundles and verifies every file plus the canonical revision digest.
 - `src/lib/content/markdown.ts` provides a deterministic Markdown adapter with a deliberately small JSON-frontmatter grammar.
 - `src/lib/content/assistance.ts` performs local SEO and accessibility checks without sending content or applying changes.
-- `src/lib/sites/` contains a fixture-backed, read-only Studio experience with an overview-first, tabbed readiness workspace.
+- `src/lib/sites/` contains a fixture-backed interactive Studio with a complete
+  example site, editable pages and sections, an overview-first workspace, and
+  tabbed readiness evidence. Its versioned local draft envelope is serialized
+  through scoped extension storage so rapid edits cannot be persisted out of
+  order. This convenience draft is not repository or publishing authority.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 
@@ -59,7 +63,12 @@ idempotency digests before recording exact accepted evidence. The seam is not
 yet exposed to the browser and has no executor, so `accepted` never means the
 site, repository, preview, or deployment exists.
 
-No repository, draft persistence, build, preview execution, deployment, traffic routing, domain assignment, media transformation, library installation, or AI mutation exists yet. Passing a pure assessment never promotes it into authority.
+No repository-backed draft persistence, build, preview execution, deployment,
+traffic routing, domain assignment, media transformation, library installation,
+or AI mutation exists yet. The interactive example may persist a bounded local
+draft inside tend.host's extension-scoped storage, but it cannot turn that draft
+into source or deployment authority. Passing a pure assessment never promotes
+it into authority.
 
 The compatibility inspector accepts provider-supplied file names plus parsed `package.json` and optional `tend.site.json` data. It rejects path traversal, duplicate canonical paths, conflicting lockfiles, missing build scripts, malformed metadata, and non-SvelteKit projects before producing an argv-only install/build plan. The future host remains responsible for authenticated checkout, snapshot integrity, isolation, and execution.
 
