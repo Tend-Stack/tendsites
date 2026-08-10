@@ -42,7 +42,10 @@ test('guides creation without pretending to create source', async ({ page }) => 
 
 test('publishing clearly remains non-authoritative', async ({ page }) => {
 	await page.goto('/');
-	await page.getByRole('button', { name: 'Studio', exact: true }).click();
+	await page
+		.getByLabel('Sites navigation')
+		.getByRole('button', { name: 'Studio', exact: true })
+		.click();
 	await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
 	await expect(page.getByText('No deployment has been requested.')).toBeVisible();
@@ -99,6 +102,66 @@ test('supports keyboard block ordering and a purpose-built mobile studio', async
 	await expect(page.locator('.browser-frame')).toBeVisible();
 });
 
+test('resizes desktop Studio panels and edits section copy directly on canvas', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+
+	const outline = page.getByRole('complementary', { name: 'Site outline' });
+	const before = await outline.boundingBox();
+	const outlineHandle = page.getByRole('separator', { name: 'Resize site outline' });
+	const handleBox = await outlineHandle.boundingBox();
+	expect(before).not.toBeNull();
+	expect(handleBox).not.toBeNull();
+	await page.mouse.move(handleBox!.x + 4, handleBox!.y + 120);
+	await page.mouse.down();
+	await page.mouse.move(handleBox!.x + 64, handleBox!.y + 120);
+	await page.mouse.up();
+	const after = await outline.boundingBox();
+	expect(after!.width).toBeGreaterThan(before!.width + 40);
+
+	const inlineTitle = page.getByRole('textbox', { name: 'Edit Lake hero title' });
+	await inlineTitle.fill('A calmer way to see the world');
+	await inlineTitle.press('Tab');
+	await expect(page.getByLabel('Selected block settings').getByLabel('Title')).toHaveValue(
+		'A calmer way to see the world'
+	);
+
+	await page.getByRole('button', { name: 'Writing tools' }).click();
+	await expect(page.getByRole('button', { name: 'Edit text' })).toBeVisible();
+	await page.getByRole('button', { name: 'Hide tools' }).click();
+	await expect(page.getByRole('button', { name: 'Edit text' })).toHaveCount(0);
+});
+
+test('previews reviewed components and applies a real local theme', async ({ page }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Library', exact: true }).click();
+
+	await page.getByRole('button', { name: 'Preview', exact: true }).first().click();
+	const componentPreview = page.getByRole('dialog', { name: 'Split Hero' });
+	await expect(
+		componentPreview.getByText('Give your idea a memorable first impression.')
+	).toBeVisible();
+	await componentPreview.getByRole('button', { name: 'Add to Home' }).click();
+
+	await expect(
+		page.getByLabel('Selected block settings').getByRole('heading', { name: 'Split Hero' })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Library', exact: true }).click();
+	await page.getByRole('button', { name: 'Themes', exact: true }).click();
+	await page.getByRole('button', { name: 'Apply theme', exact: true }).last().click();
+	await expect(page.getByText('TEND Docs is now applied to this local draft.')).toBeVisible();
+	await expect(page.getByText('Applied to this draft')).toBeVisible();
+
+	await page
+		.getByLabel('Sites navigation')
+		.getByRole('button', { name: 'Studio', exact: true })
+		.click();
+	await expect(page.getByLabel('Selected block settings').getByLabel('Theme')).toHaveValue('docs');
+});
+
 test('edits a full example site with pages, sections, undo and preview', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open interactive demo' }).click();
@@ -114,9 +177,11 @@ test('edits a full example site with pages, sections, undo and preview', async (
 	await page.getByRole('button', { name: /Photo gallery/ }).click();
 	await expect(page.getByRole('heading', { name: 'Photo gallery' })).toBeVisible();
 
-	const title = page.getByLabel('Title');
+	const title = page.getByRole('textbox', { name: 'Title', exact: true });
 	await title.fill('Places that made us slow down');
-	await expect(page.getByRole('button', { name: /Places that made us slow down/ })).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'Edit Photo gallery title' })).toHaveText(
+		'Places that made us slow down'
+	);
 	await page.getByRole('button', { name: 'Undo' }).click();
 	await expect(title).not.toHaveValue('Places that made us slow down');
 

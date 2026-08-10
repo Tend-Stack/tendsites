@@ -2,6 +2,8 @@ import fieldNotesImage from '../assets/demo/field-notes.png';
 import forestCabinImage from '../assets/demo/forest-cabin.png';
 import weekendLakeImage from '../assets/demo/weekend-lake.png';
 
+import type { DemoThemeId } from './library-catalog';
+
 export type DemoSectionKind = 'hero' | 'story' | 'gallery' | 'quote' | 'newsletter';
 
 export type DemoSection = {
@@ -26,6 +28,7 @@ export type DemoSite = {
 	name: string;
 	tagline: string;
 	accent: string;
+	themeId?: DemoThemeId;
 	pages: DemoPage[];
 };
 
@@ -125,7 +128,8 @@ export function createDemoSite(): DemoSite {
 	return {
 		name: 'Willow Journal',
 		tagline: 'Stories, sound and places worth remembering.',
-		accent: '#56e6ad',
+		accent: '#d88152',
+		themeId: 'editorial',
 		pages: [
 			{
 				id: 'home',
@@ -224,6 +228,11 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		!Array.isArray(candidate.pages) ||
 		candidate.pages.length === 0 ||
 		candidate.pages.length > 24
+	)
+		return false;
+	if (
+		candidate.themeId !== undefined &&
+		!['minimal', 'editorial', 'studio', 'docs'].includes(candidate.themeId)
 	)
 		return false;
 	return candidate.pages.every(

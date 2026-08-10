@@ -18,6 +18,7 @@
 		Languages,
 		Menu,
 		MonitorPlay,
+		Paintbrush,
 		PanelLeft,
 		Rocket,
 		Settings2,
@@ -61,6 +62,14 @@
 	} from './demo-site';
 	import { DemoDraftStore, type DraftStorage } from './draft-storage';
 	import { assessDemoSiteHealth, type SiteHealthIssue } from './site-health';
+	import {
+		createLibrarySection,
+		demoLibraryComponents,
+		demoThemes,
+		getDemoTheme,
+		type DemoLibraryComponent,
+		type DemoTheme
+	} from './library-catalog';
 
 	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
 	type ReadinessArea =
@@ -95,6 +104,17 @@
 	let deleteConfirmation = $state('');
 	let studioPanel = $state<'outline' | 'canvas' | 'inspector'>('canvas');
 	let conflictChoice = $state<'keep_draft' | 'use_repository' | null>(null);
+	let libraryView = $state<'components' | 'themes'>('components');
+	let libraryPreview = $state<DemoLibraryComponent | null>(null);
+	let libraryNotice = $state('');
+	let writingToolsExpanded = $state(false);
+	let outlineWidth = $state(230);
+	let inspectorWidth = $state(300);
+	let panelResize = $state<{
+		side: 'outline' | 'inspector';
+		startX: number;
+		startWidth: number;
+	} | null>(null);
 	const draftStorageKey = 'studio-draft-v1';
 	let draftStore: DemoDraftStore | null = null;
 	let latestSaveRequest = 0;
@@ -107,6 +127,7 @@
 	);
 	const projectImages = [demoImages.lake, demoImages.notes, demoImages.cabin];
 	const siteHealth = $derived(assessDemoSiteHealth(siteDraft));
+	const activeTheme = $derived(getDemoTheme(siteDraft.themeId));
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -328,6 +349,61 @@
 		});
 	}
 
+	function commitInlineEdit(
+		sectionId: string,
+		field: 'eyebrow' | 'title' | 'body',
+		element: HTMLElement
+	) {
+		const value = element.innerText.replace(/\u00a0/g, ' ').trim();
+		const section = selectedPage?.sections.find((item) => item.id === sectionId);
+		if (!section || section[field] === value) return;
+		selectedSectionId = sectionId;
+		updateSection(field, value);
+	}
+
+	function handleInlineKeydown(event: KeyboardEvent, multiline = false) {
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			(event.currentTarget as HTMLElement).blur();
+		}
+		if (!multiline && event.key === 'Enter') {
+			event.preventDefault();
+			(event.currentTarget as HTMLElement).blur();
+		}
+	}
+
+	function focusInlineField(field: 'title' | 'body') {
+		const match = Array.from(document.querySelectorAll<HTMLElement>('[data-inline-field]')).find(
+			(element) =>
+				element.dataset.inlineSection === selectedSectionId && element.dataset.inlineField === field
+		);
+		match?.focus();
+	}
+
+	function beginPanelResize(side: 'outline' | 'inspector', event: PointerEvent) {
+		if (window.innerWidth <= 900) return;
+		panelResize = {
+			side,
+			startX: event.clientX,
+			startWidth: side === 'outline' ? outlineWidth : inspectorWidth
+		};
+		event.preventDefault();
+	}
+
+	function resizeStudioPanels(event: PointerEvent) {
+		if (!panelResize) return;
+		const delta = event.clientX - panelResize.startX;
+		if (panelResize.side === 'outline') {
+			outlineWidth = Math.max(190, Math.min(420, panelResize.startWidth + delta));
+		} else {
+			inspectorWidth = Math.max(260, Math.min(480, panelResize.startWidth - delta));
+		}
+	}
+
+	function finishPanelResize() {
+		panelResize = null;
+	}
+
 	function openHealthIssue(issue: SiteHealthIssue) {
 		selectPage(issue.pageId);
 		if (issue.sectionId) selectedSectionId = issue.sectionId;
@@ -337,7 +413,8 @@
 
 	function handleGlobalKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape') return;
-		if (showDraftRecovery && !recoveryBusy) showDraftRecovery = false;
+		if (libraryPreview) libraryPreview = null;
+		else if (showDraftRecovery && !recoveryBusy) showDraftRecovery = false;
 		else if (deleteTarget) deleteTarget = null;
 		else if (showAddPage) showAddPage = false;
 		else if (showAddSection) showAddSection = false;
@@ -366,6 +443,27 @@
 			[page.sections[index], page.sections[target]] = [page.sections[target], page.sections[index]];
 		});
 	}
+
+	function addReviewedComponent(component: DemoLibraryComponent) {
+		const section = createLibrarySection(component, Date.now());
+		changeDraft((next) => {
+			const page = next.pages.find((item) => item.id === selectedPageId);
+			page?.sections.push(section);
+		});
+		selectedSectionId = section.id;
+		libraryPreview = null;
+		libraryNotice = `${component.name} was added to ${selectedPage?.name ?? 'this page'}.`;
+		studioPanel = 'inspector';
+		open('studio');
+	}
+
+	function applyReviewedTheme(theme: DemoTheme) {
+		changeDraft((next) => {
+			next.themeId = theme.id;
+			next.accent = theme.accent;
+		});
+		libraryNotice = `${theme.name} is now applied to this local draft.`;
+	}
 </script>
 
 <svelte:head>
@@ -376,7 +474,11 @@
 	/>
 </svelte:head>
 
-<svelte:window onkeydown={handleGlobalKeydown} />
+<svelte:window
+	onkeydown={handleGlobalKeydown}
+	onpointermove={resizeStudioPanels}
+	onpointerup={finishPanelResize}
+/>
 
 <div class:embedded class="sites-shell">
 	<header class="topbar">
@@ -675,7 +777,12 @@
 			</div>
 		</main>
 	{:else if view === 'studio'}
-		<main class="studio-page">
+		<main
+			class:resizing={panelResize !== null}
+			class="studio-page"
+			style:--outline-width={`${outlineWidth}px`}
+			style:--inspector-width={`${inspectorWidth}px`}
+		>
 			<div class="studio-mobile-tabs" aria-label="Studio workspace">
 				<button class:active={studioPanel === 'outline'} onclick={() => (studioPanel = 'outline')}
 					>Outline</button
@@ -748,6 +855,13 @@
 					></button
 				>
 			</aside>
+			<div
+				class="panel-resizer"
+				role="separator"
+				aria-label="Resize site outline"
+				aria-orientation="vertical"
+				onpointerdown={(event) => beginPanelResize('outline', event)}
+			></div>
 			<section class:mobile-visible={studioPanel === 'canvas'} class="canvas-area">
 				<div class="studio-toolbar">
 					<div>
@@ -792,35 +906,104 @@
 				</div>
 				<div class="browser-frame">
 					<div class="browser-top"><i></i><i></i><i></i><span>weekend-notes.example</span></div>
-					<div class="site-canvas complete-demo" style:--accent={siteDraft.accent}>
+					<div
+						class="site-canvas complete-demo"
+						style:--accent={siteDraft.accent}
+						style:--site-paper={activeTheme.paper}
+						style:--site-ink={activeTheme.ink}
+					>
 						<nav>
 							<strong>{siteDraft.name}</strong><span
 								>{siteDraft.pages.map((page) => page.name).join('   ·   ')}</span
 							>
 						</nav>
 						{#each selectedPage?.sections ?? [] as section (section.id)}
-							<button
+							<article
 								class:selected-section={selectedSectionId === section.id}
 								class="canvas-section {section.kind}"
-								onclick={() => (selectedSectionId = section.id)}
 							>
+								<button
+									class="section-select-overlay"
+									aria-label="Select {section.label} section"
+									onclick={() => (selectedSectionId = section.id)}
+								></button>
 								<span class="block-label">{sectionLabels[section.kind]}</span>
 								{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
 								<div>
-									<small>{section.eyebrow}</small>
-									<h1>{section.title}</h1>
-									<p>{section.body}</p>
+									<span
+										class="inline-eyebrow"
+										contenteditable="plaintext-only"
+										role="textbox"
+										tabindex="0"
+										aria-label="Edit {section.label} eyebrow"
+										data-inline-section={section.id}
+										data-inline-field="eyebrow"
+										onfocus={() => (selectedSectionId = section.id)}
+										onkeydown={handleInlineKeydown}
+										onblur={(event) => commitInlineEdit(section.id, 'eyebrow', event.currentTarget)}
+										>{section.eyebrow}</span
+									>
+									<span
+										class="inline-title"
+										contenteditable="plaintext-only"
+										role="textbox"
+										tabindex="0"
+										aria-label="Edit {section.label} title"
+										data-inline-section={section.id}
+										data-inline-field="title"
+										onfocus={() => (selectedSectionId = section.id)}
+										onkeydown={handleInlineKeydown}
+										onblur={(event) => commitInlineEdit(section.id, 'title', event.currentTarget)}
+										>{section.title}</span
+									>
+									<span
+										class="inline-body"
+										contenteditable="plaintext-only"
+										role="textbox"
+										tabindex="0"
+										aria-multiline="true"
+										aria-label="Edit {section.label} text"
+										data-inline-section={section.id}
+										data-inline-field="body"
+										onfocus={() => (selectedSectionId = section.id)}
+										onkeydown={(event) => handleInlineKeydown(event, true)}
+										onblur={(event) => commitInlineEdit(section.id, 'body', event.currentTarget)}
+										>{section.body}</span
+									>
 									{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
 										>{/if}
 								</div>
-							</button>
+							</article>
 						{/each}
 						<button class="add-section" onclick={() => (showAddSection = true)}
 							><CirclePlus size={15} /> Add section</button
 						>
 					</div>
 				</div>
+				<div class:expanded={writingToolsExpanded} class="writing-tools" aria-label="Writing tools">
+					<button
+						class="writing-tools-toggle"
+						aria-expanded={writingToolsExpanded}
+						onclick={() => (writingToolsExpanded = !writingToolsExpanded)}
+						><Paintbrush size={16} />
+						{writingToolsExpanded ? 'Hide tools' : 'Writing tools'}</button
+					>
+					{#if writingToolsExpanded}
+						<span></span>
+						<button onclick={() => focusInlineField('title')}>Edit title</button>
+						<button onclick={() => focusInlineField('body')}>Edit text</button>
+						<button onclick={() => (showAddSection = true)}>Add section</button>
+						<button onclick={() => open('library')}>Library</button>
+					{/if}
+				</div>
 			</section>
+			<div
+				class="panel-resizer"
+				role="separator"
+				aria-label="Resize block settings"
+				aria-orientation="vertical"
+				onpointerdown={(event) => beginPanelResize('inspector', event)}
+			></div>
 			<aside
 				class:mobile-visible={studioPanel === 'inspector'}
 				class="inspector"
@@ -902,7 +1085,17 @@
 						></select
 					></label
 				>
-				<label><span>Theme</span><select><option>{selectedThemeName}</option></select></label>
+				<label
+					><span>Theme</span><select
+						value={activeTheme.id}
+						onchange={(event) => {
+							const theme = demoThemes.find((item) => item.id === event.currentTarget.value);
+							if (theme) applyReviewedTheme(theme);
+						}}
+						>{#each demoThemes as theme (theme.id)}<option value={theme.id}>{theme.name}</option
+							>{/each}</select
+					></label
+				>
 				<div class="media-drop" class:has-image={Boolean(selectedSection?.image)}>
 					{#if selectedSection?.image}<img
 							src={selectedSection.image}
@@ -1086,7 +1279,12 @@
 							onclick={() => (showPreview = false)}><X size={20} /></button
 						>
 					</header>
-					<div class="full-demo-site" style:--accent={siteDraft.accent}>
+					<div
+						class="full-demo-site"
+						style:--accent={siteDraft.accent}
+						style:--site-paper={activeTheme.paper}
+						style:--site-ink={activeTheme.ink}
+					>
 						<nav>
 							<strong>{siteDraft.name}</strong>
 							<div>
@@ -1385,36 +1583,107 @@
 				>
 			</div>
 			<div class="filter-row">
-				<button class="active">Official</button><button disabled>Community</button><button disabled
-					>Installed</button
-				><span></span><button class="active">Components</button><button>Themes</button>
+				<span class="library-trust"><ShieldCheck size={16} /> Reviewed by TEND Stack</span>
+				<span></span><button
+					class:active={libraryView === 'components'}
+					onclick={() => (libraryView = 'components')}>Components</button
+				><button class:active={libraryView === 'themes'} onclick={() => (libraryView = 'themes')}
+					>Themes</button
+				>
 			</div>
-			<section class="component-grid">
-				{#each ['Split Hero', 'Timeline', 'Podcast Player', 'API Reference', 'Map', 'Testimonials'] as component, index (component)}
-					<article>
-						<div class="component-preview">
-							<span></span><span></span><i class:round={index === 2}></i>
+			{#if libraryNotice}<div class="library-notice" role="status">
+					<Check size={17} />{libraryNotice}
+				</div>{/if}
+			{#if libraryView === 'components'}
+				<section class="component-grid" aria-label="Reviewed components">
+					{#each demoLibraryComponents as component, index (component.id)}
+						<article>
+							<div class="component-preview preview-{component.kind}">
+								<span></span><span></span><i class:round={index === 2}></i>
+							</div>
+							<div>
+								<span class="status live">Official</span><small>{component.category}</small>
+							</div>
+							<h2>{component.name}</h2>
+							<p>{component.description}</p>
+							<div class="library-card-actions">
+								<button class="secondary" onclick={() => (libraryPreview = component)}
+									>Preview</button
+								><button class="card-action" onclick={() => addReviewedComponent(component)}
+									>Add to {selectedPage?.name ?? 'page'} <ArrowRight size={15} /></button
+								>
+							</div>
+						</article>
+					{/each}
+				</section>
+			{:else}
+				<section class="theme-library-grid" aria-label="Reviewed themes">
+					{#each demoThemes as theme (theme.id)}
+						<article class:active-theme={activeTheme.id === theme.id}>
+							<div
+								class="theme-library-preview"
+								style:--theme-accent={theme.accent}
+								style:--theme-paper={theme.paper}
+								style:--theme-ink={theme.ink}
+							>
+								<small>{theme.label}</small><strong>Stories worth sharing.</strong><span></span>
+							</div>
+							<div class="theme-card-heading">
+								<div>
+									<span class="status live">Official</span>
+									<h2>{theme.name}</h2>
+								</div>
+								{#if activeTheme.id === theme.id}<span class="theme-applied"
+										><Check size={15} /> Applied</span
+									>{/if}
+							</div>
+							<p>{theme.description}</p>
+							<button
+								class="card-action"
+								disabled={activeTheme.id === theme.id}
+								onclick={() => applyReviewedTheme(theme)}
+								><Paintbrush size={15} />
+								{activeTheme.id === theme.id ? 'Applied to this draft' : 'Apply theme'}</button
+							>
+						</article>
+					{/each}
+				</section>
+			{/if}
+
+			{#if libraryPreview}
+				<div class="modal-backdrop" role="presentation">
+					<div
+						class="studio-modal library-preview-modal"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="library-preview-title"
+					>
+						<button class="modal-close" aria-label="Close" onclick={() => (libraryPreview = null)}
+							><X size={18} /></button
+						>
+						<span class="eyebrow">Reviewed component preview</span>
+						<h2 id="library-preview-title">{libraryPreview.name}</h2>
+						<p>{libraryPreview.description}</p>
+						<div
+							class="library-section-sample"
+							style:--accent={siteDraft.accent}
+							style:--site-paper={activeTheme.paper}
+							style:--site-ink={activeTheme.ink}
+						>
+							<small>{libraryPreview.eyebrow}</small>
+							<h3>{libraryPreview.title}</h3>
+							<p>{libraryPreview.body}</p>
 						</div>
-						<div>
-							<span class="status live">Official</span><small
-								>{['Hero', 'Content', 'Media', 'Docs', 'Data', 'Business'][index]}</small
+						<div class="modal-actions">
+							<button class="secondary" onclick={() => (libraryPreview = null)}
+								>Keep browsing</button
+							><button class="primary" onclick={() => addReviewedComponent(libraryPreview!)}
+								>Add to {selectedPage?.name ?? 'this page'}</button
 							>
 						</div>
-						<h2>{component}</h2>
-						<p>
-							{[
-								'Clean image + message layout.',
-								'Stories, milestones and history.',
-								'Episodes with native-looking controls.',
-								'Readable endpoints and examples.',
-								'Locations, routes and places.',
-								'Quotes with people or logos.'
-							][index]}
-						</p>
-						<button class="card-action">Preview <ArrowRight size={15} /></button>
-					</article>
-				{/each}
-			</section>
+					</div>
+				</div>
+			{/if}
 		</main>
 	{:else}
 		<main class="page publish-page">
@@ -2343,8 +2612,33 @@
 	}
 	.studio-page {
 		display: grid;
-		grid-template-columns: 210px minmax(0, 1fr) 260px;
+		grid-template-columns:
+			var(--outline-width) 8px minmax(0, 1fr) 8px
+			var(--inspector-width);
 		min-height: calc(100dvh - 64px);
+	}
+	.studio-page.resizing,
+	.studio-page.resizing * {
+		cursor: col-resize !important;
+		user-select: none !important;
+	}
+	.panel-resizer {
+		position: relative;
+		z-index: 6;
+		background: #090f11;
+		cursor: col-resize;
+		touch-action: none;
+	}
+	.panel-resizer::after {
+		content: '';
+		position: absolute;
+		inset: 0 3px;
+		background: var(--border);
+		transition: background 0.16s ease;
+	}
+	.panel-resizer:hover::after,
+	.panel-resizer:focus-visible::after {
+		background: var(--green);
 	}
 	.studio-mobile-tabs {
 		display: none;
@@ -2532,8 +2826,8 @@
 	.site-canvas {
 		min-height: 620px;
 		padding: clamp(24px, 5vw, 60px);
-		color: #1c2420;
-		background: #eef3ef;
+		color: var(--site-ink);
+		background: var(--site-paper);
 	}
 	.site-canvas nav {
 		display: flex;
@@ -2548,12 +2842,28 @@
 		width: 100%;
 		margin-top: 20px;
 		padding: 22px;
-		color: #1c2420;
+		color: var(--site-ink);
 		text-align: left;
 		border: 2px solid transparent;
 		border-radius: 12px;
-		background: #f8fbf9;
+		background: color-mix(in srgb, var(--site-paper) 88%, white);
 		cursor: pointer;
+	}
+	.section-select-overlay {
+		position: absolute;
+		z-index: 0;
+		inset: 0;
+		width: 100%;
+		border: 0;
+		border-radius: inherit;
+		background: transparent;
+		cursor: pointer;
+	}
+	.canvas-section > img,
+	.canvas-section > div,
+	.canvas-section .block-label {
+		position: relative;
+		z-index: 1;
 	}
 	.canvas-section:first-of-type {
 		margin-top: 48px;
@@ -2592,7 +2902,7 @@
 		display: block;
 		text-align: center;
 		padding: 38px;
-		background: #dce8df;
+		background: color-mix(in srgb, var(--accent) 16%, var(--site-paper));
 	}
 	.block-label {
 		position: absolute;
@@ -2605,18 +2915,79 @@
 		font-size: 9px;
 		font-weight: 800;
 	}
-	.canvas-section small {
+	.canvas-section .inline-eyebrow {
+		display: block;
 		font-size: 9px;
 		letter-spacing: 0.12em;
 	}
-	.canvas-section h1 {
+	.canvas-section .inline-title {
+		display: block;
 		max-width: 600px;
 		margin: 10px 0;
+		font-weight: 700;
 		font-size: clamp(24px, 3.2vw, 46px);
+		line-height: 1.08;
 	}
-	.canvas-section p {
+	.canvas-section .inline-body {
+		display: block;
 		max-width: 570px;
 		color: #51605a;
+		line-height: 1.6;
+	}
+	.canvas-section [contenteditable='plaintext-only'] {
+		border-radius: 5px;
+		outline: none;
+		cursor: text;
+	}
+	.canvas-section [contenteditable='plaintext-only']:hover {
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
+	}
+	.canvas-section [contenteditable='plaintext-only']:focus {
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 36%, transparent);
+	}
+	.writing-tools {
+		position: sticky;
+		z-index: 12;
+		bottom: 16px;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		width: fit-content;
+		max-width: 100%;
+		margin: 14px auto 0;
+		padding: 5px;
+		border: 1px solid #315348;
+		border-radius: 14px;
+		background: #09130fef;
+		box-shadow: 0 14px 40px #0009;
+		backdrop-filter: blur(16px);
+	}
+	.writing-tools button {
+		min-height: 34px;
+		padding: 0 10px;
+		color: #b9c9c3;
+		font-size: 11px;
+		font-weight: 750;
+		border: 0;
+		border-radius: 9px;
+		background: transparent;
+		cursor: pointer;
+	}
+	.writing-tools button:hover {
+		color: white;
+		background: #17251f;
+	}
+	.writing-tools .writing-tools-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		color: #07130f;
+		background: var(--green);
+	}
+	.writing-tools > span {
+		width: 1px;
+		height: 22px;
+		background: #2d423a;
 	}
 	.demo-cta {
 		display: inline-block;
@@ -2830,8 +3201,8 @@
 		font-size: 11px;
 	}
 	.full-demo-site {
-		color: #183027;
-		background: #f1f1e9;
+		color: var(--site-ink);
+		background: var(--site-paper);
 	}
 	.full-demo-site > nav {
 		display: flex;
@@ -2866,7 +3237,7 @@
 		padding: clamp(40px, 8vw, 100px);
 	}
 	.preview-section:nth-child(odd) {
-		background: #e6ece6;
+		background: color-mix(in srgb, var(--accent) 9%, var(--site-paper));
 	}
 	.preview-section img {
 		width: 100%;
@@ -2906,15 +3277,38 @@
 		gap: 20px;
 		padding: 30px clamp(24px, 6vw, 80px);
 		color: #cde0d7;
-		background: #102b22;
+		background: var(--site-ink);
 	}
 	.filter-row {
 		display: flex;
+		align-items: center;
 		gap: 6px;
 		margin-bottom: 24px;
 	}
-	.filter-row span {
+	.filter-row > span:not(.library-trust) {
 		flex: 1;
+	}
+	.library-trust {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		padding: 8px 11px;
+		color: #9fcbb9;
+		font-size: 12px;
+		border: 1px solid #234438;
+		border-radius: 10px;
+		background: #0d1b17;
+	}
+	.library-notice {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 20px;
+		padding: 12px 14px;
+		color: #baf4d9;
+		border: 1px solid #296548;
+		border-radius: 12px;
+		background: #0e281e;
 	}
 	.component-grid article {
 		padding: 12px;
@@ -2952,6 +3346,103 @@
 	.component-grid article p {
 		min-height: 43px;
 		font-size: 12px;
+	}
+	.library-card-actions {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 8px;
+		margin-top: 14px;
+	}
+	.library-card-actions button {
+		width: 100%;
+	}
+	.theme-library-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 16px;
+	}
+	.theme-library-grid > article {
+		padding: 14px;
+		border: 1px solid var(--border);
+		border-radius: 16px;
+		background: var(--surface);
+	}
+	.theme-library-grid > article.active-theme {
+		border-color: #4eaf84;
+		box-shadow: 0 0 0 1px #4eaf8430;
+	}
+	.theme-library-preview {
+		display: grid;
+		align-content: center;
+		gap: 10px;
+		min-height: 190px;
+		padding: 28px;
+		color: var(--theme-ink);
+		border-radius: 12px;
+		background: var(--theme-paper);
+	}
+	.theme-library-preview small {
+		color: var(--theme-accent);
+		font-size: 10px;
+		font-weight: 850;
+		letter-spacing: 0.13em;
+		text-transform: uppercase;
+	}
+	.theme-library-preview strong {
+		max-width: 320px;
+		font-family: Georgia, serif;
+		font-size: clamp(24px, 3vw, 38px);
+		line-height: 1;
+	}
+	.theme-library-preview span {
+		width: 68px;
+		height: 8px;
+		border-radius: 999px;
+		background: var(--theme-accent);
+	}
+	.theme-card-heading {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 14px;
+		margin-top: 14px;
+	}
+	.theme-card-heading h2 {
+		margin: 8px 0 0;
+	}
+	.theme-applied {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		color: var(--green);
+		font-size: 12px;
+		font-weight: 800;
+	}
+	.library-preview-modal {
+		width: min(680px, 100%);
+	}
+	.library-section-sample {
+		margin-top: 20px;
+		padding: clamp(28px, 6vw, 54px);
+		color: var(--site-ink);
+		border-radius: 16px;
+		background: var(--site-paper);
+	}
+	.library-section-sample small {
+		color: var(--accent);
+		font-weight: 850;
+		letter-spacing: 0.13em;
+	}
+	.library-section-sample h3 {
+		max-width: 520px;
+		margin: 12px 0;
+		font-family: Georgia, serif;
+		font-size: clamp(28px, 5vw, 48px);
+		line-height: 1.02;
+	}
+	.library-section-sample p {
+		margin-bottom: 0;
+		color: color-mix(in srgb, var(--site-ink) 72%, transparent);
 	}
 	.publish-page {
 		max-width: 1000px;
@@ -3046,6 +3537,9 @@
 			grid-template-columns: 1fr;
 			position: relative;
 			padding-top: 51px;
+		}
+		.panel-resizer {
+			display: none;
 		}
 		.studio-mobile-tabs {
 			display: grid;
@@ -3166,9 +3660,26 @@
 		.component-grid,
 		.choice-grid,
 		.theme-grid,
+		.theme-library-grid,
 		.toggle-grid,
 		.identity-grid,
 		.review-grid {
+			grid-template-columns: 1fr;
+		}
+		.filter-row {
+			align-items: stretch;
+			flex-wrap: wrap;
+		}
+		.filter-row > span:not(.library-trust) {
+			display: none;
+		}
+		.library-trust {
+			width: 100%;
+		}
+		.filter-row button {
+			flex: 1;
+		}
+		.library-card-actions {
 			grid-template-columns: 1fr;
 		}
 		.continue-grid {
@@ -3215,6 +3726,10 @@
 		}
 		.studio-toolbar button {
 			flex: 1;
+		}
+		.writing-tools.expanded {
+			flex-wrap: wrap;
+			justify-content: center;
 		}
 		.site-canvas {
 			min-height: 520px;

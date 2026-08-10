@@ -66,6 +66,12 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete:** Copy, structure, unique-address, and image-description checks
     link back to the exact page or section without claiming publish authority.
 - [x] Responsive/mobile editing model and keyboard navigation.
+- [x] Resizable desktop Studio panels and direct local canvas editing.
+  - **Complete foundation:** Outline and Inspector widths have bounded drag handles, section copy
+    can be edited directly on the canvas, and a compact writing toolbar expands only when needed.
+  - **Pending:** The portable rich-text/Markdown node model, safe links, repository media picker,
+    typography tokens, paste sanitization, and selection-aware history in
+    [`rich-editor-plan.md`](rich-editor-plan.md).
 - [x] Undo history and clear conflict resolution.
 - [x] Repository media lifecycle with accessible variants.
   - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.
@@ -103,6 +109,9 @@ Completion is measured only from the top-level product milestones below. Nested 
 ## 5. Ecosystem and optional AI
 
 - [x] Official/community/installed theme and component library.
+  - **Complete local workflow:** Reviewed components can be previewed and added to the exact
+    selected page, and four reviewed themes visibly update the local draft and persist through
+    the extension-scoped draft store. No repository or deployment authority is implied.
 - [x] Certification, provenance, compatibility, update, and removal contracts.
   - **Complete:** Immutable identity, compatibility, five-check certification, and review-only lifecycle plans.
   - **Pending integration:** Signed catalog publication and durable install/update/removal operations.

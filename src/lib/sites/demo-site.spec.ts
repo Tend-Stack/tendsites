@@ -19,6 +19,7 @@ describe('interactive demo site', () => {
 			site.pages.flatMap((page) => page.sections).every((section) => section.title.length > 8)
 		).toBe(true);
 		expect(site.pages[0].sections[0].image).toMatch(/weekend-lake/);
+		expect(site.themeId).toBe('editorial');
 	});
 
 	it('creates editable starter sections without sharing mutable state', () => {
