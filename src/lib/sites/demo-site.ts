@@ -12,6 +12,7 @@ export type DemoSection = {
 	title: string;
 	body: string;
 	image?: string;
+	imageAlt?: string;
 };
 
 export type DemoPage = {
@@ -85,21 +86,24 @@ export function createSection(kind: DemoSectionKind, sequence: number): DemoSect
 			eyebrow: 'WEEKEND JOURNAL',
 			title: 'A new story starts here.',
 			body: 'Use this space to introduce the page in one clear, memorable thought.',
-			image: weekendLakeImage
+			image: weekendLakeImage,
+			imageAlt: 'A quiet lake reflecting distant green hills'
 		},
 		story: {
 			label: 'Feature story',
 			eyebrow: 'FIELD NOTE',
 			title: 'Write about a place worth remembering.',
 			body: 'Add the details, observations and small moments that make the story yours.',
-			image: fieldNotesImage
+			image: fieldNotesImage,
+			imageAlt: 'An open field notebook beside a camera and wildflowers'
 		},
 		gallery: {
 			label: 'Photo gallery',
 			eyebrow: 'FROM THE ROAD',
 			title: 'A few frames from the weekend.',
 			body: 'A visual pause for landscapes, details and discoveries.',
-			image: forestCabinImage
+			image: forestCabinImage,
+			imageAlt: 'A warm wooden cabin surrounded by tall forest trees'
 		},
 		quote: {
 			label: 'Pull quote',
@@ -135,7 +139,8 @@ export function createDemoSite(): DemoSite {
 						eyebrow: 'PERSONAL JOURNAL',
 						title: 'Stories, sound & places worth remembering.',
 						body: 'A personal corner for essays, field recordings and the occasional experiment.',
-						image: weekendLakeImage
+						image: weekendLakeImage,
+						imageAlt: 'A quiet lake reflecting distant green hills'
 					},
 					{
 						id: 'story-2',
@@ -144,7 +149,8 @@ export function createDemoSite(): DemoSite {
 						eyebrow: 'LATEST STORY',
 						title: 'Field Notes from the long way home',
 						body: 'A weekend route, a camera, and a few places that deserved more than a drive-by.',
-						image: fieldNotesImage
+						image: fieldNotesImage,
+						imageAlt: 'An open field notebook beside a camera and wildflowers'
 					},
 					{
 						id: 'newsletter-3',
@@ -168,7 +174,8 @@ export function createDemoSite(): DemoSite {
 						eyebrow: 'HELLO, I’M WILLOW',
 						title: 'I collect thoughtful places and the stories behind them.',
 						body: 'This journal is where photography, slow travel and useful notes meet.',
-						image: forestCabinImage
+						image: forestCabinImage,
+						imageAlt: 'A warm wooden cabin surrounded by tall forest trees'
 					},
 					{
 						id: 'quote-5',
@@ -192,7 +199,8 @@ export function createDemoSite(): DemoSite {
 						eyebrow: 'RECENT JOURNEYS',
 						title: 'Three weekends, three different kinds of quiet.',
 						body: 'Lake mornings, cabin evenings and the notes collected between them.',
-						image: fieldNotesImage
+						image: fieldNotesImage,
+						imageAlt: 'An open field notebook beside a camera and wildflowers'
 					}
 				]
 			}
@@ -235,7 +243,8 @@ export function isDemoSite(value: unknown): value is DemoSite {
 					typeof section.eyebrow === 'string' &&
 					typeof section.title === 'string' &&
 					typeof section.body === 'string' &&
-					(section.image === undefined || typeof section.image === 'string')
+					(section.image === undefined || typeof section.image === 'string') &&
+					(section.imageAlt === undefined || typeof section.imageAlt === 'string')
 			)
 	);
 }

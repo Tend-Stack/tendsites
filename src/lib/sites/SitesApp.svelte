@@ -24,6 +24,7 @@
 		ShieldCheck,
 		TestTube2,
 		Trash2,
+		TriangleAlert,
 		Sparkles,
 		X
 	} from '@lucide/svelte';
@@ -59,10 +60,11 @@
 		type DemoSite
 	} from './demo-site';
 	import { DemoDraftStore, type DraftStorage } from './draft-storage';
+	import { assessDemoSiteHealth, type SiteHealthIssue } from './site-health';
 
 	type View = 'home' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
 	type ReadinessArea =
-		'overview' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
+		'overview' | 'health' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
 
 	let { embedded = false, storage }: { embedded?: boolean; storage?: DraftStorage } = $props();
 	let view = $state<View>('home');
@@ -102,6 +104,7 @@
 			selectedPage?.sections[0]
 	);
 	const projectImages = [demoImages.lake, demoImages.notes, demoImages.cabin];
+	const siteHealth = $derived(assessDemoSiteHealth(siteDraft));
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -286,13 +289,20 @@
 		showAddSection = false;
 	}
 
-	function updateSection(field: 'eyebrow' | 'title' | 'body', value: string) {
+	function updateSection(field: 'eyebrow' | 'title' | 'body' | 'imageAlt', value: string) {
 		changeDraft((next) => {
 			const section = next.pages
 				.find((page) => page.id === selectedPageId)
 				?.sections.find((item) => item.id === selectedSectionId);
-			if (section) section[field] = value.slice(0, field === 'body' ? 600 : 160);
+			if (section) section[field] = value.slice(0, field === 'body' ? 600 : 240);
 		});
+	}
+
+	function openHealthIssue(issue: SiteHealthIssue) {
+		selectPage(issue.pageId);
+		if (issue.sectionId) selectedSectionId = issue.sectionId;
+		studioPanel = issue.sectionId ? 'inspector' : 'outline';
+		open('studio');
 	}
 
 	function toggleModule(module: string) {
@@ -716,6 +726,19 @@
 						<button class="secondary" disabled={history.length === 0} onclick={undoDraft}
 							>Undo</button
 						>
+						<button
+							class:attention={siteHealth.status === 'needs_attention'}
+							class="secondary health-button"
+							onclick={() => {
+								readinessArea = 'health';
+								open('readiness');
+							}}
+						>
+							{#if siteHealth.status === 'ready'}<ShieldCheck size={16} /> Site health: Ready{:else}<TriangleAlert
+									size={16}
+								/>
+								{siteHealth.issues.length} to review{/if}
+						</button>
 						<button class="secondary" onclick={() => (showPreview = true)}
 							><MonitorPlay size={16} /> Preview site</button
 						><button class="primary" onclick={() => open('publish')}>Publish</button>
@@ -736,7 +759,7 @@
 								onclick={() => (selectedSectionId = section.id)}
 							>
 								<span class="block-label">{sectionLabels[section.kind]}</span>
-								{#if section.image}<img src={section.image} alt="" />{/if}
+								{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
 								<div>
 									<small>{section.eyebrow}</small>
 									<h1>{section.title}</h1>
@@ -837,9 +860,18 @@
 				<div class="media-drop" class:has-image={Boolean(selectedSection?.image)}>
 					{#if selectedSection?.image}<img
 							src={selectedSection.image}
-							alt="Selected section"
+							alt={selectedSection.imageAlt ?? ''}
 						/>{:else}<Image size={24} /><span>No image needed for this section</span>{/if}
 				</div>
+				{#if selectedSection?.image}
+					<label
+						><span>Image description</span><textarea
+							rows="3"
+							value={selectedSection.imageAlt ?? ''}
+							oninput={(event) => updateSection('imageAlt', event.currentTarget.value)}
+						></textarea></label
+					>
+				{/if}
 				<button class="secondary" onclick={() => (showAddSection = true)}
 					>Add another section</button
 				>
@@ -983,10 +1015,7 @@
 						</nav>
 						{#each selectedPage?.sections ?? [] as section (section.id)}
 							<section class="preview-section {section.kind}">
-								{#if section.image}<img
-										src={section.image}
-										alt="Landscape for {section.title}"
-									/>{/if}
+								{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
 								<div>
 									<small>{section.eyebrow}</small>
 									<h1>{section.title}</h1>
@@ -1015,7 +1044,7 @@
 				<span class="status live">5 contracts verified</span>
 			</section>
 			<nav class="readiness-tabs" aria-label="Readiness sections">
-				{#each [['overview', 'Overview'], ['drafts', 'Draft safety'], ['media', 'Media'], ['languages', 'Languages'], ['library', 'Library'], ['preview', 'Preview'], ['guidance', 'Guidance']] as tab (tab[0])}
+				{#each [['overview', 'Overview'], ['health', 'Site health'], ['drafts', 'Draft safety'], ['media', 'Media'], ['languages', 'Languages'], ['library', 'Library'], ['preview', 'Preview'], ['guidance', 'Guidance']] as tab (tab[0])}
 					<button
 						class:active={readinessArea === tab[0]}
 						onclick={() => (readinessArea = tab[0] as ReadinessArea)}>{tab[1]}</button
@@ -1025,6 +1054,17 @@
 
 			{#if readinessArea === 'overview'}
 				<section class="readiness-grid" aria-label="Foundation readiness overview">
+					<button onclick={() => (readinessArea = 'health')}
+						>{#if siteHealth.status === 'ready'}<ShieldCheck size={21} />{:else}<TriangleAlert
+								size={21}
+							/>{/if}<span
+							><strong>Site health</strong><small
+								>{siteHealth.status === 'ready'
+									? 'Copy, structure and accessibility look complete'
+									: `${siteHealth.issues.length} items need review`}</small
+							></span
+						><em>{siteHealth.status === 'ready' ? 'Ready' : 'Review'}</em></button
+					>
 					<button onclick={() => (readinessArea = 'drafts')}
 						><DatabaseZap size={21} /><span
 							><strong>Draft safety</strong><small>Sequence and conflict evidence</small></span
@@ -1064,7 +1104,54 @@
 				</section>
 			{:else}
 				<section class="readiness-detail">
-					{#if readinessArea === 'drafts'}
+					{#if readinessArea === 'health'}
+						<div class="readiness-icon">
+							{#if siteHealth.status === 'ready'}<ShieldCheck size={24} />{:else}<TriangleAlert
+									size={24}
+								/>{/if}
+						</div>
+						<div>
+							<span class="eyebrow">Local quality check</span>
+							<h2>
+								{siteHealth.status === 'ready'
+									? 'This draft is ready to review.'
+									: 'A few details need attention.'}
+							</h2>
+							<p>
+								These checks run locally against the example draft. Passing them improves quality
+								but does not authorize a preview or deployment.
+							</p>
+						</div>
+						<dl>
+							<div>
+								<dt>Blocking</dt>
+								<dd>{siteHealth.blockers}</dd>
+							</div>
+							<div>
+								<dt>Needs attention</dt>
+								<dd>{siteHealth.attention}</dd>
+							</div>
+						</dl>
+						<div class="health-issues" aria-live="polite">
+							{#if siteHealth.issues.length === 0}
+								<div class="health-ready">
+									<Check size={18} /><span
+										><strong>No local issues found</strong><small
+											>Keep reviewing the real preview before publishing.</small
+										></span
+									>
+								</div>
+							{:else}
+								{#each siteHealth.issues as issue (`${issue.code}-${issue.pageId}-${issue.sectionId ?? ''}`)}
+									<button onclick={() => openHealthIssue(issue)}>
+										<TriangleAlert size={17} />
+										<span><strong>{issue.title}</strong><small>{issue.guidance}</small></span>
+										<ArrowRight size={16} />
+									</button>
+								{/each}
+							{/if}
+						</div>
+					{:else if readinessArea === 'drafts'}
 						<div class="readiness-icon"><DatabaseZap size={24} /></div>
 						<div>
 							<span class="eyebrow">Draft safety</span>
@@ -1440,6 +1527,11 @@
 		font-weight: 750;
 		color: var(--green);
 	}
+	.health-button.attention {
+		color: #f6c35c;
+		border-color: #755b24;
+		background: #241f12;
+	}
 	.readiness-detail {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr) minmax(260px, 0.55fr);
@@ -1501,6 +1593,48 @@
 	.conflict-actions small {
 		width: 100%;
 		color: var(--muted);
+	}
+	.health-issues {
+		display: grid;
+		gap: 9px;
+		grid-column: 2 / -1;
+	}
+	.health-issues button,
+	.health-ready {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 12px;
+		width: 100%;
+		padding: 14px;
+		color: #edf5f1;
+		text-align: left;
+		background: #0b1214;
+		border: 1px solid var(--border);
+		border-radius: 13px;
+	}
+	.health-issues button {
+		cursor: pointer;
+	}
+	.health-issues button:hover {
+		border-color: #755b24;
+		background: #19170f;
+	}
+	.health-issues button > :global(svg:first-child) {
+		color: #f6c35c;
+	}
+	.health-issues span {
+		display: grid;
+		gap: 4px;
+	}
+	.health-issues small {
+		color: var(--muted);
+	}
+	.health-ready {
+		grid-template-columns: auto minmax(0, 1fr);
+		color: var(--green);
+		background: #0b1813;
+		border-color: #234d3d;
 	}
 	.top-actions {
 		margin-left: auto;
@@ -2842,6 +2976,9 @@
 			grid-template-columns: 1fr;
 		}
 		.readiness-detail dl {
+			grid-column: auto;
+		}
+		.health-issues {
 			grid-column: auto;
 		}
 		.topbar {

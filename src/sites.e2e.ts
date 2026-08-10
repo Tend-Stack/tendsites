@@ -158,6 +158,21 @@ test('manages page identity and requires named confirmation before removal', asy
 	await expect(page.getByRole('button', { name: 'Our Story copy', exact: true })).toHaveCount(0);
 });
 
+test('finds a local site-health issue and returns to the exact editor section', async ({
+	page
+}) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+	const inspector = page.getByLabel('Selected block settings');
+	await inspector.getByLabel('Title').fill('');
+
+	await page.getByRole('button', { name: '1 to review' }).click();
+	await expect(page.getByRole('heading', { name: 'A few details need attention.' })).toBeVisible();
+	await page.getByRole('button', { name: /Lake hero needs a title/ }).click();
+
+	await expect(page.getByLabel('Selected block settings').getByLabel('Title')).toHaveValue('');
+});
+
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({
 	page
 }) => {

@@ -59,6 +59,9 @@ Completion is measured only from the top-level product milestones below. Nested 
 - [x] Safe local page and section management.
   - **Complete:** Friendly unique addresses, page duplication, protected home
     and last-section invariants, named destructive confirmation, and session undo.
+- [x] Local site-health guidance with direct remediation.
+  - **Complete:** Copy, structure, unique-address, and image-description checks
+    link back to the exact page or section without claiming publish authority.
 - [x] Responsive/mobile editing model and keyboard navigation.
 - [x] Undo history and clear conflict resolution.
 - [x] Repository media lifecycle with accessible variants.
