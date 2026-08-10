@@ -39,6 +39,11 @@ Future privileged work must cross the typed host-operation bridge. The extension
 
 Schema-driven component options are preferred. Arbitrary editor-time scripts, dynamic evaluation, and remote script injection are forbidden.
 
+External content insertion accepts only canonical HTTPS URLs for reviewed providers. The draft
+stores a typed provider and content identifier, never iframe/script markup. YouTube and Vimeo player
+origins are derived by the extension and remain unloaded until the user explicitly requests a
+preview. X and Twitch are represented as safe outbound cards in this slice.
+
 ## Reporting
 
 Do not disclose security vulnerabilities in a public issue. Use the private security-reporting channel configured for the repository or contact `security@tend.host`.

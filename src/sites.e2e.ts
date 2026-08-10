@@ -167,6 +167,51 @@ test('opens contextual rich text tools and saves portable Markdown formatting', 
 	);
 });
 
+test('keeps the floating editor and inserts reviewed external content without embed code', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+
+	const body = page.getByRole('textbox', { name: 'Edit Lake hero text' });
+	await body.click();
+	const toolbar = page.getByLabel('Text formatting tools');
+	await expect(toolbar).toBeVisible();
+	await expect(toolbar.getByRole('button', { name: 'Strikethrough' })).toBeVisible();
+	await expect(toolbar.getByRole('button', { name: 'Inline code' })).toBeVisible();
+	await toolbar.getByRole('button', { name: 'Insert content' }).click();
+	await toolbar.getByRole('button', { name: 'Video or social post' }).click();
+
+	const dialog = page.getByRole('dialog', { name: 'Add a video or social post' });
+	await dialog.getByLabel('Content link').fill('https://youtu.be/dQw4w9WgXcQ');
+	await expect(dialog.getByText('YouTube detected')).toBeVisible();
+	await dialog.getByRole('button', { name: 'Add content' }).click();
+
+	const embed = page.locator('.canvas-section.embed');
+	await expect(embed.getByText('YouTube content')).toBeVisible();
+	await expect(embed.locator('iframe')).toHaveCount(0);
+	await embed.getByRole('button', { name: 'Load private preview' }).click();
+	await expect(embed.locator('iframe')).toHaveAttribute(
+		'src',
+		'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'
+	);
+});
+
+test('keeps Studio actions compact when side panels constrain the canvas', async ({ page }) => {
+	await page.setViewportSize({ width: 1200, height: 900 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+
+	const toolbar = page.locator('.studio-toolbar');
+	await expect(page.getByRole('button', { name: 'Undo last change' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Site health: Ready' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Preview site' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Publish' })).toBeVisible();
+	const box = await toolbar.boundingBox();
+	expect(box!.height).toBeLessThan(70);
+});
+
 test('previews reviewed components and applies a real local theme', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Library', exact: true }).click();
@@ -445,7 +490,7 @@ test('replaces a stale extension stylesheet before mounting updated code', async
 		stale.rel = 'stylesheet';
 		stale.href = '/test-extension/style.css?v=0.2.3';
 		document.head.append(stale);
-		const extensionUrl = '/test-extension/index.js?v=0.3.0';
+		const extensionUrl = '/test-extension/index.js?v=0.4.0';
 		const extension = await import(/* @vite-ignore */ extensionUrl);
 		const container = document.createElement('div');
 		document.body.replaceChildren(container);
@@ -453,7 +498,7 @@ test('replaces a stale extension stylesheet before mounting updated code', async
 		return (document.getElementById('host-tend-sites-styles') as HTMLLinkElement | null)?.href;
 	});
 
-	expect(stylesheetHref).toContain('/test-extension/style.css?v=0.3.0');
+	expect(stylesheetHref).toContain('/test-extension/style.css?v=0.4.0');
 	await page.getByRole('button', { name: 'Studio', exact: true }).click();
 	await expect(page.locator('.browser-frame')).toBeVisible();
 });

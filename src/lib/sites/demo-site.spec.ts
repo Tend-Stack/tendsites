@@ -9,6 +9,7 @@ import {
 	normalizePageSlug,
 	uniquePageSlug
 } from './demo-site';
+import { parseEmbedUrl } from './embed';
 
 describe('interactive demo site', () => {
 	it('ships a complete navigable example with real content', () => {
@@ -45,6 +46,14 @@ describe('interactive demo site', () => {
 			sections: []
 		}));
 		expect(isDemoSite(tooManyPages)).toBe(false);
+		const withEmbed = createDemoSite();
+		withEmbed.pages[0].sections.push({
+			...createSection('embed', 9),
+			embed: parseEmbedUrl('https://youtu.be/dQw4w9WgXcQ')!
+		});
+		expect(isDemoSite(withEmbed)).toBe(true);
+		withEmbed.pages[0].sections.at(-1)!.embed!.sourceUrl = 'https://example.com/video';
+		expect(isDemoSite(withEmbed)).toBe(false);
 	});
 
 	it('normalizes and de-duplicates friendly page addresses', () => {

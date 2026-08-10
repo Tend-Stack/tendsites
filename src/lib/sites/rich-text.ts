@@ -12,7 +12,9 @@ function escapeHtml(value: string): string {
 function renderSimpleMarkdown(value: string): string {
 	return escapeHtml(value)
 		.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-		.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+		.replace(/_([^_\n]+)_/g, '<em>$1</em>')
+		.replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+		.replace(/`([^`\n]+)`/g, '<code>$1</code>');
 }
 
 export function normalizeRichTextLink(value: string): string | null {
@@ -83,6 +85,8 @@ function serializeNode(node: Node): string {
 	if (tag === 'br') return '\n';
 	if (tag === 'strong' || tag === 'b') return `**${content}**`;
 	if (tag === 'em' || tag === 'i') return `_${content}_`;
+	if (tag === 's' || tag === 'del' || tag === 'strike') return `~~${content}~~`;
+	if (tag === 'code') return `\`${content.replaceAll('`', '\\`')}\``;
 	if (tag === 'a') {
 		const href = normalizeRichTextLink(node.getAttribute('href') ?? '');
 		return href ? `[${content}](${href})` : content;

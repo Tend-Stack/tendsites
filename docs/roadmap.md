@@ -66,15 +66,27 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete:** Copy, structure, unique-address, and image-description checks
     link back to the exact page or section without claiming publish authority.
 - [x] Responsive/mobile editing model and keyboard navigation.
+  - **Complete current slice:** Main navigation and Studio actions use descriptive icons with
+    accessible names; labels collapse by extension/canvas container width instead of wrapping into
+    unusable controls when a desktop panel is resized.
 - [x] Resizable desktop Studio panels and direct local canvas editing.
   - **Complete foundation:** Outline and Inspector widths have bounded drag handles, section copy
     can be edited directly on the canvas, and a compact writing toolbar expands only when needed.
   - **Complete local rich-text slice:** Focusing a title or paragraph opens a dismissible contextual
-    toolbar for emphasis, headings, lists, safe web/email/site links, and clear formatting. Drafts
-    retain a bounded Markdown subset, raw HTML is escaped, and pasted HTML is reduced to plain text.
+    toolbar for emphasis, strikethrough, inline code, headings, lists, safe web/email/site links,
+    typed external-content insertion, and clear formatting. Drafts retain a bounded Markdown subset,
+    raw HTML is escaped, and pasted HTML is reduced to plain text.
+  - **Complete typed embed slice:** A normal YouTube, Vimeo, X-post, or Twitch link creates a typed
+    responsive section. Arbitrary embed code and scripts are rejected; supported video previews use
+    reviewed player origins and load only after an explicit privacy choice.
   - **Pending:** The full portable rich-text node model, repository media picker, reviewed typography
     tokens, cross-block selection, and selection-aware history in
     [`rich-editor-plan.md`](rich-editor-plan.md).
+- [ ] Complete visitor-facing site capability set.
+  - **Plan:** Blog collections/post editing, reusable blocks, cross-content previews, templates,
+    navigation, media, forms, SEO/share metadata, sitemap/robots/feeds, redirects, structured data,
+    accessibility, performance, localization, and editorial workflow are mapped in
+    [`complete-site-plan.md`](complete-site-plan.md).
 - [x] Undo history and clear conflict resolution.
 - [x] Repository media lifecycle with accessible variants.
   - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.

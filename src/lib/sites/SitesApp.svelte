@@ -8,6 +8,7 @@
 		Check,
 		CirclePlus,
 		Cloud,
+		Code2,
 		Copy,
 		DatabaseZap,
 		FileSearch,
@@ -32,6 +33,9 @@
 		Trash2,
 		TriangleAlert,
 		Sparkles,
+		Strikethrough,
+		Undo2,
+		Video,
 		X
 	} from '@lucide/svelte';
 	import { onMount } from 'svelte';
@@ -66,6 +70,7 @@
 		type DemoSite
 	} from './demo-site';
 	import { DemoDraftStore, type DraftStorage } from './draft-storage';
+	import { embedProviderLabel, getEmbedPreviewUrl, parseEmbedUrl } from './embed';
 	import { assessDemoSiteHealth, type SiteHealthIssue } from './site-health';
 	import {
 		createLibrarySection,
@@ -122,6 +127,11 @@
 	} | null>(null);
 	let richToolbar = $state<HTMLElement | null>(null);
 	let linkEditorOpen = $state(false);
+	let insertMenuOpen = $state(false);
+	let showEmbedDialog = $state(false);
+	let embedSource = $state('');
+	let embedError = $state('');
+	let loadedEmbeds = $state<string[]>([]);
 	let linkUrl = $state('');
 	let richLinkError = $state('');
 	let richSelection: Range | null = null;
@@ -145,6 +155,7 @@
 	const projectImages = [demoImages.lake, demoImages.notes, demoImages.cabin];
 	const siteHealth = $derived(assessDemoSiteHealth(siteDraft));
 	const activeTheme = $derived(getDemoTheme(siteDraft.themeId));
+	const detectedEmbed = $derived(parseEmbedUrl(embedSource));
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -394,6 +405,7 @@
 		activeRichEdit = { sectionId, field, element };
 		writingToolsExpanded = false;
 		linkEditorOpen = false;
+		insertMenuOpen = false;
 		linkUrl = '';
 		richLinkError = '';
 		captureRichSelection();
@@ -422,12 +434,13 @@
 	function handleRichBlur() {
 		window.setTimeout(() => {
 			if (richToolbar?.contains(document.activeElement)) {
-				if (!linkEditorOpen) commitActiveRichEdit();
+				if (!linkEditorOpen && !insertMenuOpen) commitActiveRichEdit();
 				return;
 			}
 			commitActiveRichEdit();
 			activeRichEdit = null;
 			linkEditorOpen = false;
+			insertMenuOpen = false;
 			richSelection = null;
 		}, 0);
 	}
@@ -453,7 +466,7 @@
 		richSelection = range.cloneRange();
 	}
 
-	function wrapRichSelection(tag: 'strong' | 'em' | 'div' | 'h2' | 'h3') {
+	function wrapRichSelection(tag: 'strong' | 'em' | 's' | 'code' | 'div' | 'h2' | 'h3') {
 		const range = selectedRichRange();
 		if (!range) return;
 		const wrapper = document.createElement(tag);
@@ -467,12 +480,28 @@
 		event.preventDefault();
 	}
 
-	function applyRichCommand(command: 'bold' | 'italic' | 'insertUnorderedList' | 'removeFormat') {
+	function applyRichCommand(
+		command:
+			'bold' | 'italic' | 'strikethrough' | 'inlineCode' | 'insertUnorderedList' | 'removeFormat'
+	) {
 		if (!activeRichEdit) return;
 		const range = selectedRichRange();
 		if (!range) return;
-		if (command === 'bold' || command === 'italic') {
-			wrapRichSelection(command === 'bold' ? 'strong' : 'em');
+		if (
+			command === 'bold' ||
+			command === 'italic' ||
+			command === 'strikethrough' ||
+			command === 'inlineCode'
+		) {
+			wrapRichSelection(
+				command === 'bold'
+					? 'strong'
+					: command === 'italic'
+						? 'em'
+						: command === 'strikethrough'
+							? 's'
+							: 'code'
+			);
 		} else if (command === 'insertUnorderedList') {
 			const list = document.createElement('ul');
 			for (const line of range.toString().split(/\n+/).filter(Boolean)) {
@@ -500,6 +529,7 @@
 	function openLinkEditor() {
 		captureRichSelection();
 		linkEditorOpen = true;
+		insertMenuOpen = false;
 		linkUrl = '';
 		richLinkError = '';
 	}
@@ -530,7 +560,63 @@
 		activeRichEdit?.element.blur();
 		activeRichEdit = null;
 		linkEditorOpen = false;
+		insertMenuOpen = false;
 		richSelection = null;
+	}
+
+	function toggleInsertMenu() {
+		captureRichSelection();
+		insertMenuOpen = !insertMenuOpen;
+		linkEditorOpen = false;
+	}
+
+	function openEmbedEditor() {
+		commitActiveRichEdit();
+		insertMenuOpen = false;
+		showEmbedDialog = true;
+		embedSource = '';
+		embedError = '';
+	}
+
+	function addEmbedSection() {
+		const embed = parseEmbedUrl(embedSource);
+		if (!embed) {
+			embedError = 'Paste a complete YouTube, Vimeo, X post, or Twitch link.';
+			return;
+		}
+		const section = createSection('embed', Date.now());
+		section.embed = embed;
+		section.label = embedProviderLabel(embed.provider);
+		section.title = `${embedProviderLabel(embed.provider)} content`;
+		changeDraft((next) => {
+			const page = next.pages.find((item) => item.id === selectedPageId);
+			if (!page) return;
+			const currentIndex = page.sections.findIndex((item) => item.id === selectedSectionId);
+			page.sections.splice(currentIndex < 0 ? page.sections.length : currentIndex + 1, 0, section);
+		});
+		selectedSectionId = section.id;
+		showEmbedDialog = false;
+		embedSource = '';
+		embedError = '';
+	}
+
+	function updateSelectedEmbed(value: string) {
+		const embed = parseEmbedUrl(value);
+		if (!embed) {
+			embedError = 'Paste a complete YouTube, Vimeo, X post, or Twitch link.';
+			return;
+		}
+		changeDraft((next) => {
+			const section = next.pages
+				.find((page) => page.id === selectedPageId)
+				?.sections.find((item) => item.id === selectedSectionId);
+			if (section?.kind === 'embed') section.embed = embed;
+		});
+		embedError = '';
+	}
+
+	function loadEmbed(sectionId: string) {
+		if (!loadedEmbeds.includes(sectionId)) loadedEmbeds = [...loadedEmbeds, sectionId];
 	}
 
 	function handleRichPaste(event: ClipboardEvent) {
@@ -603,6 +689,7 @@
 		else if (deleteTarget) deleteTarget = null;
 		else if (showAddPage) showAddPage = false;
 		else if (showAddSection) showAddSection = false;
+		else if (showEmbedDialog) showEmbedDialog = false;
 		else if (showPreview) showPreview = false;
 	}
 
@@ -672,11 +759,29 @@
 			<span><strong>TEND</strong> Sites</span>
 		</button>
 		<nav class:open={mobileMenu} aria-label="Sites navigation">
-			<button class:active={view === 'home'} onclick={() => open('home')}>Your sites</button>
-			<button class:active={view === 'studio'} onclick={() => open('studio')}>Studio</button>
-			<button class:active={view === 'library'} onclick={() => open('library')}>Library</button>
-			<button class:active={view === 'readiness'} onclick={() => open('readiness')}
-				>Readiness</button
+			<button
+				class:active={view === 'home'}
+				aria-label="Your sites"
+				title="Your sites"
+				onclick={() => open('home')}><LayoutGrid size={17} /><span>Your sites</span></button
+			>
+			<button
+				class:active={view === 'studio'}
+				aria-label="Studio"
+				title="Studio"
+				onclick={() => open('studio')}><Paintbrush size={17} /><span>Studio</span></button
+			>
+			<button
+				class:active={view === 'library'}
+				aria-label="Library"
+				title="Library"
+				onclick={() => open('library')}><Library size={17} /><span>Library</span></button
+			>
+			<button
+				class:active={view === 'readiness'}
+				onclick={() => open('readiness')}
+				aria-label="Readiness"
+				title="Readiness"><ShieldCheck size={17} /><span>Readiness</span></button
 			>
 		</nav>
 		<div class="top-actions">
@@ -1049,44 +1154,82 @@
 			></div>
 			<section class:mobile-visible={studioPanel === 'canvas'} class="canvas-area">
 				<div class="studio-toolbar">
-					<div>
-						<strong>{selectedPage?.name ?? 'Page'}</strong><span>English</span><span
+					<div class="studio-context">
+						<strong>{selectedPage?.name ?? 'Page'}</strong><span
+							class="toolbar-meta"
+							title="Editing in English"><Languages size={14} /><span>English</span></span
+						><span
 							class:saved={saveStatus !== 'error'}
 							class="save-state"
-							aria-live="polite"
-							>{saveStatus === 'loading'
-								? 'Saving…'
+							title={saveStatus === 'loading'
+								? 'Saving'
 								: saveStatus === 'saved'
 									? 'Saved in this panel'
 									: saveStatus === 'error'
 										? 'Could not save'
-										: 'Local demo session'}</span
+										: 'Local demo session'}
+							aria-live="polite"
+							>{#if saveStatus === 'error'}<TriangleAlert
+									size={14}
+								/>{:else if saveStatus === 'loading'}<Cloud size={14} />{:else}<Check
+									size={14}
+								/>{/if}<span
+								>{saveStatus === 'loading'
+									? 'Saving…'
+									: saveStatus === 'saved'
+										? 'Saved in this panel'
+										: saveStatus === 'error'
+											? 'Could not save'
+											: 'Local demo session'}</span
+							></span
 						>
 						{#if saveStatus === 'error'}<button
 								class="save-recovery"
-								onclick={() => (showDraftRecovery = true)}>Resolve save issue</button
+								aria-label="Resolve save issue"
+								title="Resolve save issue"
+								onclick={() => (showDraftRecovery = true)}
+								><TriangleAlert size={15} /><span>Resolve save issue</span></button
 							>{/if}
 					</div>
-					<div>
-						<button class="secondary" disabled={history.length === 0} onclick={undoDraft}
-							>Undo</button
+					<div class="studio-actions">
+						<button
+							class="secondary"
+							disabled={history.length === 0}
+							aria-label="Undo last change"
+							title="Undo last change"
+							onclick={undoDraft}><Undo2 size={16} /><span>Undo</span></button
 						>
 						<button
 							class:attention={siteHealth.status === 'needs_attention'}
 							class="secondary health-button"
+							aria-label={siteHealth.status === 'ready'
+								? 'Site health: Ready'
+								: `Site health: ${siteHealth.issues.length} to review`}
+							title={siteHealth.status === 'ready'
+								? 'Site health: Ready'
+								: `Site health: ${siteHealth.issues.length} to review`}
 							onclick={() => {
 								readinessArea = 'health';
 								open('readiness');
 							}}
 						>
-							{#if siteHealth.status === 'ready'}<ShieldCheck size={16} /> Site health: Ready{:else}<TriangleAlert
-									size={16}
-								/>
-								{siteHealth.issues.length} to review{/if}
+							{#if siteHealth.status === 'ready'}<ShieldCheck size={16} /><span
+									>Site health: Ready</span
+								>{:else}<TriangleAlert size={16} />
+								<span>{siteHealth.issues.length} to review</span>{/if}
 						</button>
-						<button class="secondary" onclick={() => (showPreview = true)}
-							><MonitorPlay size={16} /> Preview site</button
-						><button class="primary" onclick={() => open('publish')}>Publish</button>
+						<button
+							class="secondary"
+							aria-label="Preview site"
+							title="Preview site"
+							onclick={() => (showPreview = true)}
+							><MonitorPlay size={16} /><span>Preview site</span></button
+						><button
+							class="primary"
+							aria-label="Publish"
+							title="Publish"
+							onclick={() => open('publish')}><Rocket size={16} /><span>Publish</span></button
+						>
 					</div>
 				</div>
 				<div class="browser-frame">
@@ -1114,56 +1257,96 @@
 								></button>
 								<span class="block-label">{sectionLabels[section.kind]}</span>
 								{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
-								<div>
-									<span
-										class="inline-eyebrow"
-										contenteditable="plaintext-only"
-										role="textbox"
-										tabindex="0"
-										aria-label="Edit {section.label} eyebrow"
-										data-inline-section={section.id}
-										data-inline-field="eyebrow"
-										onfocus={() => (selectedSectionId = section.id)}
-										onkeydown={handleInlineKeydown}
-										onblur={(event) => commitInlineEdit(section.id, 'eyebrow', event.currentTarget)}
-										>{section.eyebrow}</span
-									>
-									<div
-										class="inline-title"
-										contenteditable="true"
-										role="textbox"
-										tabindex="0"
-										aria-label="Edit {section.label} title"
-										data-inline-section={section.id}
-										data-inline-field="title"
-										onfocus={(event) => beginRichEdit(section.id, 'title', event.currentTarget)}
-										onmouseup={captureRichSelection}
-										onkeyup={captureRichSelection}
-										onkeydown={handleInlineKeydown}
-										onpaste={handleRichPaste}
-										onblur={handleRichBlur}
-										use:richContent={section.title}
-									></div>
-									<div
-										class="inline-body"
-										contenteditable="true"
-										role="textbox"
-										tabindex="0"
-										aria-multiline="true"
-										aria-label="Edit {section.label} text"
-										data-inline-section={section.id}
-										data-inline-field="body"
-										onfocus={(event) => beginRichEdit(section.id, 'body', event.currentTarget)}
-										onmouseup={captureRichSelection}
-										onkeyup={captureRichSelection}
-										onkeydown={(event) => handleInlineKeydown(event, true)}
-										onpaste={handleRichPaste}
-										onblur={handleRichBlur}
-										use:richContent={section.body}
-									></div>
-									{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
-										>{/if}
-								</div>
+								{#if section.kind === 'embed' && section.embed}
+									<div class="embed-block">
+										<div class="embed-heading">
+											<span>{embedProviderLabel(section.embed.provider)}</span>
+											<strong>{section.title}</strong>
+											<small>{section.body}</small>
+										</div>
+										{#if getEmbedPreviewUrl(section.embed)}
+											{#if loadedEmbeds.includes(section.id)}
+												<iframe
+													src={getEmbedPreviewUrl(section.embed) ?? ''}
+													title="{embedProviderLabel(section.embed.provider)} preview"
+													loading="lazy"
+													allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+													referrerpolicy="strict-origin-when-cross-origin"
+													sandbox="allow-scripts allow-same-origin allow-presentation"
+												></iframe>
+											{:else}
+												<button class="load-embed" onclick={() => loadEmbed(section.id)}>
+													<Video size={18} /> Load private preview
+												</button>
+											{/if}
+										{:else}
+											<!-- eslint-disable svelte/no-navigation-without-resolve -- sourceUrl is a validated canonical external URL. -->
+											<a
+												class="open-embed"
+												href={section.embed.sourceUrl}
+												target="_blank"
+												rel="noopener noreferrer"
+												>Open on {embedProviderLabel(section.embed.provider)}</a
+											>
+											<!-- eslint-enable svelte/no-navigation-without-resolve -->
+										{/if}
+										<small class="embed-privacy"
+											>External content loads only when you choose it.</small
+										>
+									</div>
+								{:else}
+									<div>
+										<span
+											class="inline-eyebrow"
+											contenteditable="plaintext-only"
+											role="textbox"
+											tabindex="0"
+											aria-label="Edit {section.label} eyebrow"
+											data-inline-section={section.id}
+											data-inline-field="eyebrow"
+											onfocus={() => (selectedSectionId = section.id)}
+											onkeydown={handleInlineKeydown}
+											onblur={(event) =>
+												commitInlineEdit(section.id, 'eyebrow', event.currentTarget)}
+											>{section.eyebrow}</span
+										>
+										<div
+											class="inline-title"
+											contenteditable="true"
+											role="textbox"
+											tabindex="0"
+											aria-label="Edit {section.label} title"
+											data-inline-section={section.id}
+											data-inline-field="title"
+											onfocus={(event) => beginRichEdit(section.id, 'title', event.currentTarget)}
+											onmouseup={captureRichSelection}
+											onkeyup={captureRichSelection}
+											onkeydown={handleInlineKeydown}
+											onpaste={handleRichPaste}
+											onblur={handleRichBlur}
+											use:richContent={section.title}
+										></div>
+										<div
+											class="inline-body"
+											contenteditable="true"
+											role="textbox"
+											tabindex="0"
+											aria-multiline="true"
+											aria-label="Edit {section.label} text"
+											data-inline-section={section.id}
+											data-inline-field="body"
+											onfocus={(event) => beginRichEdit(section.id, 'body', event.currentTarget)}
+											onmouseup={captureRichSelection}
+											onkeyup={captureRichSelection}
+											onkeydown={(event) => handleInlineKeydown(event, true)}
+											onpaste={handleRichPaste}
+											onblur={handleRichBlur}
+											use:richContent={section.body}
+										></div>
+										{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
+											>{/if}
+									</div>
+								{/if}
 							</article>
 						{/each}
 						<button class="add-section" onclick={() => (showAddSection = true)}
@@ -1188,6 +1371,19 @@
 								onpointerdown={preserveRichSelection}
 								onclick={() => applyRichCommand('italic')}><Italic size={15} /></button
 							>
+							<button
+								aria-label="Strikethrough"
+								title="Strikethrough"
+								onpointerdown={preserveRichSelection}
+								onclick={() => applyRichCommand('strikethrough')}
+								><Strikethrough size={15} /></button
+							>
+							<button
+								aria-label="Inline code"
+								title="Inline code"
+								onpointerdown={preserveRichSelection}
+								onclick={() => applyRichCommand('inlineCode')}><Code2 size={15} /></button
+							>
 							{#if activeRichEdit.field === 'body'}
 								<select
 									aria-label="Text style"
@@ -1211,6 +1407,16 @@
 								onpointerdown={preserveRichSelection}
 								onclick={openLinkEditor}><Link2 size={15} /></button
 							>
+							{#if activeRichEdit.field === 'body'}
+								<button
+									class:active={insertMenuOpen}
+									aria-label="Insert content"
+									aria-expanded={insertMenuOpen}
+									title="Insert content"
+									onpointerdown={preserveRichSelection}
+									onclick={toggleInsertMenu}><CirclePlus size={15} /><span>Insert</span></button
+								>
+							{/if}
 							<button
 								aria-label="Clear formatting"
 								title="Clear formatting"
@@ -1239,6 +1445,17 @@
 								</label>
 								<button class="apply-link" onclick={applyRichLink}>Apply link</button>
 								{#if richLinkError}<small role="alert">{richLinkError}</small>{/if}
+							</div>
+						{:else if insertMenuOpen}
+							<div class="insert-menu" aria-label="Insert content menu">
+								<button onclick={openEmbedEditor}>
+									<span class="insert-icon"><Video size={18} /></span>
+									<span
+										><strong>Video or social post</strong><small>YouTube, Vimeo, X, or Twitch</small
+										></span
+									>
+								</button>
+								<p>Responsive sizing is automatic. No embed code needed.</p>
 							</div>
 						{/if}
 					</div>
@@ -1327,6 +1544,18 @@
 						onclick={() => moveSelectedBlock('down')}><ArrowDown size={16} /> Down</button
 					>
 				</div>
+				{#if selectedSection?.kind === 'embed' && selectedSection.embed}
+					<label
+						><span>Video or post link</span><input
+							value={selectedSection.embed.sourceUrl}
+							onchange={(event) => updateSelectedEmbed(event.currentTarget.value)}
+						/></label
+					>
+					<small class="inspector-help"
+						>{embedProviderLabel(selectedSection.embed.provider)} detected. Sizing stays responsive automatically.</small
+					>
+					{#if embedError}<small class="inspector-error" role="alert">{embedError}</small>{/if}
+				{/if}
 				<label
 					><span>Eyebrow</span><input
 						value={selectedSection?.eyebrow ?? ''}
@@ -1437,7 +1666,12 @@
 					<p>Choose a polished starting point, then make the words yours.</p>
 					<div class="section-picker">
 						{#each Object.entries(sectionLabels) as [kind, label] (kind)}<button
-								onclick={() => addSection(kind as DemoSectionKind)}
+								onclick={() => {
+									if (kind === 'embed') {
+										showAddSection = false;
+										openEmbedEditor();
+									} else addSection(kind as DemoSectionKind);
+								}}
 								><span class="choice-icon"><LayoutGrid size={18} /></span><strong>{label}</strong
 								><small
 									>{kind === 'hero'
@@ -1448,9 +1682,60 @@
 												? 'A calm invitation to stay in touch.'
 												: kind === 'quote'
 													? 'A memorable thought with room to breathe.'
-													: 'A focused feature with supporting imagery.'}</small
+													: kind === 'embed'
+														? 'Paste a video or social link. No embed code needed.'
+														: 'A focused feature with supporting imagery.'}</small
 								></button
 							>{/each}
+					</div>
+				</div>
+			</div>
+		{/if}
+		{#if showEmbedDialog}
+			<div class="modal-backdrop" role="presentation">
+				<div
+					class="studio-modal embed-modal"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="embed-dialog-title"
+				>
+					<button class="modal-close" aria-label="Close" onclick={() => (showEmbedDialog = false)}
+						><X size={18} /></button
+					>
+					<span class="eyebrow">Insert content</span>
+					<h2 id="embed-dialog-title">Add a video or social post</h2>
+					<p>Paste the normal link. TEND Sites handles the safe, responsive layout for you.</p>
+					<label>
+						<span>Content link</span>
+						<input
+							placeholder="https://youtube.com/watch?v=…"
+							bind:value={embedSource}
+							oninput={() => (embedError = '')}
+							onkeydown={(event) => {
+								if (event.key === 'Enter') addEmbedSection();
+								if (event.key === 'Escape') showEmbedDialog = false;
+							}}
+						/>
+					</label>
+					<div class="provider-row" aria-label="Supported services">
+						<span>YouTube</span><span>Vimeo</span><span>X</span><span>Twitch</span>
+					</div>
+					{#if detectedEmbed}
+						<div class="embed-detected" role="status">
+							<Check size={17} />
+							<span
+								><strong>{embedProviderLabel(detectedEmbed.provider)} detected</strong><small
+									>Visitors choose when external content loads.</small
+								></span
+							>
+						</div>
+					{/if}
+					{#if embedError}<small class="embed-error" role="alert">{embedError}</small>{/if}
+					<div class="modal-actions">
+						<button class="secondary" onclick={() => (showEmbedDialog = false)}>Cancel</button>
+						<button class="primary" disabled={!detectedEmbed} onclick={addEmbedSection}
+							>Add content</button
+						>
 					</div>
 				</div>
 			</div>
@@ -1564,17 +1849,44 @@
 						</nav>
 						{#each selectedPage?.sections ?? [] as section (section.id)}
 							<section class="preview-section {section.kind}">
-								{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
-								<div>
-									<small>{section.eyebrow}</small>
-									<div
-										class="preview-title"
-										role="heading"
-										aria-level="1"
-										use:richContent={section.title}
-									></div>
-									<div class="preview-body" use:richContent={section.body}></div>
-								</div>
+								{#if section.kind === 'embed' && section.embed}
+									<div class="embed-block preview-embed">
+										<span>{embedProviderLabel(section.embed.provider)}</span>
+										<strong>{section.title}</strong>
+										<small>{section.body}</small>
+										{#if getEmbedPreviewUrl(section.embed) && loadedEmbeds.includes(section.id)}
+											<iframe
+												src={getEmbedPreviewUrl(section.embed) ?? ''}
+												title="{embedProviderLabel(section.embed.provider)} preview"
+												loading="lazy"
+												allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+												referrerpolicy="strict-origin-when-cross-origin"
+												sandbox="allow-scripts allow-same-origin allow-presentation"
+											></iframe>
+										{:else if getEmbedPreviewUrl(section.embed)}
+											<button class="load-embed" onclick={() => loadEmbed(section.id)}
+												><Video size={18} /> Load preview</button
+											>
+										{:else}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- sourceUrl is a validated canonical external URL. -->
+											<a href={section.embed.sourceUrl} target="_blank" rel="noopener noreferrer"
+												>Open on {embedProviderLabel(section.embed.provider)}</a
+											>
+										{/if}
+									</div>
+								{:else}
+									{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
+									<div>
+										<small>{section.eyebrow}</small>
+										<div
+											class="preview-title"
+											role="heading"
+											aria-level="1"
+											use:richContent={section.title}
+										></div>
+										<div class="preview-body" use:richContent={section.body}></div>
+									</div>
+								{/if}
 							</section>
 						{/each}
 						<footer>
@@ -2034,6 +2346,7 @@
 		--muted: #91a29c;
 		--green: #56e6ad;
 		min-height: 100dvh;
+		container-type: inline-size;
 		background: radial-gradient(circle at 50% -20%, #12322a 0, transparent 34%), #070b0d;
 	}
 	.sites-shell.embedded {
@@ -2086,6 +2399,10 @@
 	}
 	.topbar nav button,
 	.filter-row button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
 		color: var(--muted);
 		background: transparent;
 		border: 0;
@@ -3028,6 +3345,7 @@
 		min-width: 0;
 		padding: 16px;
 		background: #0b1113;
+		container: studio-canvas / inline-size;
 	}
 	.studio-toolbar {
 		display: flex;
@@ -3035,18 +3353,42 @@
 		justify-content: space-between;
 		gap: 14px;
 		margin-bottom: 15px;
+		min-width: 0;
 	}
 	.studio-toolbar > div {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		min-width: 0;
 	}
-	.studio-toolbar span {
+	.studio-toolbar .toolbar-meta,
+	.studio-toolbar .save-state {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		color: #81938c;
 		background: #131d20;
 		border-radius: 20px;
 		padding: 5px 8px;
 		font-size: 10px;
+		white-space: nowrap;
+	}
+	.studio-toolbar .toolbar-meta span,
+	.studio-toolbar .save-state span,
+	.studio-toolbar button span {
+		display: inline;
+	}
+	.studio-actions {
+		flex: 0 1 auto;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.studio-actions::-webkit-scrollbar {
+		display: none;
+	}
+	.studio-actions button {
+		flex: 0 0 auto;
+		white-space: nowrap;
 	}
 	.studio-toolbar .saved {
 		color: var(--green);
@@ -3055,6 +3397,9 @@
 		color: #ffb77c;
 	}
 	.save-recovery {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		padding: 5px 9px;
 		color: #ffd4b2;
 		font-size: 10px;
@@ -3176,6 +3521,60 @@
 		text-align: center;
 		padding: 38px;
 		background: color-mix(in srgb, var(--accent) 16%, var(--site-paper));
+	}
+	.canvas-section.embed {
+		display: block;
+		padding: 18px;
+		background: color-mix(in srgb, var(--accent) 7%, var(--site-paper));
+	}
+	.embed-block {
+		display: grid;
+		gap: 12px;
+		width: 100%;
+	}
+	.embed-heading {
+		display: grid;
+		gap: 5px;
+	}
+	.embed-heading > span,
+	.embed-block > span {
+		color: color-mix(in srgb, var(--accent) 78%, #0d4733);
+		font-size: 10px;
+		font-weight: 850;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+	.embed-heading small,
+	.embed-block > small {
+		color: color-mix(in srgb, var(--site-ink) 68%, transparent);
+	}
+	.embed-block iframe {
+		display: block;
+		width: 100%;
+		border: 0;
+		border-radius: 10px;
+		aspect-ratio: 16 / 9;
+		background: #050807;
+	}
+	.load-embed,
+	.open-embed {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 82px;
+		color: var(--site-ink);
+		font-weight: 800;
+		text-decoration: none;
+		border: 1px dashed color-mix(in srgb, var(--accent) 66%, transparent);
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--accent) 12%, var(--site-paper));
+		cursor: pointer;
+	}
+	.embed-privacy {
+		color: color-mix(in srgb, var(--site-ink) 58%, transparent) !important;
+		font-size: 10px;
 	}
 	.block-label {
 		position: absolute;
@@ -3351,6 +3750,44 @@
 		color: #ffaeae;
 		font-size: 10px;
 	}
+	.insert-menu {
+		display: grid;
+		gap: 6px;
+		padding: 8px;
+		border-top: 1px solid #263b34;
+	}
+	.insert-menu > button {
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 10px;
+		min-height: 52px;
+		padding: 8px 10px;
+		text-align: left;
+		background: #101d18;
+	}
+	.insert-menu > button > span:last-child {
+		display: grid;
+		gap: 2px;
+	}
+	.insert-menu small,
+	.insert-menu p {
+		margin: 0;
+		color: #83978f;
+		font-size: 10px;
+	}
+	.insert-menu p {
+		padding: 2px 7px;
+	}
+	.insert-icon {
+		display: grid;
+		place-items: center;
+		width: 34px;
+		height: 34px;
+		color: var(--green);
+		border-radius: 9px;
+		background: #0a3125;
+	}
 	.writing-tools {
 		position: sticky;
 		z-index: 12;
@@ -3510,6 +3947,47 @@
 		border: 1px solid var(--border);
 		border-radius: 11px;
 		padding: 13px;
+	}
+	.embed-modal .provider-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 12px;
+	}
+	.embed-modal .provider-row span {
+		padding: 5px 8px;
+		color: #abc0b8;
+		font-size: 10px;
+		border: 1px solid #2c423a;
+		border-radius: 999px;
+	}
+	.embed-detected {
+		display: flex;
+		align-items: flex-start;
+		gap: 9px;
+		margin-top: 12px;
+		padding: 12px;
+		color: var(--green);
+		border: 1px solid #285b48;
+		border-radius: 11px;
+		background: #0b211a;
+	}
+	.embed-detected span {
+		display: grid;
+		gap: 3px;
+	}
+	.embed-detected small {
+		color: #93a79f;
+	}
+	.embed-error,
+	.inspector-error {
+		display: block;
+		margin-top: 8px;
+		color: #ffaeae;
+	}
+	.inspector-help {
+		color: #7f958c;
+		line-height: 1.45;
 	}
 	.recovery-note {
 		display: flex;
@@ -3684,6 +4162,18 @@
 		display: block;
 		min-height: auto;
 		text-align: center;
+	}
+	.preview-section.embed {
+		display: block;
+		min-height: auto;
+	}
+	.preview-embed {
+		max-width: 900px;
+		margin: 0 auto;
+	}
+	.preview-embed > strong {
+		font-family: Georgia, serif;
+		font-size: clamp(28px, 5vw, 54px);
 	}
 	.full-demo-site footer {
 		display: flex;
@@ -4191,6 +4681,72 @@
 		}
 		.filter-row span {
 			display: none;
+		}
+	}
+	@container (max-width: 1080px) {
+		.topbar {
+			gap: 14px;
+		}
+		.topbar nav button {
+			width: 40px;
+			height: 40px;
+			padding: 0;
+		}
+		.topbar nav button > span {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+		}
+		.connection {
+			font-size: 0;
+		}
+		.connection > span {
+			margin: 0;
+		}
+	}
+	@container studio-canvas (max-width: 920px) {
+		.studio-toolbar {
+			gap: 8px;
+		}
+		.studio-context > strong {
+			max-width: 150px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		.studio-toolbar .toolbar-meta > span,
+		.studio-toolbar .save-state > span,
+		.studio-toolbar button > span {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+		}
+		.studio-toolbar .toolbar-meta,
+		.studio-toolbar .save-state,
+		.studio-toolbar button {
+			flex: 0 0 38px;
+			justify-content: center;
+			width: 38px;
+			height: 38px;
+			padding: 0;
+			border-radius: 10px;
+		}
+	}
+	@container studio-canvas (max-width: 570px) {
+		.studio-toolbar {
+			align-items: stretch;
+			flex-direction: column;
+		}
+		.studio-actions {
+			width: 100%;
+		}
+		.studio-context > strong {
+			flex: 1;
+			max-width: none;
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {

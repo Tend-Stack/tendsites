@@ -3,8 +3,9 @@ import forestCabinImage from '../assets/demo/forest-cabin.png';
 import weekendLakeImage from '../assets/demo/weekend-lake.png';
 
 import type { DemoThemeId } from './library-catalog';
+import { isEmbedReference, type EmbedReference } from './embed';
 
-export type DemoSectionKind = 'hero' | 'story' | 'gallery' | 'quote' | 'newsletter';
+export type DemoSectionKind = 'hero' | 'story' | 'gallery' | 'quote' | 'newsletter' | 'embed';
 
 export type DemoSection = {
 	id: string;
@@ -15,6 +16,7 @@ export type DemoSection = {
 	body: string;
 	image?: string;
 	imageAlt?: string;
+	embed?: EmbedReference;
 };
 
 export type DemoPage = {
@@ -78,7 +80,8 @@ export const sectionLabels: Record<DemoSectionKind, string> = {
 	story: 'Story',
 	gallery: 'Photo gallery',
 	quote: 'Quote',
-	newsletter: 'Newsletter'
+	newsletter: 'Newsletter',
+	embed: 'Video or social post'
 };
 
 export function createSection(kind: DemoSectionKind, sequence: number): DemoSection {
@@ -119,6 +122,12 @@ export function createSection(kind: DemoSectionKind, sequence: number): DemoSect
 			eyebrow: 'STAY CURIOUS',
 			title: 'One thoughtful note, every other Sunday.',
 			body: 'New field notes, quiet places and useful routes. No noise.'
+		},
+		embed: {
+			label: 'Embedded content',
+			eyebrow: 'FROM THE WEB',
+			title: 'A video or social post',
+			body: 'External content stays private until a visitor chooses to load it.'
 		}
 	};
 	return { id, kind, ...templates[kind] };
@@ -247,13 +256,14 @@ export function isDemoSite(value: unknown): value is DemoSite {
 				(section) =>
 					Boolean(section) &&
 					typeof section.id === 'string' &&
-					['hero', 'story', 'gallery', 'quote', 'newsletter'].includes(section.kind) &&
+					['hero', 'story', 'gallery', 'quote', 'newsletter', 'embed'].includes(section.kind) &&
 					typeof section.label === 'string' &&
 					typeof section.eyebrow === 'string' &&
 					typeof section.title === 'string' &&
 					typeof section.body === 'string' &&
 					(section.image === undefined || typeof section.image === 'string') &&
-					(section.imageAlt === undefined || typeof section.imageAlt === 'string')
+					(section.imageAlt === undefined || typeof section.imageAlt === 'string') &&
+					(section.kind === 'embed' ? isEmbedReference(section.embed) : section.embed === undefined)
 			)
 	);
 }

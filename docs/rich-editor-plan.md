@@ -5,8 +5,11 @@ experience stays approachable: click the words, type, and use a small floating t
 needed. Expert structure and source evidence remain available without becoming prerequisites.
 
 Current local preview: titles and paragraphs now expose a compact contextual toolbar with bold,
-italic, headings, lists, safe links, and clear formatting. The draft stores a constrained Markdown
-subset, escapes raw HTML, validates link protocols, and normalizes pasted content to plain text.
+italic, strikethrough, inline code, headings, lists, safe links, typed external-content insertion,
+and clear formatting. The draft stores a constrained Markdown subset, escapes raw HTML, validates
+link protocols, and normalizes pasted content to plain text. YouTube and Vimeo previews use reviewed
+player origins and load only after an explicit choice; X and Twitch remain safe outbound cards until
+a script-free or separately isolated renderer is reviewed.
 The richer node model, media picker, typography tokens, cross-block selection, and repository
 round-trip remain later gates rather than implied authority.
 
@@ -42,6 +45,8 @@ per-span styling.
 3. **Links:** page picker first, validated external links second, clear unlink action.
 4. **Media:** select an existing repository asset, add alt text/caption, then request a separately
    authorized upload or transform through the existing media lifecycle contract.
+   - **Current local slice:** typed YouTube, Vimeo, X-post, and Twitch URLs can be inserted as a
+     responsive section. No arbitrary iframe/script markup is accepted.
 5. **Review:** selection-aware undo, accessibility checks, translation coverage, Markdown preview,
    and exact source diff before commit.
 

@@ -4,10 +4,14 @@ import { normalizeRichTextLink, renderRichMarkdown } from './rich-text';
 
 describe('rich text Markdown', () => {
 	it('renders portable formatting without allowing raw HTML', () => {
-		const rendered = renderRichMarkdown('## A **clear** _story_\n\n<script>alert(1)</script>');
+		const rendered = renderRichMarkdown(
+			'## A **clear** _story_\n\n~~Old wording~~ and `portable code`\n<script>alert(1)</script>'
+		);
 
 		expect(rendered).toContain('<h2>A <strong>clear</strong> <em>story</em></h2>');
 		expect(rendered).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+		expect(rendered).toContain('<s>Old wording</s>');
+		expect(rendered).toContain('<code>portable code</code>');
 		expect(rendered).not.toContain('<script>');
 	});
 
