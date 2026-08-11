@@ -35,10 +35,12 @@ blocks where an adapter proves safe round-tripping.
     connected preview; copying it into canonical repository source and generating portable variants
     remain pending.
   - **Complete framing and persistence slice:** Library images and optimized device uploads share a
-    placement-aware frame editor with canvas ratios, fill/fit, and focal-point controls. Bundled demo
+    placement-aware frame editor with canvas ratios, fill/fit, bounded zoom, live focal-point
+    sliders, direct drag positioning, and keyboard nudging. Gallery selection and device upload now
+    enter the same spacious editing surface instead of diverging into separate workflows. Bundled demo
     images are persisted as compact internal references instead of multi-megabyte data URLs, keeping
     ordinary autosaves below the host storage boundary and making save failures actionable. Crop
-    guides are opt-in and remain strictly contained inside the selected-image preview.
+    guides are opt-in and remain strictly contained inside the selected-image canvas.
   - **Complete editorial-state slice:** Posts can be draft, scheduled, published, or archived. A
     scheduled timestamp is bounded and editable, but is explicitly a local plan until a host
     scheduler exists. Scheduled and archived entries never enter visitor collections or routes.

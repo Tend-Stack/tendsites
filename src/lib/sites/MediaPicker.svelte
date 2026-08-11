@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
+		ArrowLeft,
 		Check,
 		Crop,
 		FolderOpen,
 		Gauge,
 		Image as ImageIcon,
 		LoaderCircle,
+		Move,
+		RotateCcw,
 		Search,
 		ShieldCheck,
 		Upload,
@@ -52,8 +55,11 @@
 	let fit = $state<'cover' | 'contain'>('cover');
 	let focalX = $state(50);
 	let focalY = $state(50);
+	let zoom = $state(1);
 	let quality = $state(0.84);
 	let showGuides = $state(false);
+	let editingFrame = $state(false);
+	let dragStart = $state<{ x: number; y: number; focalX: number; focalY: number; pointerId: number } | null>(null);
 	let preparing = $state(false);
 	let uploadError = $state('');
 	const activePreset = $derived(aspectPresets[aspectPreset]);
@@ -111,7 +117,9 @@
 		fit = 'cover';
 		focalX = 50;
 		focalY = 50;
+		zoom = 1;
 		showGuides = false;
+		editingFrame = true;
 	}
 
 	function chooseUpload(event: Event) {
@@ -133,14 +141,60 @@
 		altText = '';
 		focalX = 50;
 		focalY = 50;
+		zoom = 1;
 		showGuides = false;
+		editingFrame = true;
+	}
+
+	function openFrameEditor() {
+		if (!(sourceMode === 'files' ? selected : uploadUrl)) return;
+		editingFrame = true;
+		showGuides = fit === 'cover';
+	}
+
+	function resetFrame() {
+		fit = 'cover';
+		focalX = 50;
+		focalY = 50;
+		zoom = 1;
+	}
+
+	function startDragging(event: PointerEvent) {
+		if (fit !== 'cover') return;
+		const target = event.currentTarget as HTMLElement;
+		target.setPointerCapture(event.pointerId);
+		dragStart = { x: event.clientX, y: event.clientY, focalX, focalY, pointerId: event.pointerId };
+	}
+
+	function dragFrame(event: PointerEvent) {
+		if (!dragStart || dragStart.pointerId !== event.pointerId) return;
+		const target = event.currentTarget as HTMLElement;
+		const rect = target.getBoundingClientRect();
+		if (zoom === 1) zoom = 1.1;
+		focalX = Math.max(0, Math.min(100, dragStart.focalX - ((event.clientX - dragStart.x) / rect.width) * 100));
+		focalY = Math.max(0, Math.min(100, dragStart.focalY - ((event.clientY - dragStart.y) / rect.height) * 100));
+	}
+
+	function stopDragging(event: PointerEvent) {
+		if (dragStart?.pointerId === event.pointerId) dragStart = null;
+	}
+
+	function nudgeFrame(event: KeyboardEvent) {
+		if (fit !== 'cover' || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+		event.preventDefault();
+		if (zoom === 1) zoom = 1.1;
+		const step = event.shiftKey ? 5 : 1;
+		if (event.key === 'ArrowLeft') focalX = Math.max(0, focalX - step);
+		if (event.key === 'ArrowRight') focalX = Math.min(100, focalX + step);
+		if (event.key === 'ArrowUp') focalY = Math.max(0, focalY - step);
+		if (event.key === 'ArrowDown') focalY = Math.min(100, focalY + step);
 	}
 
 	async function confirmSelection() {
 		if (!altText.trim()) return;
 		if (sourceMode === 'files') {
 			if (selected)
-				onselect(selected, altText.trim(), { aspect: aspectPreset, fit, focalX, focalY });
+				onselect(selected, altText.trim(), { aspect: aspectPreset, fit, focalX, focalY, zoom });
 			return;
 		}
 		if (!uploadFile || !media.prepareImage || preparing) return;
@@ -153,6 +207,7 @@
 				fit,
 				focalX,
 				focalY,
+				zoom,
 				quality,
 				maxBytes: 200 * 1024,
 				background: '#071713'
@@ -170,7 +225,7 @@
 					contentUrl: prepared.dataUrl
 				},
 				altText.trim(),
-				{ aspect: aspectPreset, fit: 'cover', focalX: 50, focalY: 50 }
+				{ aspect: aspectPreset, fit: 'cover', focalX: 50, focalY: 50, zoom: 1 }
 			);
 		} catch (reason) {
 			uploadError = reason instanceof Error ? reason.message : 'The image could not be optimized.';
@@ -180,14 +235,17 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && !preparing) onclose();
+		if (event.key === 'Escape' && !preparing) {
+			if (editingFrame) editingFrame = false;
+			else onclose();
+		}
 	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="media-backdrop" role="presentation">
-	<div class="media-dialog" role="dialog" aria-modal="true" aria-labelledby="media-title">
+	<div class="media-dialog" class:editing-frame={editingFrame} role="dialog" aria-modal="true" aria-labelledby="media-title">
 		<header class="dialog-head">
 			<div>
 				<span class="eyebrow">Site media</span>
@@ -203,7 +261,7 @@
 			>
 		</header>
 
-		<nav class="source-tabs" aria-label="Image source">
+		{#if !editingFrame}<nav class="source-tabs" aria-label="Image source">
 			<button
 				type="button"
 				class:active={sourceMode === 'files'}
@@ -224,9 +282,63 @@
 				></button
 			>
 			<div class="privacy"><ShieldCheck size={16} /><span>Originals stay untouched</span></div>
-		</nav>
+		</nav>{/if}
 
-		{#if sourceMode === 'files'}
+		{#if editingFrame}
+			<section class="frame-editor" aria-labelledby="frame-editor-title">
+				<div class="frame-editor-head">
+					<button type="button" onclick={() => (editingFrame = false)}><ArrowLeft size={17} /> Back to images</button>
+					<div><span class="eyebrow">Image editor</span><h3 id="frame-editor-title">Frame the cover</h3><p>Drag the image, use arrow keys, or fine-tune the controls. Changes appear immediately.</p></div>
+				</div>
+				<div class="frame-editor-workspace">
+					<div class="frame-stage">
+						<button
+							type="button"
+							class="large-canvas"
+							class:dragging={dragStart !== null}
+							style:aspect-ratio={`${activePreset.width} / ${activePreset.height}`}
+							aria-label="Image crop canvas. Drag to reposition or use the arrow keys."
+							onpointerdown={startDragging}
+							onpointermove={dragFrame}
+							onpointerup={stopDragging}
+							onpointercancel={stopDragging}
+							onkeydown={nudgeFrame}
+						>
+							<img
+								src={sourceMode === 'files' ? selected?.contentUrl : uploadUrl}
+								alt=""
+								draggable="false"
+								style:object-fit={fit}
+								style:object-position={`${focalX}% ${focalY}%`}
+								style:transform={`scale(${fit === 'cover' ? zoom : 1})`}
+								style:transform-origin={`${focalX}% ${focalY}%`}
+							/>
+							{#if showGuides && fit === 'cover'}<div class="thirds"><i></i><i></i><i></i><i></i></div>{/if}
+							{#if fit === 'cover'}<div class="drag-cue"><Move size={16} /> Drag to reposition</div>{/if}
+						</button>
+						<p class="stage-help">Previewing {activePreset.label.toLowerCase()} · {Math.round(zoom * 100)}% zoom</p>
+					</div>
+					<aside class="frame-sidebar">
+						<fieldset><legend>Canvas</legend><div class="preset-grid">
+							{#each Object.entries(aspectPresets) as [id, preset] (id)}<button type="button" class:active={aspectPreset === id} onclick={() => (aspectPreset = id as AspectPreset)}><b>{preset.label}</b><small>{preset.hint}</small></button>{/each}
+						</div></fieldset>
+						<fieldset><legend>Fit</legend><div class="fit-grid">
+							<button type="button" class:active={fit === 'cover'} onclick={() => (fit = 'cover')}><Crop size={16} /><span><b>Fill</b><small>Crop edges</small></span></button>
+							<button type="button" class:active={fit === 'contain'} onclick={() => (fit = 'contain')}><ImageIcon size={16} /><span><b>Fit</b><small>Keep all</small></span></button>
+						</div></fieldset>
+						{#if fit === 'cover'}<fieldset class="precision-controls"><legend>Position and scale</legend>
+							<label class="range-row"><span>Zoom <b>{Math.round(zoom * 100)}%</b></span><input aria-label="Zoom" type="range" min="1" max="3" step="0.05" bind:value={zoom} /></label>
+							<label class="range-row"><span>Horizontal <b>{Math.round(focalX)}%</b></span><input aria-label="Horizontal focal point" type="range" min="0" max="100" bind:value={focalX} /></label>
+							<label class="range-row"><span>Vertical <b>{Math.round(focalY)}%</b></span><input aria-label="Vertical focal point" type="range" min="0" max="100" bind:value={focalY} /></label>
+							<button class="guide-toggle" type="button" aria-pressed={showGuides} onclick={() => (showGuides = !showGuides)}>{showGuides ? 'Hide crop guide' : 'Show crop guide'}</button>
+						</fieldset>{/if}
+						{#if sourceMode === 'upload'}<fieldset><legend>Optimization</legend><label class="quality"><Gauge size={17} /><span><b>{quality >= 0.9 ? 'High detail' : quality >= 0.78 ? 'Balanced' : 'Smaller file'}</b><small>WebP · target under 200 KB</small></span><input aria-label="Image quality" type="range" min=".68" max=".92" step=".04" bind:value={quality} /></label></fieldset>{/if}
+						<label class="editor-alt" for="editor-alt">Image description</label><textarea id="editor-alt" bind:value={altText} rows="3" placeholder="Describe what matters in the image"></textarea><small class="alt-help">Required for visitors using screen readers.</small>
+						<div class="editor-actions"><button type="button" onclick={resetFrame}><RotateCcw size={16} /> Reset</button><button type="button" class="done" onclick={() => (editingFrame = false)}><Check size={16} /> Done framing</button></div>
+					</aside>
+				</div>
+			</section>
+		{:else if sourceMode === 'files'}
 			<div class="library-controls">
 				<label
 					><span>Library</span><select
@@ -317,65 +429,7 @@
 								</div>{/if}
 						</div>
 						<strong>{selected.name}</strong>
-						<section class="frame-controls" aria-labelledby="library-frame-title">
-							<div class="frame-heading">
-								<Crop size={16} /><span
-									><h3 id="library-frame-title">Frame image</h3>
-									<small>Preview the exact placement</small></span
-								>
-								<button
-									type="button"
-									disabled={fit !== 'cover'}
-									aria-pressed={showGuides}
-									onclick={() => (showGuides = !showGuides)}
-									>{showGuides ? 'Hide guide' : 'Show crop guide'}</button
-								>
-							</div>
-							<fieldset>
-								<legend>Canvas</legend>
-								<div class="preset-grid">
-									{#each Object.entries(aspectPresets) as [id, preset] (id)}<button
-											type="button"
-											class:active={aspectPreset === id}
-											onclick={() => (aspectPreset = id as AspectPreset)}
-											><b>{preset.label}</b><small>{preset.hint}</small></button
-										>{/each}
-								</div>
-							</fieldset>
-							<fieldset>
-								<legend>Fit</legend>
-								<div class="fit-grid">
-									<button
-										type="button"
-										class:active={fit === 'cover'}
-										onclick={() => (fit = 'cover')}
-										><Crop size={16} /><span><b>Fill</b><small>Crop edges</small></span></button
-									><button
-										type="button"
-										class:active={fit === 'contain'}
-										onclick={() => (fit = 'contain')}
-										><ImageIcon size={16} /><span><b>Fit</b><small>Keep all</small></span></button
-									>
-								</div>
-							</fieldset>
-							{#if fit === 'cover'}<fieldset>
-									<legend>Focal point</legend><label class="range-row"
-										><span>Horizontal</span><input
-											type="range"
-											min="0"
-											max="100"
-											bind:value={focalX}
-										/></label
-									><label class="range-row"
-										><span>Vertical</span><input
-											type="range"
-											min="0"
-											max="100"
-											bind:value={focalY}
-										/></label
-									>
-								</fieldset>{/if}
-						</section>
+						<button class="open-editor" type="button" onclick={openFrameEditor}><Crop size={17} /><span><b>Edit framing</b><small>{activePreset.label} · {Math.round(zoom * 100)}% zoom</small></span></button>
 						<label for="media-alt">Image description</label><textarea
 							id="media-alt"
 							bind:value={altText}
@@ -442,13 +496,16 @@
 								alt=""
 								style:object-fit={fit}
 								style:object-position={`${focalX}% ${focalY}%`}
+								style:transform={`scale(${fit === 'cover' ? zoom : 1})`}
+								style:transform-origin={`${focalX}% ${focalY}%`}
 							/>
 							{#if showGuides && fit === 'cover'}<div class="thirds">
 									<i></i><i></i><i></i><i></i>
 								</div>{/if}
 						</div>
 						<div class="canvas-note">
-							<span>Use the focal point controls to keep the important subject in frame.</span>
+							<span>Open the full editor to drag, zoom, and position the image.</span>
+							<button type="button" class="edit-framing-link" onclick={openFrameEditor}><Crop size={15} /> Edit framing</button>
 							{#if fit === 'cover'}<button
 									type="button"
 									aria-pressed={showGuides}
@@ -584,6 +641,119 @@
 		background: #07110e;
 		box-shadow: 0 32px 110px #000b;
 	}
+	.media-dialog.editing-frame {
+		width: min(1500px, calc(100vw - 32px));
+		max-height: calc(100dvh - 32px);
+		height: min(960px, calc(100dvh - 32px));
+	}
+	.frame-editor {
+		min-height: 0;
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.frame-editor-head {
+		display: flex;
+		align-items: center;
+		gap: 18px;
+		padding: 12px 20px;
+		border-bottom: 1px solid #17342a;
+		background: #081410;
+	}
+	.frame-editor-head > button {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		padding: 8px 11px;
+		color: #b9d5cb;
+		border: 1px solid #2b5546;
+		border-radius: 10px;
+		background: #0d211a;
+		font-size: .72rem;
+		font-weight: 800;
+	}
+	.frame-editor-head h3,
+	.frame-editor-head p {
+		margin: 0;
+	}
+	.frame-editor-head h3 { font-size: 1rem; }
+	.frame-editor-head p { color: #789087; font-size: .68rem; }
+	.frame-editor-workspace {
+		min-height: 0;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 360px;
+		flex: 1;
+		overflow: hidden;
+	}
+	.frame-stage {
+		min-width: 0;
+		display: grid;
+		place-items: center;
+		align-content: center;
+		padding: 28px;
+		overflow: auto;
+		background: radial-gradient(circle at 50% 45%, #16362c, #06100d 68%);
+	}
+	.large-canvas {
+		position: relative;
+		width: min(100%, 1040px);
+		max-height: calc(100dvh - 330px);
+		padding: 0;
+		overflow: hidden;
+		border: 1px solid #4a806c;
+		border-radius: 18px;
+		background: #071713;
+		box-shadow: 0 24px 70px #000a;
+		cursor: grab;
+		touch-action: none;
+		user-select: none;
+	}
+	.large-canvas:focus-visible { outline: 3px solid #58e4ae; outline-offset: 4px; }
+	.large-canvas.dragging { cursor: grabbing; }
+	.large-canvas img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		transition: transform .08s ease-out, object-position .08s ease-out;
+	}
+	.large-canvas.dragging img { transition: none; }
+	.drag-cue {
+		position: absolute;
+		left: 50%;
+		bottom: 14px;
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		padding: 7px 10px;
+		color: #e9fff7;
+		border: 1px solid #ffffff26;
+		border-radius: 99px;
+		background: #04100ccd;
+		font-size: .68rem;
+		font-weight: 800;
+		transform: translateX(-50%);
+		pointer-events: none;
+	}
+	.stage-help { margin: 12px 0 0; color: #789087; font-size: .7rem; }
+	.frame-sidebar {
+		padding: 18px;
+		border-left: 1px solid #17342a;
+		background: #091512;
+		overflow: auto;
+	}
+	.frame-sidebar fieldset { padding: 0; margin: 0 0 17px; border: 0; }
+	.frame-sidebar legend { margin-bottom: 7px; color: #91a69e; font-size: .65rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+	.frame-sidebar textarea { width: 100%; box-sizing: border-box; padding: 10px; resize: vertical; line-height: 1.4; color: #eef6f2; border: 1px solid #29463c; border-radius: 11px; background: #0b1814; }
+	.editor-alt { display: block; margin-bottom: 6px; color: #9fb0aa; font-size: .72rem; font-weight: 750; }
+	.precision-controls .range-row { grid-template-columns: 110px minmax(0, 1fr); }
+	.precision-controls .range-row span { display: flex; justify-content: space-between; gap: 6px; }
+	.precision-controls .range-row b { color: #69e4b5; font-size: .65rem; }
+	.guide-toggle { width: 100%; margin-top: 8px; padding: 8px; color: #9fdac6; border: 1px solid #2b5949; border-radius: 9px; background: #0d241c; font-size: .68rem; font-weight: 800; }
+	.editor-actions { display: grid; grid-template-columns: auto 1fr; gap: 9px; margin-top: 18px; }
+	.editor-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 12px; color: #b9d5cb; border: 1px solid #2a5143; border-radius: 10px; background: #0b1b16; font-weight: 800; }
+	.editor-actions button.done { color: #06140f; border-color: #58e4ae; background: #58e4ae; }
 	.dialog-head {
 		display: flex;
 		align-items: start;
@@ -847,21 +1017,6 @@
 		color: #788e86;
 		font-size: 0.68rem;
 	}
-	.frame-controls {
-		margin-bottom: 16px;
-		padding: 12px;
-		border: 1px solid #24483b;
-		border-radius: 12px;
-		background: #0b1b16;
-	}
-	.frame-heading {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 12px;
-		color: #62e4b2;
-	}
-	.frame-heading > button,
 	.canvas-note button {
 		margin-left: auto;
 		padding: 6px 8px;
@@ -873,34 +1028,22 @@
 		font-weight: 800;
 		white-space: nowrap;
 	}
-	.frame-heading span {
+	.open-editor {
+		width: 100%;
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		gap: 10px;
+		margin: 12px 0 16px;
+		padding: 11px 12px;
+		color: #68e5b5;
+		border: 1px solid #2d654f;
+		border-radius: 11px;
+		background: #10271f;
+		text-align: left;
 	}
-	.frame-heading h3 {
-		margin: 0;
-		font-size: 0.75rem;
-	}
-	.frame-heading small {
-		color: #71877f;
-		font-size: 0.6rem;
-	}
-	.frame-controls fieldset {
-		padding: 0;
-		margin: 0 0 12px;
-		border: 0;
-	}
-	.frame-controls fieldset:last-child {
-		margin-bottom: 0;
-	}
-	.frame-controls legend {
-		margin-bottom: 6px;
-		color: #91a69e;
-		font-size: 0.62rem;
-		font-weight: 800;
-		letter-spacing: 0.07em;
-		text-transform: uppercase;
-	}
+	.open-editor span { display: flex; flex-direction: column; }
+	.open-editor small { margin-top: 2px; color: #7c978d; font-size: .64rem; }
+	.canvas-note .edit-framing-link { display: inline-flex; align-items: center; gap: 6px; }
 	.guide {
 		display: flex;
 		align-items: flex-start;
@@ -1212,10 +1355,6 @@
 		margin: 7px 0;
 		color: #879b94;
 		font-size: 0.65rem;
-	}
-	.inspector .range-row {
-		display: grid;
-		margin: 7px 0;
 	}
 	.range-row input,
 	.quality input {

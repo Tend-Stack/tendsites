@@ -477,6 +477,8 @@
 										alt=""
 										style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
 										style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
+										style:transform={`scale(${selectedPost.coverImagePresentation?.zoom ?? 1})`}
+										style:transform-origin={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
 									/>
 									<div>
 										<strong>{selectedPost.coverImageSource?.name ?? 'Starter image'}</strong><span
@@ -553,6 +555,8 @@
 										: '16 / 9'}
 								style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
 								style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
+								style:transform={`scale(${selectedPost.coverImagePresentation?.zoom ?? 1})`}
+								style:transform-origin={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
 							/>{/if}
 						<h2>{selectedPost.title}</h2>
 						<p>{selectedPost.summary}</p>

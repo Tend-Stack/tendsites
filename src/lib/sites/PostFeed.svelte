@@ -33,6 +33,8 @@
 						alt={post.coverImageAlt ?? ''}
 						style:object-fit={post.coverImagePresentation?.fit ?? 'cover'}
 						style:object-position={`${post.coverImagePresentation?.focalX ?? 50}% ${post.coverImagePresentation?.focalY ?? 50}%`}
+						style:transform={`scale(${post.coverImagePresentation?.zoom ?? 1})`}
+						style:transform-origin={`${post.coverImagePresentation?.focalX ?? 50}% ${post.coverImagePresentation?.focalY ?? 50}%`}
 					/>{/if}
 				<div>
 					<small><CalendarDays size={13} /> {displayDate(post.publishedAt)}</small>

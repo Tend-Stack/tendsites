@@ -946,16 +946,18 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await page.getByRole('button', { name: 'Replace image' }).click();
 	await expect(page.getByRole('heading', { name: 'Prepare a cover image' })).toBeVisible();
 	await page.getByRole('button', { name: 'quiet-lake.jpg' }).click();
-	await expect(page.getByRole('heading', { name: 'Frame image' })).toBeVisible();
-	await expect(page.locator('.mini-preview .thirds')).toHaveCount(0);
+	await expect(page.getByRole('heading', { name: 'Frame the cover' })).toBeVisible();
+	await expect(page.locator('.large-canvas .thirds')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Show crop guide' }).click();
+	await expect(page.locator('.large-canvas .thirds')).toHaveCount(1);
 	expect(
 		await page.evaluate(() => {
-			const preview = document.querySelector('.mini-preview')?.getBoundingClientRect();
-			const guide = document.querySelector('.mini-preview .thirds')?.getBoundingClientRect();
+			const preview = document.querySelector('.large-canvas')?.getBoundingClientRect();
+			const guide = document.querySelector('.large-canvas .thirds')?.getBoundingClientRect();
 			return Boolean(
 				preview &&
 				guide &&
+				preview.width >= 700 &&
 				guide.left >= preview.left &&
 				guide.top >= preview.top &&
 				guide.right <= preview.right &&
@@ -963,7 +965,18 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 			);
 		})
 	).toBe(true);
-	await page.getByRole('button', { name: 'Hide guide' }).click();
+	await page.getByLabel('Zoom').fill('1.5');
+	await expect(page.locator('.large-canvas img')).toHaveCSS('transform', /matrix\(1\.5/);
+	await page.getByLabel('Horizontal focal point').fill('75');
+	await expect(page.locator('.large-canvas img')).toHaveCSS('object-position', '75% 50%');
+	const cropCanvas = await page.locator('.large-canvas').boundingBox();
+	expect(cropCanvas).not.toBeNull();
+	await page.mouse.move(cropCanvas!.x + cropCanvas!.width / 2, cropCanvas!.y + cropCanvas!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(cropCanvas!.x + cropCanvas!.width / 2 - 80, cropCanvas!.y + cropCanvas!.height / 2);
+	await page.mouse.up();
+	await expect(page.getByLabel('Horizontal focal point')).not.toHaveValue('75');
+	await page.getByLabel('Horizontal focal point').fill('75');
 	await page.getByRole('button', { name: /Square · 1:1/ }).click();
 	await expect(page.getByRole('button', { name: 'Use image' })).toBeDisabled();
 	await page.getByLabel('Image description').fill('A quiet green lake at dawn');
@@ -980,7 +993,7 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 				return envelope?.site?.collections?.[0]?.items?.[0]?.coverImagePresentation;
 			})
 		)
-		.toMatchObject({ aspect: 'square', fit: 'cover', focalX: 50, focalY: 50 });
+		.toMatchObject({ aspect: 'square', fit: 'cover', focalX: 75, focalY: 50, zoom: 1.5 });
 
 	await page.getByRole('button', { name: 'Replace image' }).click();
 	await page.getByRole('button', { name: /Upload new/ }).click();

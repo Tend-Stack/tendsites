@@ -112,6 +112,7 @@ export type DemoImagePresentation = {
 	fit: 'cover' | 'contain';
 	focalX: number;
 	focalY: number;
+	zoom: number;
 };
 
 export type DemoPost = {
@@ -623,6 +624,15 @@ export function upgradeDemoSite(value: unknown): DemoSite | null {
 			if (post && typeof post === 'object' && post.scheduledAt === undefined) {
 				post.scheduledAt = null;
 			}
+			if (
+				post &&
+				typeof post === 'object' &&
+				post.coverImagePresentation &&
+				typeof post.coverImagePresentation === 'object' &&
+				post.coverImagePresentation.zoom === undefined
+			) {
+				post.coverImagePresentation.zoom = 1;
+			}
 		}
 	}
 	return isDemoSite(upgraded) ? cloneDemoSite(upgraded) : null;
@@ -701,7 +711,10 @@ function isDemoImagePresentation(value: unknown): value is DemoImagePresentation
 		(presentation.focalX ?? 101) <= 100 &&
 		Number.isFinite(presentation.focalY) &&
 		(presentation.focalY ?? -1) >= 0 &&
-		(presentation.focalY ?? 101) <= 100
+		(presentation.focalY ?? 101) <= 100 &&
+		Number.isFinite(presentation.zoom) &&
+		(presentation.zoom ?? 0) >= 1 &&
+		(presentation.zoom ?? 4) <= 3
 	);
 }
 

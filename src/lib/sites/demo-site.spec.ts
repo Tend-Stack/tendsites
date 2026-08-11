@@ -137,7 +137,8 @@ describe('interactive demo site', () => {
 			aspect: 'wide',
 			fit: 'cover',
 			focalX: 42,
-			focalY: 58
+			focalY: 58,
+			zoom: 1.4
 		};
 		expect(isDemoSite(withHostMedia)).toBe(true);
 		withHostMedia.collections[0].items[0].coverImagePresentation.focalX = 101;

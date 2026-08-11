@@ -85,9 +85,13 @@ Generated site = ordinary files + assets + Git history
   projections and no timer or publishing request exists in the extension.
   Installed builds may receive a permission-gated `HostMediaBridge` from tend.host. It lists only
   authenticated, owner-scoped image libraries and sanitized opaque item references. Selecting an
-  image records its panel content URL, accessible description, and opaque Files identity in the
-  local draft. No source/provider path is disclosed and the bridge has no upload, copy, delete,
-  transform, repository-read, or repository-write method. Consequently this is a connected draft
+  image records its panel content URL, accessible description, opaque Files identity, and bounded
+  non-destructive aspect/fit/focal/zoom recipe in the local draft. Gallery and device images enter
+  the same large framing workspace with live sliders, direct drag positioning, and keyboard nudging.
+  The optional host media preparation method accepts only a device-selected file plus a bounded
+  recipe and returns a metadata-free WebP; it does not mutate or receive authority over a Files item.
+  No source/provider path is disclosed and the bridge has no Files upload, copy, delete,
+  repository-read, or repository-write method. Consequently a Files selection is a connected draft
   preview, not a portable repository asset; source copying remains a separate reviewed operation.
   The same structure model owns bounded loading, offline, maintenance, and error copy. Older drafts
   receive deterministic defaults, while Studio previews every state without claiming that a host

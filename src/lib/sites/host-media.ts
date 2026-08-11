@@ -28,6 +28,7 @@ export type HostImagePreparationRecipe = {
 	fit: 'cover' | 'contain';
 	focalX: number;
 	focalY: number;
+	zoom: number;
 	quality: number;
 	maxBytes: number;
 	background?: string;
