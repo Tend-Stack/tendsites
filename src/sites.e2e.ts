@@ -947,6 +947,23 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await expect(page.getByRole('heading', { name: 'Prepare a cover image' })).toBeVisible();
 	await page.getByRole('button', { name: 'quiet-lake.jpg' }).click();
 	await expect(page.getByRole('heading', { name: 'Frame image' })).toBeVisible();
+	await expect(page.locator('.mini-preview .thirds')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Show crop guide' }).click();
+	expect(
+		await page.evaluate(() => {
+			const preview = document.querySelector('.mini-preview')?.getBoundingClientRect();
+			const guide = document.querySelector('.mini-preview .thirds')?.getBoundingClientRect();
+			return Boolean(
+				preview &&
+				guide &&
+				guide.left >= preview.left &&
+				guide.top >= preview.top &&
+				guide.right <= preview.right &&
+				guide.bottom <= preview.bottom
+			);
+		})
+	).toBe(true);
+	await page.getByRole('button', { name: 'Hide guide' }).click();
 	await page.getByRole('button', { name: /Square · 1:1/ }).click();
 	await expect(page.getByRole('button', { name: 'Use image' })).toBeDisabled();
 	await page.getByLabel('Image description').fill('A quiet green lake at dawn');

@@ -53,6 +53,7 @@
 	let focalX = $state(50);
 	let focalY = $state(50);
 	let quality = $state(0.84);
+	let showGuides = $state(false);
 	let preparing = $state(false);
 	let uploadError = $state('');
 	const activePreset = $derived(aspectPresets[aspectPreset]);
@@ -110,6 +111,7 @@
 		fit = 'cover';
 		focalX = 50;
 		focalY = 50;
+		showGuides = false;
 	}
 
 	function chooseUpload(event: Event) {
@@ -131,6 +133,7 @@
 		altText = '';
 		focalX = 50;
 		focalY = 50;
+		showGuides = false;
 	}
 
 	async function confirmSelection() {
@@ -309,7 +312,9 @@
 								style:object-fit={fit}
 								style:object-position={`${focalX}% ${focalY}%`}
 							/>
-							<div class="thirds"><i></i><i></i><i></i><i></i></div>
+							{#if showGuides && fit === 'cover'}<div class="thirds">
+									<i></i><i></i><i></i><i></i>
+								</div>{/if}
 						</div>
 						<strong>{selected.name}</strong>
 						<section class="frame-controls" aria-labelledby="library-frame-title">
@@ -317,6 +322,13 @@
 								<Crop size={16} /><span
 									><h3 id="library-frame-title">Frame image</h3>
 									<small>Preview the exact placement</small></span
+								>
+								<button
+									type="button"
+									disabled={fit !== 'cover'}
+									aria-pressed={showGuides}
+									onclick={() => (showGuides = !showGuides)}
+									>{showGuides ? 'Hide guide' : 'Show crop guide'}</button
 								>
 							</div>
 							<fieldset>
@@ -431,11 +443,19 @@
 								style:object-fit={fit}
 								style:object-position={`${focalX}% ${focalY}%`}
 							/>
-							<div class="thirds"><i></i><i></i><i></i><i></i></div>
+							{#if showGuides && fit === 'cover'}<div class="thirds">
+									<i></i><i></i><i></i><i></i>
+								</div>{/if}
 						</div>
-						<p class="canvas-note">
-							Use the focal point controls to keep the important subject inside the guide.
-						</p>
+						<div class="canvas-note">
+							<span>Use the focal point controls to keep the important subject in frame.</span>
+							{#if fit === 'cover'}<button
+									type="button"
+									aria-pressed={showGuides}
+									onclick={() => (showGuides = !showGuides)}
+									>{showGuides ? 'Hide guide' : 'Show crop guide'}</button
+								>{/if}
+						</div>
 					{:else}<label class="drop-zone"
 							><Upload size={32} /><b>Upload a new image</b><span
 								>PNG, JPEG, or WebP · up to 20 MB</span
@@ -797,6 +817,7 @@
 		overflow: auto;
 	}
 	.mini-preview {
+		position: relative;
 		display: grid;
 		place-items: center;
 		overflow: hidden;
@@ -839,6 +860,18 @@
 		gap: 8px;
 		margin-bottom: 12px;
 		color: #62e4b2;
+	}
+	.frame-heading > button,
+	.canvas-note button {
+		margin-left: auto;
+		padding: 6px 8px;
+		color: #9fdac6;
+		border: 1px solid #2b5949;
+		border-radius: 8px;
+		background: #0d241c;
+		font-size: 0.62rem;
+		font-weight: 800;
+		white-space: nowrap;
 	}
 	.frame-heading span {
 		display: flex;
@@ -1066,10 +1099,13 @@
 		top: 66.666%;
 	}
 	.canvas-note {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		width: min(100%, 760px);
 		margin: 10px auto 0;
 		color: #7f958d;
 		font-size: 0.68rem;
-		text-align: center;
 	}
 	.drop-zone {
 		min-height: 360px;

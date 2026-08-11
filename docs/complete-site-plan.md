@@ -37,7 +37,8 @@ blocks where an adapter proves safe round-tripping.
   - **Complete framing and persistence slice:** Library images and optimized device uploads share a
     placement-aware frame editor with canvas ratios, fill/fit, and focal-point controls. Bundled demo
     images are persisted as compact internal references instead of multi-megabyte data URLs, keeping
-    ordinary autosaves below the host storage boundary and making save failures actionable.
+    ordinary autosaves below the host storage boundary and making save failures actionable. Crop
+    guides are opt-in and remain strictly contained inside the selected-image preview.
   - **Complete editorial-state slice:** Posts can be draft, scheduled, published, or archived. A
     scheduled timestamp is bounded and editable, but is explicitly a local plan until a host
     scheduler exists. Scheduled and archived entries never enter visitor collections or routes.
