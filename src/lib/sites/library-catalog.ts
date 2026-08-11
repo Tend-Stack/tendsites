@@ -122,6 +122,16 @@ export const demoLibraryComponents: readonly DemoLibraryComponent[] = [
 		eyebrow: 'KIND WORDS',
 		title: '“The process felt simple, thoughtful and completely ours.”',
 		body: '— A happy customer'
+	},
+	{
+		id: 'latest-posts',
+		name: 'Latest Posts',
+		category: 'Publishing',
+		description: 'A live card grid that shows published stories and keeps drafts private.',
+		kind: 'post-feed',
+		eyebrow: 'FROM THE JOURNAL',
+		title: 'Recent stories',
+		body: 'New writing appears here automatically when it is published.'
 	}
 ];
 

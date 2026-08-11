@@ -311,6 +311,28 @@ test('edits a full example site with pages, sections, undo and preview', async (
 	).toBeVisible();
 });
 
+test('places published posts on a page and opens a real visitor article', async ({ page }) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+	await page.getByRole('textbox', { name: 'Edit Latest journal posts title' }).click();
+
+	const inspector = page.getByLabel('Selected block settings');
+	await expect(inspector.getByLabel('Post collection')).toHaveValue('journal-posts');
+	await inspector.getByLabel('Number of posts').selectOption('1');
+	await inspector.getByLabel('Show first').selectOption('featured');
+
+	await page.getByRole('button', { name: 'Preview site' }).click();
+	const preview = page.getByRole('dialog', { name: 'Full example website preview' });
+	await expect(preview.locator('.post-card h3')).toHaveText('Field Notes from the long way home');
+	await expect(preview.getByText('A cabin reading list')).toHaveCount(0);
+	await preview.getByRole('button', { name: 'Read story' }).click();
+	await expect(
+		preview.getByRole('heading', { name: 'Field Notes from the long way home' })
+	).toBeVisible();
+	await preview.getByRole('button', { name: 'Back to Home' }).click();
+	await expect(preview.getByText('Recent stories')).toBeVisible();
+});
+
 test('manages page identity and requires named confirmation before removal', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open interactive demo' }).click();
@@ -449,7 +471,7 @@ test('keeps embedded pages spacious without clipping site or library labels', as
 	expect(homeLayout.labelsFit).toBe(true);
 
 	await page.getByRole('button', { name: 'Library', exact: true }).click();
-	await expect(page.locator('.component-grid .status.live')).toHaveCount(6);
+	await expect(page.locator('.component-grid .status.live')).toHaveCount(7);
 	const libraryLabelsFit = await page.evaluate(() =>
 		[...document.querySelectorAll('.component-grid .status')].every((label) => {
 			const labelRect = label.getBoundingClientRect();

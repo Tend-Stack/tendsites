@@ -9,6 +9,7 @@ import {
 	isDemoSite,
 	normalizePageSlug,
 	normalizePostSlug,
+	postsForSection,
 	uniquePostSlug,
 	uniquePageSlug
 } from './demo-site';
@@ -57,6 +58,25 @@ describe('interactive demo site', () => {
 			kind: 'gallery',
 			label: 'Photo gallery'
 		});
+	});
+
+	it('projects only published posts into deterministic collection-fed sections', () => {
+		const site = createDemoSite();
+		const section = site.pages[0].sections.find((item) => item.kind === 'post-feed')!;
+		expect(postsForSection(site, section).map((post) => post.slug)).toEqual([
+			'field-notes-long-way-home',
+			'morning-at-the-lake'
+		]);
+
+		section.postOrder = 'featured';
+		section.postLimit = 1;
+		expect(postsForSection(site, section).map((post) => post.slug)).toEqual([
+			'field-notes-long-way-home'
+		]);
+		site.collections[0].items[0].status = 'draft';
+		expect(postsForSection(site, section).map((post) => post.slug)).toEqual([
+			'morning-at-the-lake'
+		]);
 	});
 
 	it('rejects malformed or unbounded persisted drafts', () => {

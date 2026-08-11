@@ -60,7 +60,10 @@ Generated site = ordinary files + assets + Git history
   Vimeo, X, and Twitch URL forms into typed evidence. The Studio accepts no
   caller-supplied iframe or script markup; reviewed player URLs are derived
   locally and loaded on demand. This convenience draft is not repository or
-  publishing authority.
+  publishing authority. Collection-fed page sections project only published
+  items from the same validated draft, use deterministic newest/featured
+  ordering, and open an in-preview article view; draft content never enters the
+  visitor projection.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 

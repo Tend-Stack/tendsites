@@ -53,6 +53,7 @@
 		starterRepositoryCatalog
 	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
+	import PostFeed from './PostFeed.svelte';
 	import { goals, modules, projects, themes } from './fixtures';
 	import {
 		assistanceEvidence,
@@ -68,6 +69,7 @@
 		createSection,
 		demoImages,
 		duplicateDemoPage,
+		postsForSection,
 		sectionLabels,
 		uniquePageSlug,
 		type DemoSectionKind,
@@ -110,6 +112,7 @@
 	let showAddPage = $state(false);
 	let showAddSection = $state(false);
 	let showPreview = $state(false);
+	let previewPostId = $state<string | null>(null);
 	let showDraftRecovery = $state(false);
 	let recoveryBusy = $state(false);
 	let newPageName = $state('');
@@ -157,6 +160,11 @@
 	const selectedSection = $derived(
 		selectedPage?.sections.find((section) => section.id === selectedSectionId) ??
 			selectedPage?.sections[0]
+	);
+	const previewPost = $derived(
+		siteDraft.collections
+			.flatMap((collection) => collection.items)
+			.find((post) => post.id === previewPostId) ?? null
 	);
 	const projectImages = [demoImages.lake, demoImages.notes, demoImages.cabin];
 	const siteHealth = $derived(assessDemoSiteHealth(siteDraft));
@@ -398,6 +406,21 @@
 				.find((page) => page.id === selectedPageId)
 				?.sections.find((item) => item.id === selectedSectionId);
 			if (section) section[field] = value.slice(0, field === 'body' ? 600 : 240);
+		});
+	}
+
+	function updatePostFeed(
+		field: 'collectionId' | 'postOrder' | 'postLimit',
+		value: string | number
+	) {
+		changeDraft((next) => {
+			const section = next.pages
+				.find((page) => page.id === selectedPageId)
+				?.sections.find((item) => item.id === selectedSectionId);
+			if (!section || section.kind !== 'post-feed') return;
+			if (field === 'postLimit') section.postLimit = Math.max(1, Math.min(6, Number(value)));
+			else if (field === 'postOrder') section.postOrder = value === 'featured' ? 'featured' : 'latest';
+			else section.collectionId = String(value);
 		});
 	}
 
@@ -1346,7 +1369,10 @@
 							class="secondary"
 							aria-label="Preview site"
 							title="Preview site"
-							onclick={() => (showPreview = true)}
+							onclick={() => {
+								previewPostId = null;
+								showPreview = true;
+							}}
 							><MonitorPlay size={16} /><span>Preview site</span></button
 						><button
 							class="primary"
@@ -1450,8 +1476,8 @@
 											onblur={handleRichBlur}
 											use:richContent={section.title}
 										></div>
-										<div
-											class="inline-body"
+									<div
+										class="inline-body"
 											contenteditable="true"
 											role="textbox"
 											tabindex="0"
@@ -1465,9 +1491,14 @@
 											onkeydown={(event) => handleInlineKeydown(event, true)}
 											onpaste={handleRichPaste}
 											onblur={handleRichBlur}
-											use:richContent={section.body}
-										></div>
-										{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
+										use:richContent={section.body}
+									></div>
+									{#if section.kind === 'post-feed'}
+										<div class="canvas-post-feed">
+											<PostFeed posts={postsForSection(siteDraft, section)} />
+										</div>
+									{/if}
+									{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
 											>{/if}
 									</div>
 								{/if}
@@ -1680,6 +1711,42 @@
 					>
 					{#if embedError}<small class="inspector-error" role="alert">{embedError}</small>{/if}
 				{/if}
+				{#if selectedSection?.kind === 'post-feed'}
+					<div class="inspector-callout">
+						<strong>Connected content</strong>
+						<small>Published posts update this section automatically. Drafts stay private.</small>
+					</div>
+					<label>
+						<span>Post collection</span>
+						<select
+							value={selectedSection.collectionId}
+							onchange={(event) => updatePostFeed('collectionId', event.currentTarget.value)}
+						>
+							{#each siteDraft.collections as collection (collection.id)}
+								<option value={collection.id}>{collection.name}</option>
+							{/each}
+						</select>
+					</label>
+					<label>
+						<span>Show first</span>
+						<select
+							value={selectedSection.postOrder}
+							onchange={(event) => updatePostFeed('postOrder', event.currentTarget.value)}
+						>
+							<option value="latest">Newest posts</option>
+							<option value="featured">Featured, then newest</option>
+						</select>
+					</label>
+					<label>
+						<span>Number of posts</span>
+						<select
+							value={selectedSection.postLimit}
+							onchange={(event) => updatePostFeed('postLimit', Number(event.currentTarget.value))}
+						>
+							{#each [1, 2, 3, 4, 5, 6] as count}<option value={count}>{count}</option>{/each}
+						</select>
+					</label>
+				{/if}
 				<label
 					><span>Eyebrow</span><input
 						value={selectedSection?.eyebrow ?? ''}
@@ -1802,6 +1869,8 @@
 										? 'A strong opening statement with an image.'
 										: kind === 'gallery'
 											? 'A visual collection for places and work.'
+											: kind === 'post-feed'
+												? 'Show published stories automatically, with real read-more pages.'
 											: kind === 'newsletter'
 												? 'A calm invitation to stay in touch.'
 												: kind === 'quote'
@@ -1967,10 +2036,27 @@
 							<div>
 								{#each siteDraft.pages as page (page.id)}<button
 										class:active={selectedPageId === page.id}
-										onclick={() => selectPage(page.id)}>{page.name}</button
+										onclick={() => {
+											previewPostId = null;
+											selectPage(page.id);
+										}}>{page.name}</button
 									>{/each}
 							</div>
 						</nav>
+						{#if previewPost}
+							<article class="preview-post-detail">
+								<button class="back-to-page" onclick={() => (previewPostId = null)}>
+									<ArrowLeft size={16} /> Back to {selectedPage?.name ?? 'page'}
+								</button>
+								{#if previewPost.coverImage}
+									<img src={previewPost.coverImage} alt={previewPost.coverImageAlt ?? ''} />
+								{/if}
+								<small>{previewPost.author} · {previewPost.publishedAt?.slice(0, 10)}</small>
+								<h1>{previewPost.title}</h1>
+								<p class="post-summary">{previewPost.summary}</p>
+								<div class="post-body" use:richContent={previewPost.body}></div>
+							</article>
+						{:else}
 						{#each selectedPage?.sections ?? [] as section (section.id)}
 							<section class="preview-section {section.kind}">
 								{#if section.kind === 'embed' && section.embed}
@@ -2009,10 +2095,18 @@
 											use:richContent={section.title}
 										></div>
 										<div class="preview-body" use:richContent={section.body}></div>
+										{#if section.kind === 'post-feed'}
+											<PostFeed
+												posts={postsForSection(siteDraft, section)}
+												interactive
+												onopen={(post) => (previewPostId = post.id)}
+											/>
+										{/if}
 									</div>
 								{/if}
 							</section>
 						{/each}
+						{/if}
 						<footer>
 							<strong>{siteDraft.name}</strong><span>Example site created in TEND Sites</span>
 						</footer>
@@ -3782,7 +3876,8 @@
 		grid-column: 2;
 	}
 	.canvas-section.quote,
-	.canvas-section.newsletter {
+	.canvas-section.newsletter,
+	.canvas-section.post-feed {
 		display: block;
 		text-align: center;
 		padding: 38px;
@@ -3792,6 +3887,9 @@
 		display: block;
 		padding: 18px;
 		background: color-mix(in srgb, var(--accent) 7%, var(--site-paper));
+	}
+	.canvas-post-feed {
+		pointer-events: none;
 	}
 	.embed-block {
 		display: grid;
@@ -4255,6 +4353,19 @@
 		color: #7f958c;
 		line-height: 1.45;
 	}
+	.inspector-callout {
+		display: grid;
+		gap: 4px;
+		padding: 12px;
+		color: var(--green);
+		background: #0b211a;
+		border: 1px solid #235842;
+		border-radius: 12px;
+	}
+	.inspector-callout small {
+		color: var(--muted);
+		line-height: 1.45;
+	}
 	.recovery-note {
 		display: flex;
 		align-items: flex-start;
@@ -4432,6 +4543,62 @@
 	.preview-section.embed {
 		display: block;
 		min-height: auto;
+	}
+	.preview-section.post-feed {
+		display: block;
+		min-height: auto;
+	}
+	.preview-post-detail {
+		max-width: 850px;
+		min-height: 620px;
+		margin: 0 auto;
+		padding: clamp(40px, 7vw, 90px) clamp(24px, 6vw, 70px);
+	}
+	.preview-post-detail > img {
+		width: 100%;
+		max-height: 480px;
+		margin: 26px 0;
+		object-fit: cover;
+		border-radius: 20px;
+	}
+	.preview-post-detail > small {
+		color: #12744f;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.preview-post-detail h1 {
+		margin: 12px 0;
+		font-family: Georgia, serif;
+		font-size: clamp(40px, 7vw, 76px);
+		line-height: 1;
+	}
+	.preview-post-detail .post-summary {
+		color: #506159;
+		font-size: 20px;
+		line-height: 1.55;
+	}
+	.preview-post-detail .post-body {
+		max-width: 70ch;
+		font-size: 17px;
+		line-height: 1.75;
+	}
+	.preview-post-detail .post-body :global(h2) {
+		margin: 2rem 0 0.6rem;
+		font-family: Georgia, serif;
+		font-size: 30px;
+	}
+	.back-to-page {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		margin-bottom: 28px;
+		padding: 9px 12px;
+		color: var(--site-ink);
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--site-ink) 24%, transparent);
+		border-radius: 999px;
+		cursor: pointer;
 	}
 	.preview-embed {
 		max-width: 900px;

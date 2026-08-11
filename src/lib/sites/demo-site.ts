@@ -5,7 +5,16 @@ import weekendLakeImage from '../assets/demo/weekend-lake.png';
 import type { DemoThemeId } from './library-catalog';
 import { isEmbedReference, type EmbedReference } from './embed';
 
-export type DemoSectionKind = 'hero' | 'story' | 'gallery' | 'quote' | 'newsletter' | 'embed';
+export type DemoSectionKind =
+	| 'hero'
+	| 'story'
+	| 'post-feed'
+	| 'gallery'
+	| 'quote'
+	| 'newsletter'
+	| 'embed';
+
+export type DemoPostFeedOrder = 'latest' | 'featured';
 
 export type DemoSection = {
 	id: string;
@@ -17,6 +26,9 @@ export type DemoSection = {
 	image?: string;
 	imageAlt?: string;
 	embed?: EmbedReference;
+	collectionId?: string;
+	postLimit?: number;
+	postOrder?: DemoPostFeedOrder;
 };
 
 export type DemoPage = {
@@ -193,9 +205,26 @@ export function createDemoPost(sequence: number, posts: DemoPost[]): DemoPost {
 	};
 }
 
+export function postsForSection(site: DemoSite, section: DemoSection): DemoPost[] {
+	if (section.kind !== 'post-feed') return [];
+	const collection = site.collections.find((item) => item.id === section.collectionId);
+	if (!collection) return [];
+	const limit = Math.max(1, Math.min(6, Math.trunc(section.postLimit ?? 3)));
+	const order = section.postOrder ?? 'latest';
+	return collection.items
+		.filter((post) => post.status === 'published' && post.publishedAt !== null)
+		.sort((left, right) => {
+			if (order === 'featured' && left.featured !== right.featured) return left.featured ? -1 : 1;
+			const byDate = Date.parse(right.publishedAt ?? '') - Date.parse(left.publishedAt ?? '');
+			return byDate || left.slug.localeCompare(right.slug);
+		})
+		.slice(0, limit);
+}
+
 export const sectionLabels: Record<DemoSectionKind, string> = {
 	hero: 'Hero',
 	story: 'Story',
+	'post-feed': 'Latest posts',
 	gallery: 'Photo gallery',
 	quote: 'Quote',
 	newsletter: 'Newsletter',
@@ -220,6 +249,15 @@ export function createSection(kind: DemoSectionKind, sequence: number): DemoSect
 			body: 'Add the details, observations and small moments that make the story yours.',
 			image: fieldNotesImage,
 			imageAlt: 'An open field notebook beside a camera and wildflowers'
+		},
+		'post-feed': {
+			label: 'Latest journal posts',
+			eyebrow: 'FROM THE JOURNAL',
+			title: 'Recent stories',
+			body: 'Fresh notes, selected automatically from your published posts.',
+			collectionId: 'journal-posts',
+			postLimit: 3,
+			postOrder: 'latest'
 		},
 		gallery: {
 			label: 'Photo gallery',
@@ -284,7 +322,18 @@ export function createDemoSite(): DemoSite {
 						imageAlt: 'An open field notebook beside a camera and wildflowers'
 					},
 					{
-						id: 'newsletter-3',
+						id: 'post-feed-3',
+						kind: 'post-feed',
+						label: 'Latest journal posts',
+						eyebrow: 'FROM THE JOURNAL',
+						title: 'Recent stories',
+						body: 'A few new field notes from the long way home.',
+						collectionId: 'journal-posts',
+						postLimit: 3,
+						postOrder: 'latest'
+					},
+					{
+						id: 'newsletter-4',
 						kind: 'newsletter',
 						label: 'Sunday letter',
 						eyebrow: 'THE SUNDAY NOTE',
@@ -386,20 +435,31 @@ export function isDemoSite(value: unknown): value is DemoSite {
 				(section) =>
 					Boolean(section) &&
 					typeof section.id === 'string' &&
-					['hero', 'story', 'gallery', 'quote', 'newsletter', 'embed'].includes(section.kind) &&
+					['hero', 'story', 'post-feed', 'gallery', 'quote', 'newsletter', 'embed'].includes(
+						section.kind
+					) &&
 					typeof section.label === 'string' &&
 					typeof section.eyebrow === 'string' &&
 					typeof section.title === 'string' &&
 					typeof section.body === 'string' &&
 					(section.image === undefined || typeof section.image === 'string') &&
 					(section.imageAlt === undefined || typeof section.imageAlt === 'string') &&
-					(section.kind === 'embed' ? isEmbedReference(section.embed) : section.embed === undefined)
+					(section.kind === 'embed' ? isEmbedReference(section.embed) : section.embed === undefined) &&
+					(section.kind === 'post-feed'
+						? typeof section.collectionId === 'string' &&
+							Number.isInteger(section.postLimit) &&
+							(section.postLimit ?? 0) >= 1 &&
+							(section.postLimit ?? 0) <= 6 &&
+							['latest', 'featured'].includes(section.postOrder ?? '')
+						: section.collectionId === undefined &&
+							section.postLimit === undefined &&
+							section.postOrder === undefined)
 			)
 	);
 	if (!pagesValid) return false;
 
 	const collectionIds = new Set<string>();
-	return candidate.collections.every((collection) => {
+	const collectionsValid = candidate.collections.every((collection) => {
 		if (
 			!collection ||
 			typeof collection.id !== 'string' ||
@@ -443,4 +503,10 @@ export function isDemoSite(value: unknown): value is DemoSite {
 			return true;
 		});
 	});
+	if (!collectionsValid) return false;
+	return candidate.pages.every((page) =>
+		page.sections.every(
+			(section) => section.kind !== 'post-feed' || collectionIds.has(section.collectionId ?? '')
+		)
+	);
 }
