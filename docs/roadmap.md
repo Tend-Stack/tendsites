@@ -148,6 +148,13 @@ Completion is measured only from the top-level product milestones below. Nested 
     while the responsive visitor preview provides bounded accessible validation, an inert spam
     honeypot, explicit consent, review-before-send, and edit/reset recovery. The current form never
     claims delivery or performs a network request; an assigned delivery capability remains pending.
+  - **Complete site-structure foundation:** A distinct Structure workspace manages ordered
+    header/footer page links, allowlisted external and social links, an optional linked announcement,
+    and editable not-found recovery. Visitor preview renders this shell with desktop, tablet, phone,
+    and purpose-built mobile navigation states; Readiness deep-links structure diagnostics.
+  - **Complete editorial-lifecycle foundation:** Posts now support draft, scheduled, published, and
+    archived states with forward migration, bounded planned timestamps, dedicated filters, and
+    explicit non-executing schedule guidance. Only published entries reach visitor collections.
   - **Pending:** Scheduling, repository persistence, deployment, and the remaining visitor
     capability plan.
 - [x] Undo history and clear conflict resolution.

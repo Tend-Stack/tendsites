@@ -83,6 +83,13 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 
 	await page.getByLabel('Status').selectOption('published');
 	await expect(page.locator('.post-list em.published')).toHaveCount(3);
+	await page.getByLabel('Status').selectOption('scheduled');
+	await expect(page.getByText(/local editorial plan/)).toBeVisible();
+	await page.getByLabel('Planned publication time').fill('2030-01-02T10:30');
+	await page.getByLabel('Filter posts').getByRole('button', { name: 'Scheduled' }).click();
+	await expect(page.locator('.post-list > button')).toHaveCount(1);
+	await page.getByLabel('Status').selectOption('archived');
+	await expect(page.getByText(/Archived posts stay editable/)).toBeVisible();
 	await page.getByRole('button', { name: 'New post' }).first().click();
 	await expect(page.locator('.post-editor > header h2')).toHaveText('Untitled post');
 });
@@ -436,6 +443,70 @@ test('reviews an accessible visitor form without claiming delivery', async ({ pa
 		.locator('.full-demo-site')
 		.evaluate((element) => element.scrollWidth > element.clientWidth);
 	expect(overflows).toBe(false);
+});
+
+test('builds responsive site navigation, announcements, footer links, and 404 recovery', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+	await page.getByLabel('Sites navigation').getByRole('button', { name: 'Structure' }).click();
+
+	const structureNav = page.getByRole('navigation', { name: 'Site structure settings' });
+	await structureNav.getByRole('button', { name: 'Header' }).click();
+	await page
+		.getByLabel('Available pages')
+		.getByRole('button', { name: 'About', exact: true })
+		.click();
+	const headerExternal = page.locator('.add-link-card').first();
+	await headerExternal.getByLabel('Label').fill('Field guide');
+	await headerExternal.getByLabel('Destination').fill('http://unsafe.example');
+	await headerExternal.getByRole('button', { name: 'Add link' }).click();
+	await expect(headerExternal.getByRole('alert')).toContainText('secure HTTPS');
+	await headerExternal.getByLabel('Destination').fill('https://example.com/field-guide');
+	await headerExternal.getByRole('button', { name: 'Add link' }).click();
+
+	await structureNav.getByRole('button', { name: 'Footer' }).click();
+	const social = page.locator('.settings-card').last().locator('.add-link-card');
+	await social.getByLabel('Label').fill('Bluesky');
+	await social.getByLabel('Destination').fill('https://bsky.app/profile/example.com');
+	await social.getByRole('button', { name: 'Add profile' }).click();
+
+	await structureNav.getByRole('button', { name: 'Announcement' }).click();
+	await page.getByRole('checkbox', { name: /Show announcement/ }).check();
+	await page.getByLabel('Message').fill('A new field guide is ready.');
+	await page.getByLabel('Optional destination').fill('/journal');
+	await page.getByLabel('Optional destination').press('Tab');
+
+	await structureNav.getByRole('button', { name: 'Not found' }).click();
+	await page.getByLabel('Heading').fill('This trail ends here.');
+	await page.getByLabel('Button label').fill('Back to the journal');
+
+	await page.getByLabel('Sites navigation').getByRole('button', { name: 'Studio' }).click();
+	await page.getByRole('button', { name: 'Preview site' }).click();
+	const preview = page.getByRole('dialog', { name: 'Full example website preview' });
+	await expect(preview.getByText('A new field guide is ready.')).toBeVisible();
+	await expect(
+		preview.locator('.visitor-desktop-nav').getByRole('button', { name: 'About', exact: true })
+	).toHaveCount(0);
+	await expect(preview.getByRole('link', { name: 'Field guide' })).toHaveAttribute(
+		'href',
+		'https://example.com/field-guide'
+	);
+	await expect(preview.getByRole('link', { name: 'Bluesky' })).toHaveAttribute(
+		'href',
+		'https://bsky.app/profile/example.com'
+	);
+
+	await preview.getByRole('button', { name: 'phone preview' }).click();
+	await expect(preview.locator('.visitor-mobile-nav')).toBeVisible();
+	await preview.getByRole('button', { name: '404 page' }).click();
+	await expect(preview.getByRole('heading', { name: 'This trail ends here.' })).toBeVisible();
+	await preview.getByRole('button', { name: 'Back to the journal' }).click();
+	await expect(
+		preview.getByRole('heading', { name: 'Stories, sound & places worth remembering.' })
+	).toBeVisible();
 });
 
 test('manages page identity and requires named confirmation before removal', async ({ page }) => {

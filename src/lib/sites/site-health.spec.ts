@@ -50,4 +50,17 @@ describe('site health guidance', () => {
 			])
 		);
 	});
+
+	it('links navigation diagnostics to the exact structure workspace', () => {
+		const site = createDemoSite();
+		site.structure.header.push({ ...site.structure.header[0], id: 'duplicate-home' });
+		const report = assessDemoSiteHealth(site);
+		expect(report.issues).toContainEqual(
+			expect.objectContaining({
+				code: 'structure_issue',
+				target: 'structure',
+				structureArea: 'header'
+			})
+		);
+	});
 });

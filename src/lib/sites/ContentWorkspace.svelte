@@ -23,7 +23,7 @@
 
 	let selectedPostId = $state('');
 	let query = $state('');
-	let statusFilter = $state<'all' | 'draft' | 'published'>('all');
+	let statusFilter = $state<'all' | DemoPost['status']>('all');
 	let deleteConfirmation = $state('');
 	let showDelete = $state(false);
 
@@ -47,7 +47,15 @@
 	const publishedCount = $derived(
 		(collection?.items ?? []).filter((post) => post.status === 'published').length
 	);
-	const draftCount = $derived((collection?.items ?? []).length - publishedCount);
+	const draftCount = $derived(
+		(collection?.items ?? []).filter((post) => post.status === 'draft').length
+	);
+	const scheduledCount = $derived(
+		(collection?.items ?? []).filter((post) => post.status === 'scheduled').length
+	);
+	const archivedCount = $derived(
+		(collection?.items ?? []).filter((post) => post.status === 'archived').length
+	);
 
 	$effect(() => {
 		if (!selectedPostId && collection?.items[0]) selectedPostId = collection.items[0].id;
@@ -102,6 +110,32 @@
 		updatePost((post) => (post.tags = tags));
 	}
 
+	function updateStatus(status: DemoPost['status']) {
+		updatePost((post) => {
+			post.status = status;
+			if (status === 'published') {
+				post.publishedAt ??= new Date().toISOString();
+				post.scheduledAt = null;
+			} else if (status === 'scheduled') {
+				post.publishedAt = null;
+				post.scheduledAt ??= new Date(Date.now() + 86_400_000).toISOString();
+			} else {
+				post.scheduledAt = null;
+				if (status === 'draft') post.publishedAt = null;
+			}
+		});
+	}
+
+	function updateSchedule(value: string) {
+		const timestamp = Date.parse(value);
+		if (!Number.isFinite(timestamp)) return;
+		updatePost((post) => {
+			post.status = 'scheduled';
+			post.publishedAt = null;
+			post.scheduledAt = new Date(timestamp).toISOString();
+		});
+	}
+
 	function addPost() {
 		const sequence = Date.now();
 		const post = createDemoPost(sequence, collection?.items ?? []);
@@ -142,6 +176,8 @@
 		</div>
 		<div><Check size={20} /><span><strong>{publishedCount}</strong> published</span></div>
 		<div><Clock3 size={20} /><span><strong>{draftCount}</strong> drafts</span></div>
+		<div><Clock3 size={20} /><span><strong>{scheduledCount}</strong> scheduled</span></div>
+		<div><FileText size={20} /><span><strong>{archivedCount}</strong> archived</span></div>
 	</section>
 
 	<div class="content-workspace">
@@ -151,7 +187,7 @@
 				<input bind:value={query} aria-label="Search posts" placeholder="Search posts" />
 			</div>
 			<div class="filters" aria-label="Filter posts">
-				{#each [['all', 'All'], ['published', 'Published'], ['draft', 'Drafts']] as option (option[0])}
+				{#each [['all', 'All'], ['published', 'Published'], ['scheduled', 'Scheduled'], ['draft', 'Drafts'], ['archived', 'Archived']] as option (option[0])}
 					<button
 						class:active={statusFilter === option[0]}
 						onclick={() => (statusFilter = option[0] as typeof statusFilter)}>{option[1]}</button
@@ -186,19 +222,12 @@
 							<span>Status</span>
 							<select
 								value={selectedPost.status}
-								onchange={(event) => {
-									const status = event.currentTarget.value as DemoPost['status'];
-									updatePost((post) => {
-										post.status = status;
-										post.publishedAt =
-											status === 'published'
-												? (post.publishedAt ?? new Date().toISOString())
-												: null;
-									});
-								}}
+								onchange={(event) => updateStatus(event.currentTarget.value as DemoPost['status'])}
 							>
 								<option value="draft">Draft</option>
+								<option value="scheduled">Scheduled</option>
 								<option value="published">Published</option>
+								<option value="archived">Archived</option>
 							</select>
 						</label>
 						<button
@@ -210,6 +239,31 @@
 						>
 					</div>
 				</header>
+				{#if selectedPost.status === 'scheduled'}
+					<div class="schedule-card">
+						<Clock3 size={18} />
+						<label>
+							<span>Planned publication time</span>
+							<input
+								type="datetime-local"
+								value={selectedPost.scheduledAt?.slice(0, 16) ?? ''}
+								onchange={(event) => updateSchedule(event.currentTarget.value)}
+							/>
+						</label>
+						<p>
+							Saved as a local editorial plan. It stays out of visitor pages and will not publish
+							automatically until a host scheduler is authorized.
+						</p>
+					</div>
+				{:else if selectedPost.status === 'archived'}
+					<div class="schedule-card archived-note">
+						<FileText size={18} />
+						<p>
+							Archived posts stay editable but are removed from every visitor collection and article
+							route.
+						</p>
+					</div>
+				{/if}
 
 				<div class="editor-grid">
 					<div class="editor-fields">
@@ -365,7 +419,7 @@
 	}
 	.content-stats {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: repeat(5, minmax(0, 1fr));
 		gap: 12px;
 		margin-bottom: 18px;
 	}
@@ -510,6 +564,30 @@
 	}
 	.editor-status label {
 		min-width: 130px;
+	}
+	.schedule-card {
+		display: grid;
+		grid-template-columns: auto minmax(220px, 320px) 1fr;
+		gap: 14px;
+		align-items: center;
+		margin: -4px 0 22px;
+		padding: 14px 16px;
+		color: #f1c460;
+		border: 1px solid #5b451c;
+		border-radius: 13px;
+		background: #20190d;
+	}
+	.schedule-card p {
+		margin: 0;
+		color: #c9b88f;
+		font-size: 13px;
+		line-height: 1.5;
+	}
+	.schedule-card.archived-note {
+		grid-template-columns: auto 1fr;
+		color: #9eb0a9;
+		border-color: #31443e;
+		background: #111a18;
 	}
 	.feature-button {
 		height: 43px;
@@ -687,6 +765,15 @@
 		cursor: not-allowed;
 	}
 	@media (max-width: 1000px) {
+		.content-stats {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.schedule-card {
+			grid-template-columns: auto 1fr;
+		}
+		.schedule-card p {
+			grid-column: 1 / -1;
+		}
 		.content-workspace {
 			grid-template-columns: 1fr;
 		}

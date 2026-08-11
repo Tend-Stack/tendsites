@@ -1,5 +1,6 @@
 import type { DemoSite } from './demo-site';
 import { normalizeCanonicalUrl } from './seo';
+import { analyzeSiteStructure } from './site-structure';
 
 export type SiteHealthIssue = {
 	code:
@@ -10,11 +11,13 @@ export type SiteHealthIssue = {
 		| 'missing_image_alt'
 		| 'invalid_canonical_url'
 		| 'missing_site_description'
-		| 'missing_page_description';
+		| 'missing_page_description'
+		| 'structure_issue';
 	severity: 'blocker' | 'attention';
 	pageId: string;
 	sectionId?: string;
-	target?: 'studio' | 'site-seo' | 'page-seo';
+	target?: 'studio' | 'site-seo' | 'page-seo' | 'structure';
+	structureArea?: 'header' | 'footer' | 'announcement' | 'not-found';
 	title: string;
 	guidance: string;
 };
@@ -117,6 +120,18 @@ export function assessDemoSiteHealth(site: DemoSite): SiteHealthReport {
 				});
 			}
 		}
+	}
+
+	for (const issue of analyzeSiteStructure(site.structure, site.pages)) {
+		issues.push({
+			code: 'structure_issue',
+			severity: 'attention',
+			pageId: site.pages[0]?.id ?? 'home',
+			target: 'structure',
+			structureArea: issue.area === 'social' ? 'footer' : issue.area,
+			title: 'Site navigation needs review',
+			guidance: issue.message
+		});
 	}
 
 	const blockers = issues.filter((issue) => issue.severity === 'blocker').length;

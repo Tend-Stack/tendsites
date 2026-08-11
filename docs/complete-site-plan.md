@@ -27,15 +27,25 @@ blocks where an adapter proves safe round-tripping.
       people need.
   - **Complete editing foundation:** A dedicated Content workspace provides post search, draft and
     published filters, title/address/summary/body/author/tag editing, reader preview, featured state,
-    explicit publication state, safe local autosave, and named-confirmation deletion. Scheduling,
-    cover-media selection, relationships, and entry SEO remain pending.
+    explicit publication state, safe local autosave, and named-confirmation deletion. Host
+    scheduling execution, cover-media selection, and relationships remain pending.
+  - **Complete editorial-state slice:** Posts can be draft, scheduled, published, or archived. A
+    scheduled timestamp is bounded and editable, but is explicitly a local plan until a host
+    scheduler exists. Scheduled and archived entries never enter visitor collections or routes.
 - [ ] Collection relationships so a home page can show latest posts, featured projects, related
       articles, category groups, and “read more” cards without duplicating content.
 - [ ] Navigation builder for header, footer, nested menus, external links, social links, and a
       visible not-found page.
+  - **Complete primary structure slice:** A dedicated workspace controls ordered header/footer page
+    links, safe HTTPS/mail external links, labelled social links, and editable 404 recovery. The
+    visitor preview renders a purpose-built mobile menu. Nested menus remain pending.
 - [ ] Reusable global sections for headers, footers, announcements, calls to action, and contact
       details, with clear “used on these pages” evidence before editing.
+  - **Complete global-shell slice:** Header, footer, optional linked announcement, and not-found
+    recovery are shared site structure rather than duplicated page sections.
 - [ ] Draft, scheduled, published, archived, and redirect states with truthful visitor behavior.
+  - **Complete local content-state slice:** All four post states are editable and only published
+    entries appear to visitors. Redirects remain review-only until repository publication exists.
 
 ## Visual writing and insertable content
 
@@ -62,6 +72,8 @@ blocks where an adapter proves safe round-tripping.
 - [ ] Goal-based template gallery for blog, portfolio, documentation, business, landing page,
       newsletter, restaurant, event, community, and personal sites.
 - [ ] Full-page and section previews at desktop, tablet, and phone widths before selection.
+  - **Complete full-page width slice:** The interactive visitor preview switches between bounded
+    desktop, tablet, and phone frames and exposes the mobile navigation composition.
 - [ ] Template families with coordinated page types, collection schemas, navigation, sample content,
       and empty states—not merely visual skins.
 - [ ] Safe template updates that preserve user content, show structural changes, and allow rollback.
@@ -114,6 +126,9 @@ blocks where an adapter proves safe round-tripping.
   - **Complete journal navigation slice:** The visitor journal includes a keyboard-visible skip
     link, semantic breadcrumbs, responsive controls, and explicit focus targets. Complete template
     library coverage, reduced-motion review, and high-contrast certification remain pending.
+  - **Complete site-shell navigation slice:** Header/footer links, mobile menu, announcement, and
+    missing-page recovery use semantic controls, visible focus, and the component's reduced-motion
+    policy. Complete template-library certification remains pending.
 - [ ] Fast image delivery, lazy loading, stable layouts, route prefetch policy, and honest Core Web
       Vitals guidance.
 - [ ] Site search, category/tag browsing, pagination, breadcrumbs, related content, previous/next

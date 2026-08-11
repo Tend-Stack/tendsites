@@ -58,6 +58,7 @@
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import PostFeed from './PostFeed.svelte';
 	import SeoWorkspace, { type SeoArea } from './SeoWorkspace.svelte';
+	import StructureWorkspace, { type StructureArea } from './StructureWorkspace.svelte';
 	import VisitorForm from './VisitorForm.svelte';
 	import VisitorJournal from './VisitorJournal.svelte';
 	import { goals, modules, projects, themes } from './fixtures';
@@ -94,10 +95,12 @@
 		type DemoTheme
 	} from './library-catalog';
 	import { normalizeRichTextLink, renderRichMarkdown, richElementToMarkdown } from './rich-text';
+	import { resolveAnnouncementHref, resolveNavigationHref } from './site-structure';
 
 	type View =
 		| 'home'
 		| 'content'
+		| 'structure'
 		| 'create'
 		| 'adopt'
 		| 'studio'
@@ -120,6 +123,7 @@
 	let mobileMenu = $state(false);
 	let readinessArea = $state<ReadinessArea>('overview');
 	let seoArea = $state<SeoArea>('overview');
+	let structureArea = $state<StructureArea>('overview');
 	let seoPageId = $state('home');
 	let siteDraft = $state<DemoSite>(createDemoSite());
 	let selectedPageId = $state('home');
@@ -129,6 +133,8 @@
 	let showAddPage = $state(false);
 	let showAddSection = $state(false);
 	let showPreview = $state(false);
+	let previewViewport = $state<'desktop' | 'tablet' | 'phone'>('desktop');
+	let previewNotFound = $state(false);
 	let previewPostId = $state<string | null>(null);
 	let showDraftRecovery = $state(false);
 	let recoveryBusy = $state(false);
@@ -389,6 +395,15 @@
 			const fallback = siteDraft.pages.find((page) => page.id !== targetId);
 			changeDraft((next) => {
 				next.pages = next.pages.filter((page) => page.id !== targetId);
+				next.structure.header = next.structure.header.filter(
+					(item) => item.type !== 'page' || item.pageId !== targetId
+				);
+				next.structure.footer = next.structure.footer.filter(
+					(item) => item.type !== 'page' || item.pageId !== targetId
+				);
+				if (next.structure.notFound.pageId === targetId) {
+					next.structure.notFound.pageId = next.pages[0]?.id ?? '';
+				}
 			});
 			if (fallback) selectPage(fallback.id);
 		} else {
@@ -733,6 +748,11 @@
 	}
 
 	function openHealthIssue(issue: SiteHealthIssue) {
+		if (issue.target === 'structure') {
+			structureArea = issue.structureArea ?? 'overview';
+			open('structure');
+			return;
+		}
 		if (issue.target === 'site-seo' || issue.target === 'page-seo') {
 			seoArea = issue.target === 'site-seo' ? 'site' : 'pages';
 			seoPageId = issue.pageId;
@@ -765,6 +785,12 @@
 	function open(next: View) {
 		view = next;
 		mobileMenu = false;
+	}
+
+	function openPreviewPage(pageId: string) {
+		previewPostId = null;
+		previewNotFound = false;
+		selectPage(pageId);
 	}
 
 	function moveSelectedBlock(direction: 'up' | 'down', sectionId = selectedSectionId) {
@@ -839,6 +865,12 @@
 				aria-label="Content"
 				title="Content"
 				onclick={() => open('content')}><FileText size={17} /><span>Content</span></button
+			>
+			<button
+				class:active={view === 'structure'}
+				aria-label="Structure"
+				title="Structure"
+				onclick={() => open('structure')}><Menu size={17} /><span>Structure</span></button
 			>
 			<button
 				class:active={view === 'library'}
@@ -953,6 +985,12 @@
 		</main>
 	{:else if view === 'content'}
 		<ContentWorkspace site={siteDraft} onchange={changeDraft} />
+	{:else if view === 'structure'}
+		<StructureWorkspace
+			site={siteDraft}
+			onchange={(next) => changeDraft((draft) => Object.assign(draft, next))}
+			bind:area={structureArea}
+		/>
 	{:else if view === 'create'}
 		<main class="page wizard-page">
 			<button class="back-link" onclick={() => open('home')}
@@ -2115,7 +2153,7 @@
 		{#if showPreview}
 			<div class="modal-backdrop preview-backdrop" role="presentation">
 				<div
-					class="site-preview-modal"
+					class="site-preview-modal {previewViewport}"
 					role="dialog"
 					aria-modal="true"
 					aria-label="Full example website preview"
@@ -2123,6 +2161,20 @@
 					<header>
 						<div>
 							<strong>Interactive preview</strong><span>Panel-local draft · not published</span>
+						</div>
+						<div class="preview-controls" role="group" aria-label="Preview width">
+							{#each ['desktop', 'tablet', 'phone'] as width (width)}
+								<button
+									class:active={previewViewport === width}
+									aria-label="{width} preview"
+									onclick={() => (previewViewport = width as typeof previewViewport)}
+									>{width}</button
+								>
+							{/each}
+							<button
+								class:active={previewNotFound}
+								onclick={() => (previewNotFound = !previewNotFound)}>404 page</button
+							>
 						</div>
 						<button
 							class="modal-close"
@@ -2136,19 +2188,65 @@
 						style:--site-paper={activeTheme.paper}
 						style:--site-ink={activeTheme.ink}
 					>
+						{#if siteDraft.structure.announcement.enabled}
+							{@const announcementHref = resolveAnnouncementHref(
+								siteDraft.structure.announcement.href,
+								siteDraft.pages
+							)}
+							<div class="visitor-announcement">
+								<span>{siteDraft.structure.announcement.text}</span>
+								{#if announcementHref?.startsWith('/')}
+									{@const announcementPage = siteDraft.pages.find(
+										(page) => page.slug === announcementHref
+									)}
+									{#if announcementPage}<button onclick={() => openPreviewPage(announcementPage.id)}
+											>Read more</button
+										>{/if}
+								{:else if announcementHref}
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+									<a href={announcementHref} target="_blank" rel="noopener noreferrer">Read more</a>
+								{/if}
+							</div>
+						{/if}
 						<nav>
 							<strong>{siteDraft.name}</strong>
-							<div>
-								{#each siteDraft.pages as page (page.id)}<button
-										class:active={selectedPageId === page.id}
-										onclick={() => {
-											previewPostId = null;
-											selectPage(page.id);
-										}}>{page.name}</button
-									>{/each}
+							<div class="visitor-desktop-nav">
+								{#each siteDraft.structure.header as item (item.id)}
+									{@const href = resolveNavigationHref(item, siteDraft.pages)}
+									{#if item.type === 'page' && item.pageId}<button
+											class:active={!previewNotFound && selectedPageId === item.pageId}
+											onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
+										>{:else if href}
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+										<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
+									{/if}
+								{/each}
 							</div>
+							<details class="visitor-mobile-nav">
+								<summary>Menu</summary>
+								<div>
+									{#each siteDraft.structure.header as item (item.id)}
+										{@const href = resolveNavigationHref(item, siteDraft.pages)}
+										{#if item.type === 'page' && item.pageId}<button
+												onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
+											>{:else if href}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+											<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
+										{/if}
+									{/each}
+								</div>
+							</details>
 						</nav>
-						{#if previewPostId !== null || selectedPage?.id === 'journal'}
+						{#if previewNotFound}
+							<section class="visitor-not-found">
+								<small>404 · PAGE NOT FOUND</small>
+								<h1>{siteDraft.structure.notFound.title}</h1>
+								<p>{siteDraft.structure.notFound.body}</p>
+								<button onclick={() => openPreviewPage(siteDraft.structure.notFound.pageId)}
+									>{siteDraft.structure.notFound.actionLabel}</button
+								>
+							</section>
+						{:else if previewPostId !== null || selectedPage?.id === 'journal'}
 							<VisitorJournal site={siteDraft} bind:postId={previewPostId} />
 						{:else}
 							{#each selectedPage?.sections ?? [] as section (section.id)}
@@ -2208,7 +2306,26 @@
 							{/each}
 						{/if}
 						<footer>
-							<strong>{siteDraft.name}</strong><span>Example site created in TEND Sites</span>
+							<div>
+								<strong>{siteDraft.name}</strong><span>Example site created in TEND Sites</span>
+							</div>
+							<nav aria-label="Footer navigation">
+								{#each siteDraft.structure.footer as item (item.id)}
+									{@const href = resolveNavigationHref(item, siteDraft.pages)}
+									{#if item.type === 'page' && item.pageId}<button
+											onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
+										>{:else if href}
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+										<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
+									{/if}
+								{/each}
+							</nav>
+							<div class="visitor-social">
+								{#each siteDraft.structure.social as item (item.id)}
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+									<a href={item.href} target="_blank" rel="noopener noreferrer">{item.label}</a>
+								{/each}
+							</div>
 						</footer>
 					</div>
 				</div>
@@ -4679,6 +4796,12 @@
 		background: #0d1517;
 		box-shadow: 0 35px 100px #000;
 	}
+	.site-preview-modal.tablet {
+		width: min(820px, 100%);
+	}
+	.site-preview-modal.phone {
+		width: min(430px, 100%);
+	}
 	.site-preview-modal > header {
 		position: relative;
 		display: flex;
@@ -4696,9 +4819,48 @@
 		color: var(--muted);
 		font-size: 11px;
 	}
+	.preview-controls {
+		display: flex !important;
+		gap: 4px !important;
+		margin-right: 6px;
+	}
+	.preview-controls button {
+		padding: 7px 9px;
+		color: #91a49c;
+		font-size: 11px;
+		text-transform: capitalize;
+		border: 1px solid #293a35;
+		border-radius: 7px;
+		background: #10191b;
+	}
+	.preview-controls button.active {
+		color: #082219;
+		border-color: var(--green);
+		background: var(--green);
+	}
 	.full-demo-site {
 		color: var(--site-ink);
 		background: var(--site-paper);
+	}
+	.visitor-announcement {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 18px;
+		color: #11241c;
+		font-size: 13px;
+		font-weight: 700;
+		background: var(--accent);
+	}
+	.visitor-announcement button,
+	.visitor-announcement a {
+		padding: 0;
+		color: inherit;
+		font-weight: 900;
+		text-decoration: underline;
+		border: 0;
+		background: transparent;
 	}
 	.full-demo-site > nav {
 		display: flex;
@@ -4720,9 +4882,76 @@
 		border-radius: 8px;
 		cursor: pointer;
 	}
+	.full-demo-site nav a {
+		display: inline-flex;
+		align-items: center;
+		padding: 8px 10px;
+		color: #40544c;
+		font-size: 13px;
+		text-decoration: none;
+		border-radius: 8px;
+	}
 	.full-demo-site nav button.active {
 		color: #0b3b2a;
 		background: color-mix(in srgb, var(--accent) 25%, transparent);
+	}
+	.visitor-mobile-nav {
+		display: none;
+		position: relative;
+	}
+	.visitor-mobile-nav summary {
+		padding: 8px 10px;
+		color: #40544c;
+		font-weight: 800;
+		cursor: pointer;
+	}
+	.visitor-mobile-nav > div {
+		position: absolute;
+		right: 0;
+		top: calc(100% + 8px);
+		display: grid !important;
+		min-width: 180px;
+		padding: 8px;
+		border: 1px solid #cfd8d1;
+		border-radius: 10px;
+		background: var(--site-paper);
+		box-shadow: 0 15px 40px #10201830;
+		z-index: 4;
+	}
+	.visitor-not-found {
+		display: grid;
+		align-content: center;
+		justify-items: center;
+		min-height: 520px;
+		padding: clamp(45px, 9vw, 110px);
+		text-align: center;
+	}
+	.visitor-not-found small {
+		color: #147650;
+		font-weight: 900;
+		letter-spacing: 0.13em;
+	}
+	.visitor-not-found h1 {
+		max-width: 760px;
+		margin: 20px 0 12px;
+		font:
+			500 clamp(38px, 7vw, 76px) / 1 Georgia,
+			serif;
+	}
+	.visitor-not-found p {
+		max-width: 600px;
+		color: #506159;
+		font-size: 18px;
+		line-height: 1.6;
+	}
+	.visitor-not-found button {
+		margin-top: 18px;
+		padding: 12px 18px;
+		color: #102219;
+		font-weight: 800;
+		border: 0;
+		border-radius: 999px;
+		background: var(--accent);
 	}
 	.preview-section {
 		display: grid;
@@ -4798,6 +5027,43 @@
 		padding: 30px clamp(24px, 6vw, 80px);
 		color: #cde0d7;
 		background: var(--site-ink);
+	}
+	.full-demo-site footer > div:first-child {
+		display: grid;
+		gap: 5px;
+	}
+	.full-demo-site footer nav,
+	.visitor-social {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.full-demo-site footer nav button,
+	.full-demo-site footer nav a,
+	.visitor-social a {
+		padding: 5px 7px;
+		color: #cde0d7;
+		font-size: 12px;
+		text-decoration: none;
+		border: 0;
+		background: transparent;
+	}
+	.site-preview-modal.phone .visitor-desktop-nav,
+	.site-preview-modal.tablet .visitor-desktop-nav {
+		display: none;
+	}
+	.site-preview-modal.phone .visitor-mobile-nav,
+	.site-preview-modal.tablet .visitor-mobile-nav {
+		display: block;
+	}
+	.site-preview-modal.phone .preview-section {
+		grid-template-columns: 1fr;
+		min-height: auto;
+		padding: 38px 24px;
+	}
+	.site-preview-modal.phone .full-demo-site footer {
+		align-items: flex-start;
+		flex-direction: column;
 	}
 	.filter-row {
 		display: flex;
@@ -5028,6 +5294,24 @@
 	}
 
 	@media (max-width: 900px) {
+		.site-preview-modal > header {
+			align-items: flex-start;
+			flex-direction: column;
+			padding-right: 62px;
+		}
+		.preview-controls {
+			flex-wrap: wrap;
+		}
+		.visitor-desktop-nav {
+			display: none !important;
+		}
+		.visitor-mobile-nav {
+			display: block;
+		}
+		.full-demo-site footer {
+			align-items: flex-start;
+			flex-direction: column;
+		}
 		.hero-row {
 			align-items: start;
 			flex-direction: column;

@@ -83,6 +83,16 @@ describe('interactive demo site', () => {
 		expect(postsForSection(site, section).map((post) => post.slug)).toEqual([
 			'morning-at-the-lake'
 		]);
+		site.collections[0].items[0].status = 'scheduled';
+		site.collections[0].items[0].scheduledAt = '2030-01-01T12:00:00.000Z';
+		expect(postsForSection(site, section).map((post) => post.slug)).toEqual([
+			'morning-at-the-lake'
+		]);
+		site.collections[0].items[0].status = 'archived';
+		site.collections[0].items[0].scheduledAt = null;
+		expect(postsForSection(site, section).map((post) => post.slug)).toEqual([
+			'morning-at-the-lake'
+		]);
 	});
 
 	it('rejects malformed or unbounded persisted drafts', () => {
@@ -121,16 +131,26 @@ describe('interactive demo site', () => {
 
 	it('upgrades v0.9 drafts with safe discovery defaults', () => {
 		const legacy = structuredClone(createDemoSite()) as unknown as Record<string, unknown>;
+		delete legacy.structure;
 		const legacySeo = legacy.seo as Record<string, unknown>;
 		delete legacySeo.locale;
 		delete legacySeo.favicon;
 		delete legacy.redirects;
 		const collection = (legacy.collections as Array<{ items: Array<Record<string, unknown>> }>)[0];
-		for (const post of collection.items) delete post.seo;
+		for (const post of collection.items) {
+			delete post.seo;
+			delete post.scheduledAt;
+		}
 		const upgraded = upgradeDemoSite(legacy);
 		expect(upgraded?.seo.locale).toBe('en-US');
 		expect(upgraded?.redirects).toEqual([]);
 		expect(upgraded?.collections[0].items.every((post) => post.seo.title.length > 0)).toBe(true);
+		expect(upgraded?.collections[0].items.every((post) => post.scheduledAt === null)).toBe(true);
+		expect(upgraded?.structure.header.map((item) => item.label)).toEqual([
+			'Home',
+			'About',
+			'Journal'
+		]);
 	});
 
 	it('normalizes and de-duplicates friendly page addresses', () => {

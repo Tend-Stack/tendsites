@@ -4,6 +4,11 @@ import weekendLakeImage from '../assets/demo/weekend-lake.png';
 
 import type { DemoThemeId } from './library-catalog';
 import { isEmbedReference, type EmbedReference } from './embed';
+import {
+	createDefaultSiteStructure,
+	isDemoSiteStructure,
+	type DemoSiteStructure
+} from './site-structure';
 
 export type DemoSectionKind =
 	'hero' | 'story' | 'post-feed' | 'gallery' | 'quote' | 'newsletter' | 'embed' | 'form';
@@ -59,7 +64,7 @@ export type DemoSiteSeo = {
 
 export type DemoEntrySeo = DemoPageSeo;
 
-export type DemoPostStatus = 'draft' | 'published';
+export type DemoPostStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 
 export type DemoPost = {
 	id: string;
@@ -74,6 +79,7 @@ export type DemoPost = {
 	status: DemoPostStatus;
 	featured: boolean;
 	publishedAt: string | null;
+	scheduledAt: string | null;
 	seo: DemoEntrySeo;
 };
 
@@ -101,6 +107,7 @@ export type DemoSite = {
 	pages: DemoPage[];
 	collections: DemoCollection[];
 	redirects: DemoRedirect[];
+	structure: DemoSiteStructure;
 };
 
 export function createDefaultSiteSeo(name: string, tagline: string): DemoSiteSeo {
@@ -233,6 +240,7 @@ export function createDemoCollections(): DemoCollection[] {
 					status: 'published',
 					featured: true,
 					publishedAt: '2026-08-02T14:00:00.000Z',
+					scheduledAt: null,
 					seo: createDefaultEntrySeo(
 						'Field Notes from the long way home',
 						'A weekend route, a camera, and a few places that deserved more than a drive-by.',
@@ -252,6 +260,7 @@ export function createDemoCollections(): DemoCollection[] {
 					status: 'published',
 					featured: false,
 					publishedAt: '2026-07-26T13:30:00.000Z',
+					scheduledAt: null,
 					seo: createDefaultEntrySeo(
 						'Morning at the lake',
 						'Mist, still water, and the first trail before breakfast.',
@@ -271,6 +280,7 @@ export function createDemoCollections(): DemoCollection[] {
 					status: 'draft',
 					featured: false,
 					publishedAt: null,
+					scheduledAt: null,
 					seo: createDefaultEntrySeo(
 						'A cabin reading list',
 						'Books and field guides for a rainy weekend in the woods.',
@@ -296,6 +306,7 @@ export function createDemoPost(sequence: number, posts: DemoPost[]): DemoPost {
 		status: 'draft',
 		featured: false,
 		publishedAt: null,
+		scheduledAt: null,
 		seo: createDefaultEntrySeo(
 			title,
 			'Add a short description that helps readers decide what this story is about.'
@@ -501,7 +512,7 @@ export function createDemoSite(): DemoSite {
 		...page,
 		seo: createDefaultPageSeo(page.name, page.sections)
 	}));
-	return {
+	const site: DemoSite = {
 		name: 'Willow Journal',
 		tagline: 'Stories, sound and places worth remembering.',
 		accent: '#d88152',
@@ -509,8 +520,10 @@ export function createDemoSite(): DemoSite {
 		seo: createDefaultSiteSeo('Willow Journal', 'Stories, sound and places worth remembering.'),
 		pages,
 		collections: createDemoCollections(),
-		redirects: []
+		redirects: [],
+		structure: createDefaultSiteStructure(pages)
 	};
+	return site;
 }
 
 export function cloneDemoSite(site: DemoSite): DemoSite {
@@ -526,34 +539,39 @@ export function upgradeDemoSite(value: unknown): DemoSite | null {
 	if (!Array.isArray(legacy.pages)) return null;
 	const name = typeof legacy.name === 'string' ? legacy.name : '';
 	const tagline = typeof legacy.tagline === 'string' ? legacy.tagline : '';
+	const upgradedPages = legacy.pages.map((value) => {
+		if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+		const page = value as Record<string, unknown>;
+		return {
+			...page,
+			seo:
+				page.seo ??
+				createDefaultPageSeo(
+					typeof page.name === 'string' ? page.name : '',
+					Array.isArray(page.sections) ? (page.sections as DemoSection[]) : [],
+					tagline
+				)
+		};
+	});
 	const upgraded = {
 		...legacy,
 		seo: {
 			...createDefaultSiteSeo(name, tagline),
 			...(legacy.seo && typeof legacy.seo === 'object' ? legacy.seo : {})
 		},
-		pages: legacy.pages.map((value) => {
-			if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-			const page = value as Record<string, unknown>;
-			return {
-				...page,
-				seo:
-					page.seo ??
-					createDefaultPageSeo(
-						typeof page.name === 'string' ? page.name : '',
-						Array.isArray(page.sections) ? (page.sections as DemoSection[]) : [],
-						tagline
-					)
-			};
-		}),
+		pages: upgradedPages,
 		collections: (legacy.collections ?? createDemoCollections()) as DemoCollection[],
-		redirects: legacy.redirects ?? []
+		redirects: legacy.redirects ?? [],
+		structure: legacy.structure ?? createDefaultSiteStructure(upgradedPages as DemoPage[])
 	};
 	for (const collection of upgraded.collections) {
 		if (!collection || !Array.isArray(collection.items)) continue;
 		for (const post of collection.items) {
 			if (post && typeof post === 'object' && !post.seo) {
 				post.seo = createDefaultEntrySeo(post.title ?? '', post.summary ?? '', post.coverImage);
+			}
+			if (post && typeof post === 'object' && post.scheduledAt === undefined) {
+				post.scheduledAt = null;
 			}
 		}
 	}
@@ -609,7 +627,8 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		candidate.collections.length > 12 ||
 		!Array.isArray(candidate.redirects) ||
 		candidate.redirects.length > 50 ||
-		!isDemoSiteSeo(candidate.seo)
+		!isDemoSiteSeo(candidate.seo) ||
+		!isDemoSiteStructure(candidate.structure, candidate.pages)
 	)
 		return false;
 	if (
@@ -697,11 +716,16 @@ export function isDemoSite(value: unknown): value is DemoSite {
 				!Array.isArray(post.tags) ||
 				post.tags.length > 20 ||
 				!post.tags.every((tag) => typeof tag === 'string' && tag.length <= 40) ||
-				!['draft', 'published'].includes(post.status) ||
+				!['draft', 'scheduled', 'published', 'archived'].includes(post.status) ||
 				typeof post.featured !== 'boolean' ||
 				(post.publishedAt !== null &&
 					(typeof post.publishedAt !== 'string' ||
 						!Number.isFinite(Date.parse(post.publishedAt)))) ||
+				(post.scheduledAt !== null &&
+					(typeof post.scheduledAt !== 'string' ||
+						!Number.isFinite(Date.parse(post.scheduledAt)))) ||
+				(post.status === 'scheduled' && post.scheduledAt === null) ||
+				(post.status !== 'scheduled' && post.scheduledAt !== null) ||
 				(post.coverImage !== undefined && typeof post.coverImage !== 'string') ||
 				(post.coverImageAlt !== undefined && typeof post.coverImageAlt !== 'string') ||
 				!isDemoPageSeo(post.seo)
