@@ -4,7 +4,11 @@ import {
 	analyzeSiteStructure,
 	createDefaultSiteStructure,
 	isDemoSiteStructure,
+	navigationChildren,
+	navigationRoots,
 	normalizeExternalHref,
+	removeNavigationItem,
+	removeNavigationPage,
 	resolveAnnouncementHref,
 	resolveNavigationHref
 } from './site-structure';
@@ -46,6 +50,43 @@ describe('site structure', () => {
 			'header',
 			'announcement'
 		]);
+	});
+
+	it('supports one bounded nested navigation level and promotes orphaned children', () => {
+		const structure = createDefaultSiteStructure(pages);
+		structure.header[1].parentId = structure.header[0].id;
+		expect(isDemoSiteStructure(structure, pages)).toBe(true);
+		expect(navigationRoots(structure.header).map((item) => item.label)).toEqual(['Home']);
+		expect(navigationChildren(structure.header, structure.header[0].id)[0].label).toBe('Journal');
+
+		const promoted = removeNavigationItem(structure.header, structure.header[0].id);
+		expect(promoted).toHaveLength(1);
+		expect(promoted[0].parentId).toBeUndefined();
+
+		const pageRemoved = removeNavigationPage(structure.header, 'home');
+		expect(pageRemoved).toHaveLength(1);
+		expect(pageRemoved[0].parentId).toBeUndefined();
+	});
+
+	it('rejects missing parents, duplicate IDs, and navigation deeper than one submenu', () => {
+		const missing = createDefaultSiteStructure(pages);
+		missing.header[1].parentId = 'missing';
+		expect(isDemoSiteStructure(missing, pages)).toBe(false);
+
+		const duplicate = createDefaultSiteStructure(pages);
+		duplicate.header[1].id = duplicate.header[0].id;
+		expect(isDemoSiteStructure(duplicate, pages)).toBe(false);
+
+		const deep = createDefaultSiteStructure(pages);
+		deep.header.push({
+			id: 'third',
+			label: 'Third',
+			type: 'external',
+			href: 'https://example.com'
+		});
+		deep.header[1].parentId = deep.header[0].id;
+		deep.header[2].parentId = deep.header[1].id;
+		expect(isDemoSiteStructure(deep, pages)).toBe(false);
 	});
 
 	it('rejects missing pages, unsafe social links, and unbounded navigation', () => {

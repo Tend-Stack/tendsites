@@ -17,7 +17,9 @@
 	import { cloneDemoSite, type DemoSite } from './demo-site';
 	import {
 		analyzeSiteStructure,
+		navigationChildren,
 		normalizeExternalHref,
+		removeNavigationItem,
 		resolveAnnouncementHref,
 		type DemoNavigationItem
 	} from './site-structure';
@@ -80,16 +82,33 @@
 	function moveItem(areaName: 'header' | 'footer', id: string, direction: -1 | 1) {
 		update((draft) => {
 			const items = draft.structure[areaName];
-			const index = items.findIndex((item) => item.id === id);
-			const destination = index + direction;
-			if (index < 0 || destination < 0 || destination >= items.length) return;
+			const item = items.find((candidate) => candidate.id === id);
+			if (!item) return;
+			const siblings = items.filter((candidate) => candidate.parentId === item.parentId);
+			const siblingIndex = siblings.findIndex((candidate) => candidate.id === id);
+			const siblingDestination = siblingIndex + direction;
+			if (siblingDestination < 0 || siblingDestination >= siblings.length) return;
+			const index = items.findIndex((candidate) => candidate.id === id);
+			const destination = items.findIndex(
+				(candidate) => candidate.id === siblings[siblingDestination].id
+			);
 			[items[index], items[destination]] = [items[destination], items[index]];
 		});
 	}
 
 	function removeItem(areaName: 'header' | 'footer', id: string) {
 		update((draft) => {
-			draft.structure[areaName] = draft.structure[areaName].filter((item) => item.id !== id);
+			draft.structure[areaName] = removeNavigationItem(draft.structure[areaName], id);
+		});
+	}
+
+	function setParent(areaName: 'header' | 'footer', id: string, parentId: string) {
+		update((draft) => {
+			const items = draft.structure[areaName];
+			const item = items.find((candidate) => candidate.id === id);
+			if (!item || navigationChildren(items, id).length > 0) return;
+			const parent = items.find((candidate) => candidate.id === parentId);
+			item.parentId = parent && parent.parentId === undefined ? parent.id : undefined;
 		});
 	}
 
@@ -225,7 +244,7 @@
 			<div class="section-heading">
 				<div>
 					<span>{areaName === 'header' ? 'Primary navigation' : 'Footer navigation'}</span>
-					<h2>Choose pages and put them in a useful order.</h2>
+					<h2>Choose pages, order them, and optionally create one submenu level.</h2>
 				</div>
 			</div>
 			<div class="page-toggles" aria-label="Available pages">
@@ -240,7 +259,12 @@
 			</div>
 			<div class="link-list">
 				{#each site.structure[areaName] as item, index (item.id)}
-					<article>
+					{@const siblings = site.structure[areaName].filter(
+						(candidate) => candidate.parentId === item.parentId
+					)}
+					{@const siblingIndex = siblings.findIndex((candidate) => candidate.id === item.id)}
+					{@const hasChildren = navigationChildren(site.structure[areaName], item.id).length > 0}
+					<article class:nested={item.parentId !== undefined}>
 						<span class="drag-number">{index + 1}</span>
 						<label
 							>Visitor label<input
@@ -250,15 +274,27 @@
 							/></label
 						>
 						<span class="destination">{destination(item)}</span>
+						<label class="parent-choice"
+							>Menu level<select
+								aria-label="Menu level for {item.label}"
+								disabled={hasChildren}
+								value={item.parentId ?? ''}
+								onchange={(event) => setParent(areaName, item.id, event.currentTarget.value)}
+								><option value="">Top level</option
+								>{#each site.structure[areaName].filter((candidate) => candidate.id !== item.id && candidate.parentId === undefined) as parent (parent.id)}<option
+										value={parent.id}>Under {parent.label}</option
+									>{/each}</select
+							>{#if hasChildren}<small>Contains submenu links</small>{/if}</label
+						>
 						<div>
 							<button
 								aria-label="Move {item.label} up"
-								disabled={index === 0}
+								disabled={siblingIndex === 0}
 								onclick={() => moveItem(areaName, item.id, -1)}><ArrowUp size={15} /></button
 							>
 							<button
 								aria-label="Move {item.label} down"
-								disabled={index === site.structure[areaName].length - 1}
+								disabled={siblingIndex === siblings.length - 1}
 								onclick={() => moveItem(areaName, item.id, 1)}><ArrowDown size={15} /></button
 							>
 							<button aria-label="Remove {item.label}" onclick={() => removeItem(areaName, item.id)}
@@ -583,13 +619,21 @@
 	}
 	.link-list article {
 		display: grid;
-		grid-template-columns: auto minmax(180px, 1fr) minmax(160px, 1fr) auto;
+		grid-template-columns: auto minmax(170px, 1fr) minmax(140px, 0.8fr) minmax(170px, 0.8fr) auto;
 		gap: 12px;
 		align-items: center;
 		padding: 12px;
 		border: 1px solid #253732;
 		border-radius: 13px;
 		background: #0a1214;
+	}
+	.link-list article.nested {
+		margin-left: 34px;
+		border-left: 3px solid #56e6ad66;
+	}
+	.parent-choice small {
+		color: #789087;
+		font-weight: 500;
 	}
 	.drag-number {
 		display: grid;

@@ -95,7 +95,13 @@
 		type DemoTheme
 	} from './library-catalog';
 	import { normalizeRichTextLink, renderRichMarkdown, richElementToMarkdown } from './rich-text';
-	import { resolveAnnouncementHref, resolveNavigationHref } from './site-structure';
+	import {
+		navigationChildren,
+		navigationRoots,
+		removeNavigationPage,
+		resolveAnnouncementHref,
+		resolveNavigationHref
+	} from './site-structure';
 
 	type View =
 		| 'home'
@@ -395,12 +401,8 @@
 			const fallback = siteDraft.pages.find((page) => page.id !== targetId);
 			changeDraft((next) => {
 				next.pages = next.pages.filter((page) => page.id !== targetId);
-				next.structure.header = next.structure.header.filter(
-					(item) => item.type !== 'page' || item.pageId !== targetId
-				);
-				next.structure.footer = next.structure.footer.filter(
-					(item) => item.type !== 'page' || item.pageId !== targetId
-				);
+				next.structure.header = removeNavigationPage(next.structure.header, targetId);
+				next.structure.footer = removeNavigationPage(next.structure.footer, targetId);
 				if (next.structure.notFound.pageId === targetId) {
 					next.structure.notFound.pageId = next.pages[0]?.id ?? '';
 				}
@@ -2211,28 +2213,63 @@
 						<nav>
 							<strong>{siteDraft.name}</strong>
 							<div class="visitor-desktop-nav">
-								{#each siteDraft.structure.header as item (item.id)}
+								{#each navigationRoots(siteDraft.structure.header) as item (item.id)}
 									{@const href = resolveNavigationHref(item, siteDraft.pages)}
-									{#if item.type === 'page' && item.pageId}<button
-											class:active={!previewNotFound && selectedPageId === item.pageId}
-											onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
-										>{:else if href}
-										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
-										<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
-									{/if}
+									{@const children = navigationChildren(siteDraft.structure.header, item.id)}
+									<div class="visitor-nav-entry" class:has-submenu={children.length > 0}>
+										{#if item.type === 'page' && item.pageId}<button
+												class:active={!previewNotFound && selectedPageId === item.pageId}
+												onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
+											>{:else if href}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+											<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
+										{/if}
+										{#if children.length}
+											<details class="visitor-submenu">
+												<summary aria-label="Open {item.label} submenu">⌄</summary>
+												<div>
+													{#each children as child (child.id)}
+														{@const childHref = resolveNavigationHref(child, siteDraft.pages)}
+														{#if child.type === 'page' && child.pageId}<button
+																onclick={() => openPreviewPage(child.pageId!)}>{child.label}</button
+															>{:else if childHref}
+															<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+															<a href={childHref} target="_blank" rel="noopener noreferrer"
+																>{child.label}</a
+															>
+														{/if}
+													{/each}
+												</div>
+											</details>
+										{/if}
+									</div>
 								{/each}
 							</div>
 							<details class="visitor-mobile-nav">
 								<summary>Menu</summary>
 								<div>
-									{#each siteDraft.structure.header as item (item.id)}
+									{#each navigationRoots(siteDraft.structure.header) as item (item.id)}
 										{@const href = resolveNavigationHref(item, siteDraft.pages)}
+										{@const children = navigationChildren(siteDraft.structure.header, item.id)}
 										{#if item.type === 'page' && item.pageId}<button
 												onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
 											>{:else if href}
 											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
 											<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
 										{/if}
+										{#if children.length}<div class="visitor-mobile-submenu">
+												{#each children as child (child.id)}
+													{@const childHref = resolveNavigationHref(child, siteDraft.pages)}
+													{#if child.type === 'page' && child.pageId}<button
+															onclick={() => openPreviewPage(child.pageId!)}>{child.label}</button
+														>{:else if childHref}
+														<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+														<a href={childHref} target="_blank" rel="noopener noreferrer"
+															>{child.label}</a
+														>
+													{/if}
+												{/each}
+											</div>{/if}
 									{/each}
 								</div>
 							</details>
@@ -2310,14 +2347,33 @@
 								<strong>{siteDraft.name}</strong><span>Example site created in TEND Sites</span>
 							</div>
 							<nav aria-label="Footer navigation">
-								{#each siteDraft.structure.footer as item (item.id)}
+								{#each navigationRoots(siteDraft.structure.footer) as item (item.id)}
 									{@const href = resolveNavigationHref(item, siteDraft.pages)}
-									{#if item.type === 'page' && item.pageId}<button
-											onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
-										>{:else if href}
-										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
-										<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
-									{/if}
+									{@const children = navigationChildren(siteDraft.structure.footer, item.id)}
+									<span class="footer-nav-group">
+										{#if item.type === 'page' && item.pageId}<button
+												onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
+											>{:else if href}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+											<a {href} target="_blank" rel="noopener noreferrer">{item.label}</a>
+										{/if}
+										{#each children as child (child.id)}
+											{@const childHref = resolveNavigationHref(child, siteDraft.pages)}
+											{#if child.type === 'page' && child.pageId}<button
+													class="footer-child"
+													onclick={() => openPreviewPage(child.pageId!)}>{child.label}</button
+												>{:else if childHref}
+												<!-- eslint-disable svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
+												<a
+													class="footer-child"
+													href={childHref}
+													target="_blank"
+													rel="noopener noreferrer">{child.label}</a
+												>
+												<!-- eslint-enable svelte/no-navigation-without-resolve -->
+											{/if}
+										{/each}
+									</span>
 								{/each}
 							</nav>
 							<div class="visitor-social">
@@ -4895,6 +4951,49 @@
 		color: #0b3b2a;
 		background: color-mix(in srgb, var(--accent) 25%, transparent);
 	}
+	.full-demo-site nav .visitor-nav-entry {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 0;
+	}
+	.visitor-submenu {
+		position: static;
+	}
+	.visitor-submenu summary {
+		display: grid;
+		place-items: center;
+		width: 26px;
+		height: 34px;
+		margin-left: -7px;
+		color: #40544c;
+		font-weight: 900;
+		list-style: none;
+		cursor: pointer;
+	}
+	.visitor-submenu summary::-webkit-details-marker {
+		display: none;
+	}
+	.full-demo-site nav .visitor-submenu > div {
+		position: absolute;
+		top: calc(100% + 7px);
+		right: 0;
+		display: grid;
+		min-width: 190px;
+		padding: 8px;
+		border: 1px solid #cfd8d1;
+		border-radius: 10px;
+		background: var(--site-paper);
+		box-shadow: 0 15px 40px #10201830;
+		z-index: 5;
+	}
+	.full-demo-site nav .visitor-submenu > div > button,
+	.full-demo-site nav .visitor-submenu > div > a {
+		width: 100%;
+		box-sizing: border-box;
+		justify-content: flex-start;
+		text-align: left;
+	}
 	.visitor-mobile-nav {
 		display: none;
 		position: relative;
@@ -4917,6 +5016,20 @@
 		background: var(--site-paper);
 		box-shadow: 0 15px 40px #10201830;
 		z-index: 4;
+	}
+	.full-demo-site nav .visitor-mobile-submenu {
+		display: grid !important;
+		gap: 2px;
+		margin: 0 0 5px 12px;
+		padding-left: 8px;
+		border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+	}
+	.full-demo-site nav .visitor-mobile-submenu > button,
+	.full-demo-site nav .visitor-mobile-submenu > a {
+		width: 100%;
+		box-sizing: border-box;
+		justify-content: flex-start;
+		text-align: left;
 	}
 	.visitor-not-found {
 		display: grid;
@@ -5037,6 +5150,16 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
+	}
+	.full-demo-site footer .footer-nav-group {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+	}
+	.full-demo-site footer .footer-child::before {
+		content: '›';
+		margin-right: 5px;
+		color: var(--accent);
 	}
 	.full-demo-site footer nav button,
 	.full-demo-site footer nav a,

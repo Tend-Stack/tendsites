@@ -152,6 +152,9 @@ Completion is measured only from the top-level product milestones below. Nested 
     header/footer page links, allowlisted external and social links, an optional linked announcement,
     and editable not-found recovery. Visitor preview renders this shell with desktop, tablet, phone,
     and purpose-built mobile navigation states; Readiness deep-links structure diagnostics.
+  - **Complete nested-navigation slice:** Header and footer links support one deliberately bounded
+    submenu level with sibling-aware ordering, safe parent removal, desktop disclosure controls,
+    mobile indentation, and strict rejection of missing parents, cycles, duplicate IDs, or deeper trees.
   - **Complete editorial-lifecycle foundation:** Posts now support draft, scheduled, published, and
     archived states with forward migration, bounded planned timestamps, dedicated filters, and
     explicit non-executing schedule guidance. Only published entries reach visitor collections.

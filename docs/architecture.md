@@ -68,10 +68,11 @@ Generated site = ordinary files + assets + Git history
   honeypot, and can only return a non-delivered plan. `VisitorForm.svelte` provides accessible
   field errors, consent, review, edit, and reset states without issuing a network request; a future
   host capability must separately authorize any delivery destination.
-  `src/lib/sites/site-structure.ts` owns bounded header/footer navigation, safe external and social
-  destinations, the optional announcement, and missing-page recovery. `StructureWorkspace.svelte`
-  edits only this local draft; the visitor preview resolves internal links from current page IDs,
-  renders a mobile menu, and exposes desktop/tablet/phone frames. Structure diagnostics join the
+  `src/lib/sites/site-structure.ts` owns bounded header/footer navigation with one submenu level,
+  safe external and social destinations, the optional announcement, and missing-page recovery.
+  `StructureWorkspace.svelte` edits only this local draft; removing a parent promotes its children.
+  The visitor preview resolves internal links from current page IDs, renders accessible desktop and
+  mobile submenu compositions, and exposes desktop/tablet/phone frames. Structure diagnostics join the
   existing local Readiness report and deep-link to the relevant workspace. Post scheduling is
   similarly editorial evidence only: scheduled and archived entries are excluded from visitor
   projections and no timer or publishing request exists in the extension.

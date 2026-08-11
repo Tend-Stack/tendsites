@@ -34,11 +34,12 @@ blocks where an adapter proves safe round-tripping.
     scheduler exists. Scheduled and archived entries never enter visitor collections or routes.
 - [ ] Collection relationships so a home page can show latest posts, featured projects, related
       articles, category groups, and “read more” cards without duplicating content.
-- [ ] Navigation builder for header, footer, nested menus, external links, social links, and a
+- [x] Navigation builder for header, footer, nested menus, external links, social links, and a
       visible not-found page.
   - **Complete primary structure slice:** A dedicated workspace controls ordered header/footer page
-    links, safe HTTPS/mail external links, labelled social links, and editable 404 recovery. The
-    visitor preview renders a purpose-built mobile menu. Nested menus remain pending.
+    links, safe HTTPS/mail external links, labelled social links, and editable 404 recovery. One
+    bounded submenu level renders as accessible desktop and purpose-built mobile navigation;
+    removing a parent safely promotes its children.
 - [ ] Reusable global sections for headers, footers, announcements, calls to action, and contact
       details, with clear “used on these pages” evidence before editing.
   - **Complete global-shell slice:** Header, footer, optional linked announcement, and not-found

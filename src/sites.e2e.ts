@@ -466,6 +466,7 @@ test('builds responsive site navigation, announcements, footer links, and 404 re
 	await expect(headerExternal.getByRole('alert')).toContainText('secure HTTPS');
 	await headerExternal.getByLabel('Destination').fill('https://example.com/field-guide');
 	await headerExternal.getByRole('button', { name: 'Add link' }).click();
+	await page.getByLabel('Menu level for Field guide').selectOption({ label: 'Under Journal' });
 
 	await structureNav.getByRole('button', { name: 'Footer' }).click();
 	const social = page.locator('.settings-card').last().locator('.add-link-card');
@@ -490,10 +491,12 @@ test('builds responsive site navigation, announcements, footer links, and 404 re
 	await expect(
 		preview.locator('.visitor-desktop-nav').getByRole('button', { name: 'About', exact: true })
 	).toHaveCount(0);
+	await preview.getByLabel('Open Journal submenu').click();
 	await expect(preview.getByRole('link', { name: 'Field guide' })).toHaveAttribute(
 		'href',
 		'https://example.com/field-guide'
 	);
+	await expect(preview.getByRole('link', { name: 'Field guide' })).toBeVisible();
 	await expect(preview.getByRole('link', { name: 'Bluesky' })).toHaveAttribute(
 		'href',
 		'https://bsky.app/profile/example.com'
@@ -501,6 +504,8 @@ test('builds responsive site navigation, announcements, footer links, and 404 re
 
 	await preview.getByRole('button', { name: 'phone preview' }).click();
 	await expect(preview.locator('.visitor-mobile-nav')).toBeVisible();
+	await preview.locator('.visitor-mobile-nav').getByText('Menu', { exact: true }).click();
+	await expect(preview.locator('.visitor-mobile-submenu').getByText('Field guide')).toBeVisible();
 	await preview.getByRole('button', { name: '404 page' }).click();
 	await expect(preview.getByRole('heading', { name: 'This trail ends here.' })).toBeVisible();
 	await preview.getByRole('button', { name: 'Back to the journal' }).click();

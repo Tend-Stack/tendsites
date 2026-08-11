@@ -6,6 +6,7 @@ export type DemoNavigationItem = {
 	type: 'page' | 'external';
 	pageId?: string;
 	href?: string;
+	parentId?: string;
 };
 
 export type DemoSocialLink = {
@@ -82,6 +83,41 @@ export function resolveNavigationHref(
 	return normalizeExternalHref(item.href ?? '');
 }
 
+export function navigationRoots(items: DemoNavigationItem[]): DemoNavigationItem[] {
+	return items.filter((item) => item.parentId === undefined);
+}
+
+export function navigationChildren(
+	items: DemoNavigationItem[],
+	parentId: string
+): DemoNavigationItem[] {
+	return items.filter((item) => item.parentId === parentId);
+}
+
+export function removeNavigationItem(
+	items: DemoNavigationItem[],
+	id: string
+): DemoNavigationItem[] {
+	return items
+		.filter((item) => item.id !== id)
+		.map((item) => (item.parentId === id ? { ...item, parentId: undefined } : item));
+}
+
+export function removeNavigationPage(
+	items: DemoNavigationItem[],
+	pageId: string
+): DemoNavigationItem[] {
+	return items
+		.filter((item) => item.type !== 'page' || item.pageId !== pageId)
+		.map((item) => {
+			const parentRemoved = items.some(
+				(candidate) =>
+					candidate.id === item.parentId && candidate.type === 'page' && candidate.pageId === pageId
+			);
+			return parentRemoved ? { ...item, parentId: undefined } : item;
+		});
+}
+
 function bounded(value: unknown, maximum: number): value is string {
 	return typeof value === 'string' && value.trim().length > 0 && value.length <= maximum;
 }
@@ -93,7 +129,12 @@ function within(value: unknown, maximum: number): value is string {
 function validNavigationItem(value: unknown, pageIds: Set<string>): value is DemoNavigationItem {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
 	const item = value as Partial<DemoNavigationItem>;
-	if (!bounded(item.id, 80) || !bounded(item.label, 60)) return false;
+	if (
+		!bounded(item.id, 80) ||
+		!bounded(item.label, 60) ||
+		(item.parentId !== undefined && !bounded(item.parentId, 80))
+	)
+		return false;
 	if (item.type === 'page') {
 		return bounded(item.pageId, 80) && pageIds.has(item.pageId) && item.href === undefined;
 	}
@@ -102,6 +143,19 @@ function validNavigationItem(value: unknown, pageIds: Set<string>): value is Dem
 		item.pageId === undefined &&
 		normalizeExternalHref(item.href ?? '') !== null
 	);
+}
+
+function validNavigation(items: unknown[], pageIds: Set<string>, maximum: number): boolean {
+	if (items.length > maximum || !items.every((item) => validNavigationItem(item, pageIds)))
+		return false;
+	const navigation = items as DemoNavigationItem[];
+	const ids = new Set(navigation.map((item) => item.id));
+	if (ids.size !== navigation.length) return false;
+	return navigation.every((item) => {
+		if (item.parentId === undefined) return true;
+		if (item.parentId === item.id || !ids.has(item.parentId)) return false;
+		return navigation.find((candidate) => candidate.id === item.parentId)?.parentId === undefined;
+	});
 }
 
 export function isDemoSiteStructure(
@@ -113,11 +167,9 @@ export function isDemoSiteStructure(
 	const pageIds = new Set(pages.map((page) => page.id));
 	if (
 		!Array.isArray(structure.header) ||
-		structure.header.length > 12 ||
-		!structure.header.every((item) => validNavigationItem(item, pageIds)) ||
+		!validNavigation(structure.header, pageIds, 12) ||
 		!Array.isArray(structure.footer) ||
-		structure.footer.length > 16 ||
-		!structure.footer.every((item) => validNavigationItem(item, pageIds)) ||
+		!validNavigation(structure.footer, pageIds, 16) ||
 		!Array.isArray(structure.social) ||
 		structure.social.length > 8 ||
 		!structure.social.every(
@@ -169,6 +221,8 @@ export function analyzeSiteStructure(
 			labels.add(key);
 			if (!resolveNavigationHref(item, pages))
 				issues.push({ area, message: `“${item.label}” does not have a valid destination.` });
+			if (item.parentId && !items.some((candidate) => candidate.id === item.parentId))
+				issues.push({ area, message: `“${item.label}” has a missing parent link.` });
 		}
 	}
 	if (
