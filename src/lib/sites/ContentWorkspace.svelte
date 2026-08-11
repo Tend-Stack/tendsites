@@ -1,16 +1,28 @@
 <script lang="ts">
 	import {
+		Bold,
 		BookOpen,
 		Check,
 		CirclePlus,
 		Clock3,
+		Code2,
 		FileText,
+		Heading2,
+		Heading3,
+		Italic,
+		Link2,
+		List,
+		ListOrdered,
+		Minus,
+		Quote,
 		Search,
 		Star,
+		Strikethrough,
 		Trash2
 	} from '@lucide/svelte';
 
 	import { createDemoPost, uniquePostSlug, type DemoPost, type DemoSite } from './demo-site';
+	import { applyMarkdownEdit, type MarkdownEditAction } from './markdown-edit';
 	import { renderRichMarkdown } from './rich-text';
 
 	let {
@@ -26,6 +38,22 @@
 	let statusFilter = $state<'all' | DemoPost['status']>('all');
 	let deleteConfirmation = $state('');
 	let showDelete = $state(false);
+	let storyEditor = $state<HTMLTextAreaElement>();
+	let editorAnnouncement = $state('');
+	const storyTools = [
+		['heading', 'Heading', Heading2],
+		['subheading', 'Subheading', Heading3],
+		['bold', 'Bold', Bold],
+		['italic', 'Italic', Italic],
+		['strike', 'Strikethrough', Strikethrough],
+		['code', 'Inline code', Code2],
+		['bullet-list', 'Bulleted list', List],
+		['ordered-list', 'Numbered list', ListOrdered],
+		['quote', 'Quote', Quote],
+		['code-block', 'Code block', Code2],
+		['divider', 'Divider', Minus],
+		['link', 'Link', Link2]
+	] as const;
 
 	const collection = $derived(site.collections[0]);
 	const selectedPost = $derived(
@@ -87,6 +115,32 @@
 				.slice(0, field === 'body' ? 50_000 : field === 'summary' ? 500 : 120);
 			if (next) post[field] = next;
 		});
+	}
+
+	function editStory(action: MarkdownEditAction, label: string) {
+		if (!selectedPost || !storyEditor) return;
+		const editor = storyEditor;
+		const result = applyMarkdownEdit(
+			editor.value,
+			editor.selectionStart,
+			editor.selectionEnd,
+			action
+		);
+		const leadingWhitespace = result.value.length - result.value.trimStart().length;
+		const value = result.value.trim().slice(0, 50_000);
+		updatePost((post) => (post.body = value || 'Start writing here.'));
+		editorAnnouncement = `${label} added`;
+		requestAnimationFrame(() => {
+			editor.focus();
+			editor.setSelectionRange(
+				Math.max(0, result.selectionStart - leadingWhitespace),
+				Math.max(0, result.selectionEnd - leadingWhitespace)
+			);
+		});
+	}
+
+	function updateStory(value: string) {
+		updatePost((post) => (post.body = value.slice(0, 50_000)));
 	}
 
 	function updateSlug(value: string) {
@@ -289,17 +343,33 @@
 								>{selectedPost.summary}</textarea
 							></label
 						>
-						<label
-							>Story<textarea
+						<div class="story-field">
+							<label for="story-body">Story</label>
+							<div class="story-toolbar" role="toolbar" aria-label="Story formatting tools">
+								{#each storyTools as tool (tool[0])}
+									{@const ToolIcon = tool[2]}
+									<button
+										type="button"
+										aria-label={tool[1] as string}
+										title={tool[1] as string}
+										onpointerdown={(event) => event.preventDefault()}
+										onclick={() => editStory(tool[0], tool[1])}
+									>
+										<ToolIcon size={16} />
+									</button>
+								{/each}
+							</div>
+							<textarea
+								bind:this={storyEditor}
+								id="story-body"
 								class="story-body"
 								rows="13"
-								onchange={(event) => updateText('body', event.currentTarget.value)}
+								oninput={(event) => updateStory(event.currentTarget.value)}
 								>{selectedPost.body}</textarea
-							><small
-								>Use simple Markdown for headings, emphasis, links, and lists. Visual block editing
-								is next.</small
-							></label
-						>
+							>
+							<small>Portable Markdown stays readable in any ordinary source editor.</small>
+							<span class="sr-only" aria-live="polite">{editorAnnouncement}</span>
+						</div>
 						<div class="split-fields">
 							<label
 								>Author<input
@@ -614,6 +684,56 @@
 		display: grid;
 		gap: 15px;
 	}
+	.story-field {
+		display: grid;
+		gap: 7px;
+	}
+	.story-field > small {
+		color: #6f847d;
+		font-size: 0.75rem;
+	}
+	.story-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+		padding: 7px;
+		border: 1px solid #263f38;
+		border-bottom: 0;
+		border-radius: 11px 11px 0 0;
+		background: #0c1916;
+	}
+	.story-toolbar button {
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		color: #9fb2ac;
+		border: 1px solid transparent;
+		border-radius: 8px;
+		background: transparent;
+	}
+	.story-toolbar button:hover,
+	.story-toolbar button:focus-visible {
+		color: #61e6b3;
+		border-color: #2b5c4b;
+		background: #112a22;
+		outline: 0;
+	}
+	.story-field .story-body {
+		border-radius: 0 0 11px 11px;
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
 	label {
 		display: grid;
 		gap: 7px;
@@ -642,10 +762,6 @@
 	textarea {
 		resize: vertical;
 		line-height: 1.55;
-	}
-	label small {
-		color: #6f847d;
-		font-weight: 400;
 	}
 	.slug-field {
 		display: flex;
@@ -699,6 +815,29 @@
 	.preview-body {
 		color: #d4dfdb;
 		line-height: 1.65;
+	}
+	.preview-body :global(ol),
+	.preview-body :global(ul) {
+		padding-left: 1.4rem;
+	}
+	.preview-body :global(blockquote) {
+		margin: 1rem 0;
+		padding: 0.2rem 0 0.2rem 1rem;
+		border-left: 3px solid #42c994;
+		color: #a9bbb5;
+	}
+	.preview-body :global(pre) {
+		overflow-x: auto;
+		padding: 12px;
+		border: 1px solid #29423a;
+		border-radius: 10px;
+		background: #07100e;
+		font-size: 0.8rem;
+	}
+	.preview-body :global(hr) {
+		border: 0;
+		border-top: 1px solid #2b443c;
+		margin: 1.4rem 0;
 	}
 	.post-editor > footer {
 		display: flex;

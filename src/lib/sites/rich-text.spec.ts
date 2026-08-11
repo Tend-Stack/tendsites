@@ -38,4 +38,20 @@ describe('rich text Markdown', () => {
 			'<ul><li>First</li><li><strong>Second</strong></li></ul>'
 		);
 	});
+
+	it('renders ordered lists, quotes, fenced code and dividers as safe blocks', () => {
+		const rendered = renderRichMarkdown(
+			'3. Third\n4. Fourth\n\n> A useful **aside**\n\n```js\nconst tag = "<script>";\n```\n\n---'
+		);
+
+		expect(rendered).toContain('<ol start="3"><li>Third</li><li>Fourth</li></ol>');
+		expect(rendered).toContain(
+			'<blockquote><div>A useful <strong>aside</strong></div></blockquote>'
+		);
+		expect(rendered).toContain(
+			'<pre data-language="js"><code>const tag = &quot;&lt;script&gt;&quot;;</code></pre>'
+		);
+		expect(rendered).toContain('<hr>');
+		expect(rendered).not.toContain('<script>');
+	});
 });

@@ -81,6 +81,18 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 		'Books for a rainy cabin weekend'
 	);
 
+	const story = page.getByRole('textbox', { name: 'Story' });
+	await story.fill('A useful field note');
+	await story.evaluate((element: HTMLTextAreaElement) =>
+		element.setSelectionRange(0, element.value.length)
+	);
+	await page
+		.getByRole('toolbar', { name: 'Story formatting tools' })
+		.getByRole('button', { name: 'Quote' })
+		.click();
+	await expect(story).toHaveValue('> A useful field note');
+	await expect(page.locator('.post-preview blockquote')).toContainText('A useful field note');
+
 	await page.getByLabel('Status').selectOption('published');
 	await expect(page.locator('.post-list em.published')).toHaveCount(3);
 	await page.getByLabel('Status').selectOption('scheduled');

@@ -56,6 +56,10 @@ blocks where an adapter proves safe round-tripping.
       iframe code. Video previews load only after an explicit privacy choice.
 - [ ] Numbered lists, block quotes, code blocks, dividers, tables, callouts, footnotes, and undo that
       follows logical editing actions.
+  - **Complete portable-structure slice:** The post composer provides keyboard-labelled insertion
+    tools for numbered lists, block quotes, fenced code, and dividers alongside the existing
+    headings, bullets, links, and emphasis. The shared safe renderer covers Studio and visitor
+    previews. Tables, callouts, footnotes, and selection-aware history remain pending.
 - [ ] Repository image insertion by upload, paste, drag, or library selection with required alt
       text, optional caption/credit/link, crop/focal point, and responsive variants.
 - [ ] Gallery, comparison, carousel, hero, card grid, feature list, statistics, FAQ/accordion,

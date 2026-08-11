@@ -479,6 +479,31 @@
 		font-family: Georgia, serif;
 		font-size: 2rem;
 	}
+	.article-body :global(ol),
+	.article-body :global(ul) {
+		padding-left: 1.5rem;
+	}
+	.article-body :global(blockquote) {
+		margin: 1.6rem 0;
+		padding: 0.15rem 0 0.15rem 1.15rem;
+		border-left: 3px solid var(--visitor-accent, #168b62);
+		font-size: 1.08em;
+		font-style: italic;
+	}
+	.article-body :global(pre) {
+		overflow-x: auto;
+		padding: 1rem;
+		border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+		border-radius: 0.75rem;
+		background: color-mix(in srgb, currentColor 6%, transparent);
+		font-size: 0.86rem;
+		line-height: 1.6;
+	}
+	.article-body :global(hr) {
+		margin: 2rem 0;
+		border: 0;
+		border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+	}
 	.share-row {
 		display: flex;
 		flex-wrap: wrap;

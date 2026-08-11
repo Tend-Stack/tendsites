@@ -6,12 +6,15 @@ needed. Expert structure and source evidence remain available without becoming p
 
 Current local preview: titles and paragraphs now expose a compact contextual toolbar with bold,
 italic, strikethrough, inline code, headings, lists, safe links, typed external-content insertion,
-and clear formatting. The draft stores a constrained Markdown subset, escapes raw HTML, validates
-link protocols, and normalizes pasted content to plain text. YouTube and Vimeo previews use reviewed
-player origins and load only after an explicit choice; X and Twitch remain safe outbound cards until
-a script-free or separately isolated renderer is reviewed.
-The richer node model, media picker, typography tokens, cross-block selection, and repository
-round-trip remain later gates rather than implied authority.
+and clear formatting. The focused post composer adds selection-aware tools for numbered and
+bulleted lists, block quotes, fenced code, dividers, headings, links, and inline emphasis. Studio and
+visitor previews render the same safe structures. The draft stores a constrained Markdown subset,
+escapes raw HTML, validates link protocols, and normalizes pasted content to plain text. YouTube and
+Vimeo previews use reviewed player origins and load only after an explicit choice; X and Twitch
+remain safe outbound cards until a script-free or separately isolated renderer is reviewed.
+The richer stable-node model, tables, callouts, footnotes, media picker, typography tokens,
+cross-block selection, selection-aware history, and repository round-trip remain later gates rather
+than implied authority.
 
 ## Interaction model
 

@@ -48,25 +48,79 @@ function renderInlineMarkdown(value: string): string {
 export function renderRichMarkdown(value: string): string {
 	const output: string[] = [];
 	let listItems: string[] = [];
+	let listKind: 'ordered' | 'unordered' | null = null;
+	let orderedStart = 1;
+	let quoteLines: string[] = [];
+	let codeLines: string[] | null = null;
+	let codeLanguage = '';
 	const flushList = () => {
 		if (!listItems.length) return;
+		const tag = listKind === 'ordered' ? 'ol' : 'ul';
+		const start = tag === 'ol' && orderedStart !== 1 ? ` start="${orderedStart}"` : '';
 		output.push(
-			`<ul>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`
+			`<${tag}${start}>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</${tag}>`
 		);
 		listItems = [];
+		listKind = null;
+	};
+	const flushQuote = () => {
+		if (!quoteLines.length) return;
+		output.push(
+			`<blockquote>${quoteLines.map((line) => `<div>${renderInlineMarkdown(line)}</div>`).join('')}</blockquote>`
+		);
+		quoteLines = [];
 	};
 
 	for (const line of value.replace(/\r\n?/g, '\n').split('\n')) {
+		if (codeLines) {
+			if (/^```\s*$/.test(line)) {
+				const language = /^[a-z0-9+-]{1,24}$/i.test(codeLanguage)
+					? ` data-language="${escapeHtml(codeLanguage.toLowerCase())}"`
+					: '';
+				output.push(`<pre${language}><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+				codeLines = null;
+				codeLanguage = '';
+			} else codeLines.push(line);
+			continue;
+		}
+		const fence = /^```\s*([^\s`]*)\s*$/.exec(line);
+		if (fence) {
+			flushList();
+			flushQuote();
+			codeLines = [];
+			codeLanguage = fence[1];
+			continue;
+		}
 		const bullet = /^\s*[-*]\s+(.+)$/.exec(line);
 		if (bullet) {
+			flushQuote();
+			if (listKind === 'ordered') flushList();
+			listKind = 'unordered';
 			listItems.push(bullet[1]);
 			continue;
 		}
+		const ordered = /^\s*(\d+)\.\s+(.+)$/.exec(line);
+		if (ordered) {
+			flushQuote();
+			if (listKind === 'unordered') flushList();
+			if (!listItems.length) orderedStart = Math.max(1, Number(ordered[1]));
+			listKind = 'ordered';
+			listItems.push(ordered[2]);
+			continue;
+		}
 		flushList();
+		const quote = /^>\s?(.*)$/.exec(line);
+		if (quote) {
+			quoteLines.push(quote[1]);
+			continue;
+		}
+		flushQuote();
 		const heading = /^(#{1,3})\s+(.+)$/.exec(line);
 		if (heading) {
 			const level = heading[1].length;
 			output.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+		} else if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) {
+			output.push('<hr>');
 		} else if (line.trim()) {
 			output.push(`<div>${renderInlineMarkdown(line)}</div>`);
 		} else {
@@ -74,6 +128,12 @@ export function renderRichMarkdown(value: string): string {
 		}
 	}
 	flushList();
+	flushQuote();
+	if (codeLines) {
+		output.push(
+			`<pre><code>${escapeHtml(['```' + codeLanguage, ...codeLines].join('\n'))}</code></pre>`
+		);
+	}
 	return output.join('');
 }
 
@@ -91,7 +151,22 @@ function serializeNode(node: Node): string {
 		const href = normalizeRichTextLink(node.getAttribute('href') ?? '');
 		return href ? `[${content}](${href})` : content;
 	}
-	if (tag === 'li') return `- ${content.trim()}\n`;
+	if (tag === 'li') {
+		if (node.parentElement?.tagName.toLowerCase() === 'ol') {
+			const start = Number(node.parentElement.getAttribute('start') ?? '1');
+			const index = Array.from(node.parentElement.children).indexOf(node);
+			return `${Math.max(1, start) + Math.max(0, index)}. ${content.trim()}\n`;
+		}
+		return `- ${content.trim()}\n`;
+	}
+	if (tag === 'blockquote') {
+		return `${(node.textContent ?? '')
+			.split(/\r?\n/)
+			.map((line) => `> ${line}`)
+			.join('\n')}\n`;
+	}
+	if (tag === 'pre') return `\`\`\`\n${node.textContent ?? ''}\n\`\`\`\n`;
+	if (tag === 'hr') return '---\n';
 	if (tag === 'h1' || tag === 'h2' || tag === 'h3') {
 		return `${'#'.repeat(Number(tag.slice(1)))} ${content.trim()}\n`;
 	}
