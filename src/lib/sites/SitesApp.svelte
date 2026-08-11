@@ -910,7 +910,7 @@
 										: 's'}</span
 								>
 							</div>
-							<span class:live={project.status === 'published'} class="status"
+							<span class:sites-badge--positive={project.status === 'published'} class="sites-badge"
 								>{project.status}</span
 							>
 						</div>
@@ -1252,7 +1252,7 @@
 							<span class="eyebrow">Compatibility report</span>
 							<h2>Ready to review</h2>
 						</div>
-						<span class="status live">{demoAdoptionReport.status}</span>
+						<span class="sites-badge sites-badge--positive">{demoAdoptionReport.status}</span>
 					</div>
 					<div class="check-list">
 						{#each demoAdoptionReport.checks as check (check.id)}
@@ -1764,7 +1764,7 @@
 				<div>
 					<span class="eyebrow">Selected block</span>
 					<h2>{selectedSection?.label ?? 'Choose a section'}</h2>
-					<span class="official">Official</span>
+					<span class="sites-badge sites-badge--positive sites-badge--compact">Official</span>
 				</div>
 				<div class="block-order-actions" aria-label="Block order">
 					<button
@@ -2212,7 +2212,7 @@
 						unavailable.
 					</p>
 				</div>
-				<span class="status live foundation-count">5 verified checks</span>
+				<span class="sites-badge sites-badge--positive foundation-count">5 verified checks</span>
 			</section>
 			<nav class="readiness-tabs" aria-label="Readiness sections">
 				{#each [['overview', 'Overview'], ['health', 'Site health'], ['drafts', 'Draft safety'], ['media', 'Media'], ['languages', 'Languages'], ['library', 'Library'], ['preview', 'Preview'], ['guidance', 'Guidance']] as tab (tab[0])}
@@ -2498,7 +2498,9 @@
 								<span></span><span></span><i class:round={index === 2}></i>
 							</div>
 							<div>
-								<span class="status live">Official</span><small>{component.category}</small>
+								<span class="sites-badge sites-badge--positive">Official</span><small
+									>{component.category}</small
+								>
 							</div>
 							<h2>{component.name}</h2>
 							<p>{component.description}</p>
@@ -2526,7 +2528,7 @@
 							</div>
 							<div class="theme-card-heading">
 								<div>
-									<span class="status live">Official</span>
+									<span class="sites-badge sites-badge--positive">Official</span>
 									<h2>{theme.name}</h2>
 								</div>
 								{#if activeTheme.id === theme.id}<span class="theme-applied"
@@ -2948,7 +2950,7 @@
 	.hero-row p {
 		overflow-wrap: anywhere;
 	}
-	.hero-row > .status {
+	.hero-row > .sites-badge {
 		align-self: flex-start;
 		max-width: 100%;
 	}
@@ -3164,22 +3166,35 @@
 		color: var(--green);
 		font-size: 12px;
 	}
-	.status {
+	.sites-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		flex: 0 0 auto;
-		height: fit-content;
+		min-height: 24px;
 		color: #f2c664;
-		background: #342b12;
-		border-radius: 20px;
-		padding: 4px 8px;
-		font-size: 10px;
-		line-height: 1.2;
+		background: #2c2617;
+		border: 1px solid #594b27;
+		border-radius: 999px;
+		padding: 4px 10px;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 1;
 		white-space: nowrap;
 		text-transform: capitalize;
+		box-shadow: none;
+		filter: none;
+		text-shadow: none;
 	}
-	.status.live,
-	.official {
+	.sites-badge--positive {
 		color: var(--green);
-		background: #113427;
+		background: #10271f;
+		border-color: #285543;
+	}
+	.sites-badge--compact {
+		min-height: 22px;
+		padding: 3px 8px;
+		font-size: 10px;
 	}
 	.project-meta {
 		display: flex;
@@ -3203,7 +3218,7 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.project-meta .status {
+	.project-meta .sites-badge {
 		flex: 0 0 auto;
 		max-width: 100%;
 	}
@@ -4446,12 +4461,6 @@
 	.page-actions button {
 		padding-inline: 10px;
 		font-size: 11px;
-	}
-	.official {
-		display: inline-block;
-		border-radius: 20px;
-		padding: 4px 8px;
-		font-size: 9px;
 	}
 	.media-drop {
 		display: grid;

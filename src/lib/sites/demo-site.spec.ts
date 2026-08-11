@@ -11,7 +11,8 @@ import {
 	normalizePostSlug,
 	postsForSection,
 	uniquePostSlug,
-	uniquePageSlug
+	uniquePageSlug,
+	upgradeDemoSite
 } from './demo-site';
 import { parseEmbedUrl } from './embed';
 
@@ -107,6 +108,20 @@ describe('interactive demo site', () => {
 			createDemoPost(index, [])
 		);
 		expect(isDemoSite(tooManyPosts)).toBe(false);
+	});
+
+	it('upgrades v0.9 drafts with safe discovery defaults', () => {
+		const legacy = structuredClone(createDemoSite()) as unknown as Record<string, unknown>;
+		const legacySeo = legacy.seo as Record<string, unknown>;
+		delete legacySeo.locale;
+		delete legacySeo.favicon;
+		delete legacy.redirects;
+		const collection = (legacy.collections as Array<{ items: Array<Record<string, unknown>> }>)[0];
+		for (const post of collection.items) delete post.seo;
+		const upgraded = upgradeDemoSite(legacy);
+		expect(upgraded?.seo.locale).toBe('en-US');
+		expect(upgraded?.redirects).toEqual([]);
+		expect(upgraded?.collections[0].items.every((post) => post.seo.title.length > 0)).toBe(true);
 	});
 
 	it('normalizes and de-duplicates friendly page addresses', () => {

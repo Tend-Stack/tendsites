@@ -138,6 +138,9 @@ Completion is measured only from the top-level product milestones below. Nested 
     previews of `sitemap.xml`, `robots.txt`, and RSS. Existing v0.8 drafts migrate to safe generated
     defaults, and Readiness issues deep-link to the exact site or page setting. These previews do
     not write files, submit search indexes, or publish a site.
+  - **Complete discovery extension:** Locale and favicon identity, per-post search controls, Atom
+    and schema.org previews, plus a redirect workspace with duplicate, loop, and missing-target
+    diagnostics now live in the Sites component itself. Existing v0.9 drafts migrate forward.
   - **Pending:** Scheduling, repository persistence, deployment, and the remaining visitor
     capability plan.
 - [x] Undo history and clear conflict resolution.

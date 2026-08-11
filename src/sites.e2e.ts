@@ -149,17 +149,33 @@ test('edits search identity, page metadata, sharing previews, and generated file
 	await page
 		.getByLabel('Site description')
 		.fill('A thoughtful journal for slow travel and field notes.');
+	await page.getByLabel('Regional locale').fill('en-CA');
+	await page.getByLabel('Browser icon').fill('https://willow.example/favicon.png');
 	await page.getByRole('button', { name: /Pages/ }).click();
 	await page.getByRole('button', { name: /About/ }).click();
 	await page.getByLabel('Search title').fill('Meet Willow');
 	await expect(page.getByText('Meet Willow · Willow Journal')).toBeVisible();
+	await page.getByRole('button', { name: /Posts/ }).click();
+	await page
+		.getByLabel('Posts')
+		.getByRole('button', { name: /Morning at the lake/ })
+		.click();
+	await page.getByLabel('Search title').fill('Sunrise at the lake');
+	await expect(page.getByText('Sunrise at the lake · Willow Journal')).toBeVisible();
 	await page.getByRole('button', { name: /Sharing preview/ }).click();
 	await page.getByLabel('Sharing title').fill('A quieter way to travel');
 	await expect(page.getByText('A quieter way to travel')).toBeVisible();
+	await page.getByRole('button', { name: /Redirects/ }).click();
+	await page.getByRole('button', { name: 'Add redirect' }).click();
+	await page.getByLabel('Old address').fill('/journal-old');
+	await page.getByLabel('New address').fill('/journal');
+	await expect(page.getByText('does not match a page or post')).not.toBeVisible();
 	await page.getByRole('button', { name: /Generated files/ }).click();
 	await expect(page.getByText('TEND Sites has not written or published them.')).toBeVisible();
 	await expect(page.getByText('robots.txt')).toBeVisible();
 	await expect(page.getByText('sitemap.xml', { exact: true })).toBeVisible();
+	await expect(page.getByText('atom.xml', { exact: true })).toBeVisible();
+	await expect(page.getByText('structured-data.json', { exact: true })).toBeVisible();
 });
 
 test('supports keyboard block ordering and a purpose-built mobile studio', async ({ page }) => {
@@ -485,19 +501,23 @@ test('keeps embedded pages spacious without clipping site or library labels', as
 
 	const shell = page.locator('.sites-shell.embedded');
 	await expect(shell).toBeVisible();
-	await expect(page.locator('.project-card .status.live')).toHaveCount(2);
-	await expect(page.locator('.project-card .status:not(.live)')).toHaveCount(1);
+	await expect(page.locator('.project-card .sites-badge--positive')).toHaveCount(2);
+	await expect(page.locator('.project-card .sites-badge:not(.sites-badge--positive)')).toHaveCount(
+		1
+	);
 
 	const homeLayout = await page.evaluate(() => {
 		const shellRect = document.querySelector('.sites-shell.embedded')?.getBoundingClientRect();
 		const pageRect = document.querySelector('.sites-shell.embedded .page')?.getBoundingClientRect();
-		const labelsFit = [...document.querySelectorAll('.project-card .status')].every((label) => {
-			const labelRect = label.getBoundingClientRect();
-			const cardRect = label.closest('.project-card')?.getBoundingClientRect();
-			return Boolean(
-				cardRect && labelRect.left >= cardRect.left && labelRect.right <= cardRect.right
-			);
-		});
+		const labelsFit = [...document.querySelectorAll('.project-card .sites-badge')].every(
+			(label) => {
+				const labelRect = label.getBoundingClientRect();
+				const cardRect = label.closest('.project-card')?.getBoundingClientRect();
+				return Boolean(
+					cardRect && labelRect.left >= cardRect.left && labelRect.right <= cardRect.right
+				);
+			}
+		);
 		return {
 			contentInset:
 				shellRect && pageRect ? pageRect.left - shellRect.left : Number.POSITIVE_INFINITY,
@@ -507,10 +527,10 @@ test('keeps embedded pages spacious without clipping site or library labels', as
 	expect(homeLayout.contentInset).toBeLessThanOrEqual(20);
 	expect(homeLayout.labelsFit).toBe(true);
 	await page.setViewportSize({ width: 1100, height: 900 });
-	await expect(page.locator('.project-card .status')).toHaveCount(3);
+	await expect(page.locator('.project-card .sites-badge')).toHaveCount(3);
 	expect(
 		await page.evaluate(() =>
-			[...document.querySelectorAll('.project-card .status')].every((label) => {
+			[...document.querySelectorAll('.project-card .sites-badge')].every((label) => {
 				const labelRect = label.getBoundingClientRect();
 				const cardRect = label.closest('.project-card')?.getBoundingClientRect();
 				return Boolean(
@@ -545,9 +565,9 @@ test('keeps embedded pages spacious without clipping site or library labels', as
 	).toBe(true);
 
 	await page.locator('.topbar').getByRole('button', { name: 'Library', exact: true }).click();
-	await expect(page.locator('.component-grid .status.live')).toHaveCount(7);
+	await expect(page.locator('.component-grid .sites-badge--positive')).toHaveCount(7);
 	const libraryLabelsFit = await page.evaluate(() =>
-		[...document.querySelectorAll('.component-grid .status')].every((label) => {
+		[...document.querySelectorAll('.component-grid .sites-badge')].every((label) => {
 			const labelRect = label.getBoundingClientRect();
 			const cardRect = label.closest('article')?.getBoundingClientRect();
 			return Boolean(

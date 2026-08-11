@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDemoSite } from './demo-site';
-import { generateSeoArtifacts, normalizeCanonicalUrl, projectPageSeo } from './seo';
+import {
+	analyzeRedirects,
+	generateSeoArtifacts,
+	normalizeCanonicalUrl,
+	projectPageSeo,
+	projectPostSeo
+} from './seo';
 
 describe('visitor-facing search projections', () => {
 	it('accepts only secure canonical website origins', () => {
@@ -20,6 +26,16 @@ describe('visitor-facing search projections', () => {
 		});
 	});
 
+	it('projects entry-specific search and sharing metadata', () => {
+		const site = createDemoSite();
+		const post = site.collections[0].items[0];
+		post.seo.title = 'A quieter route home';
+		expect(projectPostSeo(site, post)).toMatchObject({
+			title: 'A quieter route home · Willow Journal',
+			canonicalUrl: 'https://willow.example/journal/field-notes-long-way-home'
+		});
+	});
+
 	it('generates deterministic, escaped files without draft posts', () => {
 		const site = createDemoSite();
 		site.name = 'Willow & Friends';
@@ -32,6 +48,25 @@ describe('visitor-facing search projections', () => {
 		expect(first.feed).toContain('Willow &amp; Friends');
 		expect(first.feed).toContain('field-notes-long-way-home');
 		expect(first.feed).not.toContain('cabin-checklist');
+		expect(first.atom).toContain('xmlns="http://www.w3.org/2005/Atom"');
+		expect(first.atom).not.toContain('cabin-reading-list');
+		expect(JSON.parse(first.structuredData)['@graph']).toEqual(
+			expect.arrayContaining([expect.objectContaining({ '@type': 'WebSite', inLanguage: 'en-US' })])
+		);
+	});
+
+	it('reports duplicate, broken, and looping redirects', () => {
+		const site = createDemoSite();
+		site.redirects = [
+			{ id: 'one', from: '/old', to: '/about', status: 301 },
+			{ id: 'two', from: '/old', to: '/missing', status: 302 },
+			{ id: 'three', from: '/loop-a', to: '/loop-b', status: 301 },
+			{ id: 'four', from: '/loop-b', to: '/loop-a', status: 301 }
+		];
+		const issues = analyzeRedirects(site);
+		expect(issues.map((issue) => issue.kind)).toEqual(
+			expect.arrayContaining(['duplicate', 'missing-target', 'loop'])
+		);
 	});
 
 	it('generates a closed robots policy for a hidden site', () => {

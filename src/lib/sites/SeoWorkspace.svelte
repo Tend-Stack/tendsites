@@ -5,15 +5,23 @@
 		Eye,
 		FileText,
 		Globe2,
+		Link2,
+		Newspaper,
 		Search,
 		Share2,
 		TriangleAlert
 	} from '@lucide/svelte';
 
 	import { cloneDemoSite, type DemoSite } from './demo-site';
-	import { generateSeoArtifacts, normalizeCanonicalUrl, projectPageSeo } from './seo';
+	import {
+		analyzeRedirects,
+		generateSeoArtifacts,
+		normalizeCanonicalUrl,
+		projectPageSeo,
+		projectPostSeo
+	} from './seo';
 
-	export type SeoArea = 'overview' | 'site' | 'pages' | 'sharing' | 'files';
+	export type SeoArea = 'overview' | 'site' | 'pages' | 'posts' | 'sharing' | 'redirects' | 'files';
 
 	let {
 		site,
@@ -31,14 +39,21 @@
 		site.pages.find((page) => page.id === selectedPageId) ?? site.pages[0]
 	);
 	const projection = $derived(projectPageSeo(site, selectedPage));
+	const posts = $derived(site.collections.flatMap((collection) => collection.items));
+	let selectedPostId = $state('field-notes-long-way-home');
+	const selectedPost = $derived(posts.find((post) => post.id === selectedPostId) ?? posts[0]);
+	const postProjection = $derived(projectPostSeo(site, selectedPost));
 	const artifacts = $derived(generateSeoArtifacts(site));
+	const redirectIssues = $derived(analyzeRedirects(site));
 	const canonicalValid = $derived(Boolean(normalizeCanonicalUrl(site.seo.canonicalUrl)));
 	const visiblePages = $derived(site.pages.filter((page) => page.seo.index).length);
 	const seoTabs = [
 		{ id: 'overview', label: 'Overview', icon: Search },
 		{ id: 'site', label: 'Site identity', icon: Globe2 },
 		{ id: 'pages', label: 'Pages', icon: FileText },
+		{ id: 'posts', label: 'Posts', icon: Newspaper },
 		{ id: 'sharing', label: 'Sharing preview', icon: Share2 },
+		{ id: 'redirects', label: 'Redirects', icon: Link2 },
 		{ id: 'files', label: 'Generated files', icon: Code2 }
 	] as const;
 
@@ -53,6 +68,26 @@
 			const page = draft.pages.find((candidate) => candidate.id === selectedPage.id);
 			if (page) Object.assign(page.seo, { [field]: value });
 		});
+	}
+
+	function updatePost(field: keyof typeof selectedPost.seo, value: string | boolean) {
+		update((draft) => {
+			const post = draft.collections
+				.flatMap((collection) => collection.items)
+				.find((candidate) => candidate.id === selectedPost.id);
+			if (post) Object.assign(post.seo, { [field]: value });
+		});
+	}
+
+	function addRedirect() {
+		update((draft) =>
+			draft.redirects.push({
+				id: `redirect-${Date.now()}`,
+				from: '/old-page',
+				to: '/',
+				status: 301
+			})
+		);
 	}
 </script>
 
@@ -96,6 +131,20 @@
 				<Share2 size={22} /><span
 					><strong>Sharing cards</strong><small>Preview titles, copy and imagery</small></span
 				><em>Preview</em>
+			</button>
+			<button onclick={() => (area = 'posts')}>
+				<Newspaper size={22} /><span
+					><strong>Post SEO</strong><small>{posts.length} journal entries</small></span
+				><em>Review</em>
+			</button>
+			<button onclick={() => (area = 'redirects')}>
+				<Link2 size={22} /><span
+					><strong>Redirects & links</strong><small
+						>{redirectIssues.length
+							? `${redirectIssues.length} issues need attention`
+							: 'No broken routes found'}</small
+					></span
+				><em>{redirectIssues.length ? 'Review' : 'Ready'}</em>
 			</button>
 			<button onclick={() => (area = 'files')}>
 				<Code2 size={22} /><span
@@ -173,6 +222,21 @@
 					/></label
 				>
 				<label
+					>Regional locale<input
+						maxlength="35"
+						value={site.seo.locale}
+						oninput={(event) => update((draft) => (draft.seo.locale = event.currentTarget.value))}
+					/><small>For example, en-US or es-MX.</small></label
+				>
+				<label
+					>Browser icon<input
+						maxlength="2000"
+						value={site.seo.favicon ?? ''}
+						oninput={(event) =>
+							update((draft) => (draft.seo.favicon = event.currentTarget.value || undefined))}
+					/><small>Choose from Media or paste a reviewed image URL.</small></label
+				>
+				<label
 					>Search visibility<select
 						value={site.seo.visibility}
 						onchange={(event) =>
@@ -247,6 +311,70 @@
 				</div>
 			</section>
 		</div>
+	{:else if area === 'posts'}
+		<div class="two-pane">
+			<aside aria-label="Posts">
+				{#each posts as post (post.id)}<button
+						class:active={post.id === selectedPost.id}
+						onclick={() => (selectedPostId = post.id)}
+						><span><strong>{post.title}</strong><small>/journal/{post.slug}</small></span><em
+							>{post.seo.index ? 'Visible' : 'Hidden'}</em
+						></button
+					>{/each}
+			</aside>
+			<section class="settings-card">
+				<div class="section-heading">
+					<div>
+						<span>Journal search appearance</span>
+						<h2>{selectedPost.title}</h2>
+					</div>
+				</div>
+				<div class="form-grid">
+					<label
+						>Search title<input
+							maxlength="120"
+							value={selectedPost.seo.title}
+							oninput={(event) => updatePost('title', event.currentTarget.value)}
+						/></label
+					>
+					<label class="wide"
+						>Search description<textarea
+							maxlength="320"
+							value={selectedPost.seo.description}
+							oninput={(event) => updatePost('description', event.currentTarget.value)}
+						></textarea><small>{selectedPost.seo.description.length}/320</small></label
+					>
+					<label class="check"
+						><input
+							type="checkbox"
+							checked={selectedPost.seo.index}
+							onchange={(event) => updatePost('index', event.currentTarget.checked)}
+						/><span
+							><strong>Show in search and feeds</strong><small
+								>Draft posts remain excluded even when enabled.</small
+							></span
+						></label
+					>
+					<label class="check"
+						><input
+							type="checkbox"
+							checked={selectedPost.seo.follow}
+							onchange={(event) => updatePost('follow', event.currentTarget.checked)}
+						/><span
+							><strong>Follow links</strong><small
+								>Let search engines discover linked content.</small
+							></span
+						></label
+					>
+				</div>
+				<div class="search-preview">
+					<small>{postProjection.canonicalUrl ?? 'Website address not set'}</small><strong
+						>{postProjection.title}</strong
+					>
+					<p>{postProjection.description}</p>
+				</div>
+			</section>
+		</div>
 	{:else if area === 'sharing'}
 		<section class="settings-card">
 			<div class="section-heading">
@@ -300,6 +428,75 @@
 				</article>
 			</div>
 		</section>
+	{:else if area === 'redirects'}
+		<section class="settings-card">
+			<div class="section-heading">
+				<div>
+					<span>Redirect manager</span>
+					<h2>Keep changed addresses working.</h2>
+					<p>Redirects stay in this local draft until a reviewed publish operation applies them.</p>
+				</div>
+				<button class="primary-action" onclick={addRedirect}>Add redirect</button>
+			</div>
+			{#if site.redirects.length === 0}<div class="empty-state">
+					<Link2 size={28} /><strong>No redirects yet</strong>
+					<p>Add one when a page or post moves to a new address.</p>
+				</div>{:else}<div class="redirect-list">
+					{#each site.redirects as redirect (redirect.id)}
+						<div class="redirect-row">
+							<label
+								>Old address<input
+									value={redirect.from}
+									oninput={(event) =>
+										update((draft) => {
+											const item = draft.redirects.find(
+												(candidate) => candidate.id === redirect.id
+											);
+											if (item) item.from = event.currentTarget.value;
+										})}
+								/></label
+							><label
+								>New address<input
+									value={redirect.to}
+									oninput={(event) =>
+										update((draft) => {
+											const item = draft.redirects.find(
+												(candidate) => candidate.id === redirect.id
+											);
+											if (item) item.to = event.currentTarget.value;
+										})}
+								/></label
+							><label
+								>Status<select
+									value={redirect.status}
+									onchange={(event) =>
+										update((draft) => {
+											const item = draft.redirects.find(
+												(candidate) => candidate.id === redirect.id
+											);
+											if (item) item.status = Number(event.currentTarget.value) as 301 | 302;
+										})}
+									><option value="301">Permanent</option><option value="302">Temporary</option
+									></select
+								></label
+							><button
+								aria-label={`Remove redirect from ${redirect.from}`}
+								onclick={() =>
+									update((draft) => {
+										draft.redirects = draft.redirects.filter(
+											(candidate) => candidate.id !== redirect.id
+										);
+									})}>Remove</button
+							>
+						</div>
+						{#each redirectIssues.filter((issue) => issue.redirectId === redirect.id) as issue (issue.kind)}<p
+								class="issue"
+							>
+								<TriangleAlert size={15} />{issue.message}
+							</p>{/each}
+					{/each}
+				</div>{/if}
+		</section>
 	{:else}
 		<section class="settings-card files-card">
 			<div class="section-heading">
@@ -322,6 +519,14 @@
 			<details>
 				<summary>feed.xml</summary>
 				<pre>{artifacts.feed}</pre>
+			</details>
+			<details>
+				<summary>atom.xml</summary>
+				<pre>{artifacts.atom}</pre>
+			</details>
+			<details>
+				<summary>structured-data.json</summary>
+				<pre>{artifacts.structuredData}</pre>
 			</details>
 		</section>
 	{/if}
@@ -625,6 +830,72 @@
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
+	.primary-action,
+	.redirect-row > button {
+		padding: 11px 14px;
+		color: #08120f;
+		font-weight: 800;
+		background: #56e6ad;
+		border: 0;
+		border-radius: 10px;
+		cursor: pointer;
+	}
+	.redirect-list {
+		display: grid;
+		gap: 10px;
+	}
+	.redirect-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr 150px auto;
+		align-items: end;
+		gap: 10px;
+		padding: 15px;
+		background: #0a1113;
+		border: 1px solid #233036;
+		border-radius: 12px;
+	}
+	.redirect-row label {
+		display: grid;
+		gap: 7px;
+		font-size: 12px;
+		font-weight: 750;
+	}
+	.redirect-row input,
+	.redirect-row select {
+		width: 100%;
+		padding: 11px;
+		color: #edf5f1;
+		background: #080d0f;
+		border: 1px solid #2a393e;
+		border-radius: 9px;
+	}
+	.redirect-row > button {
+		color: #efc7c7;
+		background: #381b1b;
+	}
+	.issue {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		margin: -2px 15px 5px;
+		color: #f2c664 !important;
+		font-size: 12px;
+	}
+	.empty-state {
+		display: grid;
+		place-items: center;
+		gap: 8px;
+		min-height: 220px;
+		text-align: center;
+		border: 1px dashed #2a393e;
+		border-radius: 14px;
+	}
+	.empty-state :global(svg) {
+		color: #56e6ad;
+	}
+	.empty-state p {
+		margin: 0;
+	}
 	@media (max-width: 760px) {
 		.seo-workspace > header {
 			align-items: start;
@@ -657,6 +928,9 @@
 		}
 		.section-heading {
 			flex-direction: column;
+		}
+		.redirect-row {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

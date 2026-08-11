@@ -48,10 +48,14 @@ export type DemoSiteSeo = {
 	description: string;
 	canonicalUrl: string;
 	language: string;
+	locale: string;
+	favicon?: string;
 	visibility: 'public' | 'hidden';
 	identityName: string;
 	identityType: 'person' | 'organization';
 };
+
+export type DemoEntrySeo = DemoPageSeo;
 
 export type DemoPostStatus = 'draft' | 'published';
 
@@ -68,6 +72,14 @@ export type DemoPost = {
 	status: DemoPostStatus;
 	featured: boolean;
 	publishedAt: string | null;
+	seo: DemoEntrySeo;
+};
+
+export type DemoRedirect = {
+	id: string;
+	from: string;
+	to: string;
+	status: 301 | 302;
 };
 
 export type DemoCollection = {
@@ -86,6 +98,7 @@ export type DemoSite = {
 	seo: DemoSiteSeo;
 	pages: DemoPage[];
 	collections: DemoCollection[];
+	redirects: DemoRedirect[];
 };
 
 export function createDefaultSiteSeo(name: string, tagline: string): DemoSiteSeo {
@@ -94,9 +107,26 @@ export function createDefaultSiteSeo(name: string, tagline: string): DemoSiteSeo
 		description: tagline,
 		canonicalUrl: 'https://willow.example',
 		language: 'en',
+		locale: 'en-US',
 		visibility: 'public',
 		identityName: name,
 		identityType: 'organization'
+	};
+}
+
+export function createDefaultEntrySeo(
+	title: string,
+	summary: string,
+	image?: string
+): DemoEntrySeo {
+	return {
+		title,
+		description: summary,
+		index: true,
+		follow: true,
+		socialTitle: title,
+		socialDescription: summary,
+		...(image ? { socialImage: image } : {})
 	};
 }
 
@@ -180,7 +210,7 @@ export const demoImages = {
 } as const;
 
 export function createDemoCollections(): DemoCollection[] {
-	return [
+	const collections: DemoCollection[] = [
 		{
 			id: 'journal-posts',
 			name: 'Journal posts',
@@ -200,7 +230,12 @@ export function createDemoCollections(): DemoCollection[] {
 					tags: ['Field notes', 'Slow travel'],
 					status: 'published',
 					featured: true,
-					publishedAt: '2026-08-02T14:00:00.000Z'
+					publishedAt: '2026-08-02T14:00:00.000Z',
+					seo: createDefaultEntrySeo(
+						'Field Notes from the long way home',
+						'A weekend route, a camera, and a few places that deserved more than a drive-by.',
+						fieldNotesImage
+					)
 				},
 				{
 					id: 'morning-at-the-lake',
@@ -214,7 +249,12 @@ export function createDemoCollections(): DemoCollection[] {
 					tags: ['Lakes', 'Photography'],
 					status: 'published',
 					featured: false,
-					publishedAt: '2026-07-26T13:30:00.000Z'
+					publishedAt: '2026-07-26T13:30:00.000Z',
+					seo: createDefaultEntrySeo(
+						'Morning at the lake',
+						'Mist, still water, and the first trail before breakfast.',
+						weekendLakeImage
+					)
 				},
 				{
 					id: 'cabin-reading-list',
@@ -228,11 +268,17 @@ export function createDemoCollections(): DemoCollection[] {
 					tags: ['Reading', 'Cabins'],
 					status: 'draft',
 					featured: false,
-					publishedAt: null
+					publishedAt: null,
+					seo: createDefaultEntrySeo(
+						'A cabin reading list',
+						'Books and field guides for a rainy weekend in the woods.',
+						forestCabinImage
+					)
 				}
 			]
 		}
 	];
+	return collections;
 }
 
 export function createDemoPost(sequence: number, posts: DemoPost[]): DemoPost {
@@ -247,7 +293,11 @@ export function createDemoPost(sequence: number, posts: DemoPost[]): DemoPost {
 		tags: [],
 		status: 'draft',
 		featured: false,
-		publishedAt: null
+		publishedAt: null,
+		seo: createDefaultEntrySeo(
+			title,
+			'Add a short description that helps readers decide what this story is about.'
+		)
 	};
 }
 
@@ -437,7 +487,8 @@ export function createDemoSite(): DemoSite {
 		themeId: 'editorial',
 		seo: createDefaultSiteSeo('Willow Journal', 'Stories, sound and places worth remembering.'),
 		pages,
-		collections: createDemoCollections()
+		collections: createDemoCollections(),
+		redirects: []
 	};
 }
 
@@ -456,7 +507,10 @@ export function upgradeDemoSite(value: unknown): DemoSite | null {
 	const tagline = typeof legacy.tagline === 'string' ? legacy.tagline : '';
 	const upgraded = {
 		...legacy,
-		seo: legacy.seo ?? createDefaultSiteSeo(name, tagline),
+		seo: {
+			...createDefaultSiteSeo(name, tagline),
+			...(legacy.seo && typeof legacy.seo === 'object' ? legacy.seo : {})
+		},
 		pages: legacy.pages.map((value) => {
 			if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
 			const page = value as Record<string, unknown>;
@@ -471,8 +525,17 @@ export function upgradeDemoSite(value: unknown): DemoSite | null {
 					)
 			};
 		}),
-		collections: legacy.collections ?? createDemoCollections()
+		collections: (legacy.collections ?? createDemoCollections()) as DemoCollection[],
+		redirects: legacy.redirects ?? []
 	};
+	for (const collection of upgraded.collections) {
+		if (!collection || !Array.isArray(collection.items)) continue;
+		for (const post of collection.items) {
+			if (post && typeof post === 'object' && !post.seo) {
+				post.seo = createDefaultEntrySeo(post.title ?? '', post.summary ?? '', post.coverImage);
+			}
+		}
+	}
 	return isDemoSite(upgraded) ? cloneDemoSite(upgraded) : null;
 }
 
@@ -489,6 +552,8 @@ function isDemoSiteSeo(value: unknown): value is DemoSiteSeo {
 		isBoundedString(seo.description, 320) &&
 		isBoundedString(seo.canonicalUrl, 300) &&
 		isBoundedString(seo.language, 20) &&
+		isBoundedString(seo.locale, 35) &&
+		(seo.favicon === undefined || isBoundedString(seo.favicon, 2_000)) &&
 		['public', 'hidden'].includes(seo.visibility ?? '') &&
 		isBoundedString(seo.identityName, 120) &&
 		['person', 'organization'].includes(seo.identityType ?? '')
@@ -521,6 +586,8 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		candidate.pages.length > 24 ||
 		!Array.isArray(candidate.collections) ||
 		candidate.collections.length > 12 ||
+		!Array.isArray(candidate.redirects) ||
+		candidate.redirects.length > 50 ||
 		!isDemoSiteSeo(candidate.seo)
 	)
 		return false;
@@ -604,7 +671,8 @@ export function isDemoSite(value: unknown): value is DemoSite {
 					(typeof post.publishedAt !== 'string' ||
 						!Number.isFinite(Date.parse(post.publishedAt)))) ||
 				(post.coverImage !== undefined && typeof post.coverImage !== 'string') ||
-				(post.coverImageAlt !== undefined && typeof post.coverImageAlt !== 'string')
+				(post.coverImageAlt !== undefined && typeof post.coverImageAlt !== 'string') ||
+				!isDemoPageSeo(post.seo)
 			)
 				return false;
 			postIds.add(post.id);
@@ -613,6 +681,21 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		});
 	});
 	if (!collectionsValid) return false;
+	const redirectIds = new Set<string>();
+	if (
+		!candidate.redirects.every((redirect) => {
+			if (!redirect || !isBoundedString(redirect.id, 80) || redirectIds.has(redirect.id))
+				return false;
+			redirectIds.add(redirect.id);
+			return (
+				normalizePageSlug(redirect.from) === redirect.from &&
+				normalizePageSlug(redirect.to) === redirect.to &&
+				redirect.from !== redirect.to &&
+				[301, 302].includes(redirect.status)
+			);
+		})
+	)
+		return false;
 	return candidate.pages.every((page) =>
 		page.sections.every(
 			(section) => section.kind !== 'post-feed' || collectionIds.has(section.collectionId ?? '')

@@ -142,3 +142,10 @@ revision, artifact, and operation metadata, but those drafts are never source au
 tend.host-managed vault implements the same adapter contract only after explicit consent and must
 remain optional and exportable. Builds and previews consume immutable snapshots in disposable
 workspaces; running containers, build caches, and artifacts are not repository backups.
+
+## Local discovery draft
+
+The interactive Sites draft owns bounded site identity, page and post SEO, and at most 50 internal
+redirect intents. Older drafts are upgraded with `en-US`, generated entry metadata, and an empty
+redirect list. Sitemap, robots, RSS, Atom, schema.org, and redirect diagnostics are deterministic
+local projections only; they neither write repository files nor claim publish evidence.
