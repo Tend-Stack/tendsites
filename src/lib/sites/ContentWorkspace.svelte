@@ -10,6 +10,7 @@
 		Heading2,
 		Heading3,
 		Italic,
+		Image,
 		Link2,
 		List,
 		ListOrdered,
@@ -22,15 +23,19 @@
 	} from '@lucide/svelte';
 
 	import { createDemoPost, uniquePostSlug, type DemoPost, type DemoSite } from './demo-site';
+	import MediaPicker from './MediaPicker.svelte';
+	import type { HostImageItem, HostMediaBridge } from './host-media';
 	import { applyMarkdownEdit, type MarkdownEditAction } from './markdown-edit';
 	import { renderRichMarkdown } from './rich-text';
 
 	let {
 		site,
-		onchange
+		onchange,
+		media
 	}: {
 		site: DemoSite;
 		onchange: (mutator: (next: DemoSite) => void) => void;
+		media?: HostMediaBridge;
 	} = $props();
 
 	let selectedPostId = $state('');
@@ -38,6 +43,7 @@
 	let statusFilter = $state<'all' | DemoPost['status']>('all');
 	let deleteConfirmation = $state('');
 	let showDelete = $state(false);
+	let showMediaPicker = $state(false);
 	let storyEditor = $state<HTMLTextAreaElement>();
 	let editorAnnouncement = $state('');
 	const storyTools = [
@@ -187,6 +193,37 @@
 			post.status = 'scheduled';
 			post.publishedAt = null;
 			post.scheduledAt = new Date(timestamp).toISOString();
+		});
+	}
+
+	function selectCoverImage(image: HostImageItem, alt: string) {
+		updatePost((post) => {
+			const previous = post.coverImage;
+			post.coverImage = image.contentUrl;
+			post.coverImageAlt = alt;
+			post.coverImageSource = {
+				kind: 'host_files',
+				itemId: image.id,
+				libraryId: image.libraryId,
+				name: image.name,
+				mimeType: image.mimeType,
+				size: image.size,
+				modifiedAt: image.modifiedAt
+			};
+			if (!post.seo.socialImage || post.seo.socialImage === previous) {
+				post.seo.socialImage = image.contentUrl;
+			}
+		});
+		showMediaPicker = false;
+	}
+
+	function removeCoverImage() {
+		updatePost((post) => {
+			const previous = post.coverImage;
+			delete post.coverImage;
+			delete post.coverImageAlt;
+			delete post.coverImageSource;
+			if (post.seo.socialImage === previous) delete post.seo.socialImage;
 		});
 	}
 
@@ -343,6 +380,46 @@
 								>{selectedPost.summary}</textarea
 							></label
 						>
+						<section class="cover-field" aria-labelledby="cover-field-title">
+							<div class="cover-field-heading">
+								<div>
+									<span id="cover-field-title">Cover image</span><small
+										>Used in this article and its social preview.</small
+									>
+								</div>
+								<div class="cover-actions">
+									<button type="button" disabled={!media} onclick={() => (showMediaPicker = true)}
+										><Image size={16} />
+										{selectedPost.coverImage ? 'Replace from Files' : 'Choose from Files'}</button
+									>
+									{#if selectedPost.coverImage}<button
+											class="remove-cover"
+											type="button"
+											onclick={removeCoverImage}>Remove</button
+										>{/if}
+								</div>
+							</div>
+							{#if selectedPost.coverImage}
+								<div class="cover-summary">
+									<img src={selectedPost.coverImage} alt="" />
+									<div>
+										<strong>{selectedPost.coverImageSource?.name ?? 'Starter image'}</strong><span
+											>{selectedPost.coverImageAlt || 'Missing image description'}</span
+										><em class:connected={Boolean(selectedPost.coverImageSource)}
+											>{selectedPost.coverImageSource
+												? 'Connected preview · repository copy pending'
+												: 'Starter image'}</em
+										>
+									</div>
+								</div>
+							{:else}
+								<p class="cover-empty">
+									{media
+										? 'Choose an indexed image and add accessible alt text.'
+										: 'Files selection is available when TEND Sites is installed in tend.host.'}
+								</p>
+							{/if}
+						</section>
 						<div class="story-field">
 							<label for="story-body">Story</label>
 							<div class="story-toolbar" role="toolbar" aria-label="Story formatting tools">
@@ -433,6 +510,10 @@
 			</div>
 		</div>
 	</div>
+{/if}
+
+{#if showMediaPicker && media}
+	<MediaPicker {media} onselect={selectCoverImage} onclose={() => (showMediaPicker = false)} />
 {/if}
 
 <style>
@@ -687,6 +768,97 @@
 	.story-field {
 		display: grid;
 		gap: 7px;
+	}
+	.cover-field {
+		padding: 14px;
+		border: 1px solid #263f38;
+		border-radius: 13px;
+		background: #0a1613;
+	}
+	.cover-field-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 14px;
+	}
+	.cover-field-heading span,
+	.cover-field-heading small {
+		display: block;
+	}
+	.cover-field-heading span {
+		color: #dfeae6;
+		font-size: 0.83rem;
+		font-weight: 750;
+	}
+	.cover-field-heading small {
+		margin-top: 3px;
+		color: #71867f;
+		font-size: 0.72rem;
+	}
+	.cover-actions {
+		display: flex;
+		gap: 7px;
+	}
+	.cover-actions button {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		padding: 9px 11px;
+		color: #bdeedf;
+		border: 1px solid #2e6653;
+		border-radius: 9px;
+		background: #10281f;
+		font-size: 0.78rem;
+		font-weight: 750;
+	}
+	.cover-actions .remove-cover {
+		color: #e7a5a5;
+		border-color: #573032;
+		background: #241315;
+	}
+	.cover-summary {
+		display: grid;
+		grid-template-columns: 92px minmax(0, 1fr);
+		gap: 12px;
+		align-items: center;
+		margin-top: 13px;
+	}
+	.cover-summary img {
+		width: 92px;
+		height: 64px;
+		object-fit: cover;
+		border-radius: 9px;
+		background: #14231f;
+	}
+	.cover-summary strong,
+	.cover-summary span,
+	.cover-summary em {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.cover-summary strong {
+		color: #d9e7e2;
+		font-size: 0.8rem;
+	}
+	.cover-summary span {
+		margin: 3px 0;
+		color: #91a59e;
+		font-size: 0.74rem;
+	}
+	.cover-summary em {
+		color: #a9945f;
+		font-size: 0.68rem;
+		font-style: normal;
+	}
+	.cover-summary em.connected {
+		color: #e0b75d;
+	}
+	.cover-empty {
+		margin: 12px 0 0;
+		color: #748980;
+		font-size: 0.76rem;
 	}
 	.story-field > small {
 		color: #6f847d;

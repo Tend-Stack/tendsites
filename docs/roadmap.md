@@ -84,7 +84,11 @@ Completion is measured only from the top-level product milestones below. Nested 
 
 - [x] Pages, posts, docs, media, navigation, and localization adapters.
   - **Complete:** Content/locale/collection/draft/navigation indexing plus deterministic Markdown/JSON-frontmatter serialization.
-  - **Pending integration:** Host-backed read/write adapters and media I/O.
+  - **Complete read-only host slice:** With explicit `files.read` consent, the Content workspace can
+    browse sanitized owner-scoped tend.host Files images, require alt text, and retain an opaque
+    selected reference for the local draft preview.
+  - **Pending integration:** Host-backed source read/write adapters plus reviewed copying of selected
+    Files images into canonical repository source.
 - [x] Autosave drafts separated from committed source.
   - **Complete:** Monotonic draft revision, exact retry, stale-base conflict, and bounded undo contracts.
   - **Complete local preview:** Versioned extension-scoped draft storage migrates
@@ -170,7 +174,10 @@ Completion is measured only from the top-level product milestones below. Nested 
 - [x] Undo history and clear conflict resolution.
 - [x] Repository media lifecycle with accessible variants.
   - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.
-  - **Pending integration:** Execute lifecycle plans through an assigned host capability.
+  - **Complete connected picker:** A sealed, read-only tend.host Files bridge exposes sanitized image
+    choices without provider paths or mutation authority and blocks cover selection until alt text exists.
+  - **Pending integration:** Copy a selected item into repository source and execute lifecycle plans
+    through a separately assigned mutation capability.
 - [x] Localization coverage and reviewed translation workflow.
   - **Complete:** Coverage reports and source-bound manual/user-configured-AI proposals.
   - **Pending integration:** Persist approved translations through repository change operations.

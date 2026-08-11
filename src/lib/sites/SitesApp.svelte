@@ -60,6 +60,7 @@
 		supportedFrameworkAdapters
 	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
+	import type { HostMediaBridge } from './host-media';
 	import PostFeed from './PostFeed.svelte';
 	import SeoWorkspace, { type SeoArea } from './SeoWorkspace.svelte';
 	import StructureWorkspace, { type StructureArea } from './StructureWorkspace.svelte';
@@ -121,7 +122,11 @@
 	type ReadinessArea =
 		'overview' | 'health' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
 
-	let { embedded = false, storage }: { embedded?: boolean; storage?: DraftStorage } = $props();
+	let {
+		embedded = false,
+		storage,
+		media
+	}: { embedded?: boolean; storage?: DraftStorage; media?: HostMediaBridge } = $props();
 	let view = $state<View>('home');
 	let wizardStep = $state(1);
 	let selectedGoal = $state<SiteGoal>('blog');
@@ -992,7 +997,7 @@
 			</section>
 		</main>
 	{:else if view === 'content'}
-		<ContentWorkspace site={siteDraft} onchange={changeDraft} />
+		<ContentWorkspace site={siteDraft} onchange={changeDraft} {media} />
 	{:else if view === 'structure'}
 		<StructureWorkspace
 			site={siteDraft}

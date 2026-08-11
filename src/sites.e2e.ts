@@ -838,6 +838,73 @@ test('replaces a stale extension stylesheet before mounting updated code', async
 	await expect(page.locator('.browser-frame')).toBeVisible();
 });
 
+test('selects an accessible cover image through the packaged tend.host Files bridge', async ({
+	page
+}) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	await page.evaluate(async () => {
+		const image =
+			'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="640" height="480"%3E%3Crect width="640" height="480" fill="%23215d49"/%3E%3C/svg%3E';
+		const extensionUrl = '/test-extension/index.js?v=media';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension
+			.default({
+				id: 'host.tend.sites',
+				onUnmount() {},
+				files: {
+					async listImageLibraries() {
+						return [{ id: 'photos', name: 'Photos', itemCount: 1 }];
+					},
+					async listImages() {
+						return {
+							items: [
+								{
+									id: 'lake',
+									libraryId: 'photos',
+									name: 'quiet-lake.jpg',
+									mimeType: 'image/jpeg',
+									size: 2048,
+									modifiedAt: 1,
+									description: '',
+									thumbnailUrl: image,
+									contentUrl: image
+								}
+							],
+							total: 1,
+							nextCursor: null
+						};
+					}
+				}
+			})
+			.mount(container);
+	});
+
+	await page.getByRole('button', { name: 'Content', exact: true }).click();
+	await page.getByRole('button', { name: 'Replace from Files' }).click();
+	await expect(page.getByRole('heading', { name: 'Choose a cover image' })).toBeVisible();
+	await page.getByRole('button', { name: 'quiet-lake.jpg' }).click();
+	await expect(page.getByRole('button', { name: 'Use image' })).toBeDisabled();
+	await page.getByLabel('Image description').fill('A quiet green lake at dawn');
+	await page.getByRole('button', { name: 'Use image' }).click();
+	await expect(page.getByText('Connected preview · repository copy pending')).toBeVisible();
+	await expect(page.getByAltText('A quiet green lake at dawn')).toBeVisible();
+});
+
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({
 	page
 }) => {

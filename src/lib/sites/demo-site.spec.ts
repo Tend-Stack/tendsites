@@ -123,6 +123,19 @@ describe('interactive demo site', () => {
 			createDemoPost(index, [])
 		);
 		expect(isDemoSite(tooManyPosts)).toBe(false);
+		const withHostMedia = createDemoSite();
+		withHostMedia.collections[0].items[0].coverImageSource = {
+			kind: 'host_files',
+			itemId: 'item-1',
+			libraryId: 'library-1',
+			name: 'lake.jpg',
+			mimeType: 'image/jpeg',
+			size: 2048,
+			modifiedAt: 1_700_000_000
+		};
+		expect(isDemoSite(withHostMedia)).toBe(true);
+		withHostMedia.collections[0].items[0].coverImageSource.itemId = '';
+		expect(isDemoSite(withHostMedia)).toBe(false);
 		const invalidForm = createDemoSite();
 		const form = invalidForm.pages[1].sections.find((section) => section.kind === 'form')!;
 		delete form.formConsentLabel;

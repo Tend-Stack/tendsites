@@ -28,7 +28,12 @@ blocks where an adapter proves safe round-tripping.
   - **Complete editing foundation:** A dedicated Content workspace provides post search, draft and
     published filters, title/address/summary/body/author/tag editing, reader preview, featured state,
     explicit publication state, safe local autosave, and named-confirmation deletion. Host
-    scheduling execution, cover-media selection, and relationships remain pending.
+    scheduling execution and relationships remain pending.
+  - **Complete connected-media slice:** Installed builds can browse owner-authorized images from
+    tend.host Files, require an accessible description, and select a post cover into the local
+    draft and reader/social previews. The selected Files reference is deliberately labelled as a
+    connected preview; copying it into canonical repository source and generating portable variants
+    remain pending.
   - **Complete editorial-state slice:** Posts can be draft, scheduled, published, or archived. A
     scheduled timestamp is bounded and editable, but is explicitly a local plan until a host
     scheduler exists. Scheduled and archived entries never enter visitor collections or routes.
@@ -171,7 +176,7 @@ blocks where an adapter proves safe round-tripping.
 1. Finish the portable rich-text/block model and round-trip tests.
 2. Add first-class blog collections and a real post editor.
 3. Add post-list/featured-content blocks so the example home page consumes real collection data.
-4. Complete repository media selection and accessible image workflows.
+4. Complete repository copying and variant generation for the now-connected accessible Files picker.
 5. Build modular site/page SEO workspaces plus sitemap, robots, feeds, redirects, and checks.
 6. Expand reviewed templates and component blocks around the stable content contracts.
 7. Connect drafts, source changes, isolated previews, and publishing through the existing typed host

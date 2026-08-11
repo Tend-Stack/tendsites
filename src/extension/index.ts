@@ -2,6 +2,8 @@ import { mount, unmount } from 'svelte';
 
 import SitesApp from '../lib/sites/SitesApp.svelte';
 
+import type { HostMediaBridge } from '../lib/sites/host-media';
+
 type ExtensionHost = {
 	id: string;
 	storage?: {
@@ -9,6 +11,7 @@ type ExtensionHost = {
 		set(key: string, value: unknown): Promise<void>;
 		delete(key: string): Promise<void>;
 	};
+	files?: HostMediaBridge;
 	onUnmount(callback: () => void): void;
 };
 
@@ -67,7 +70,7 @@ export default function activate(host: ExtensionHost) {
 			await ensureStylesheet();
 			const app = mount(SitesApp, {
 				target: container,
-				props: { embedded: true, storage: host.storage }
+				props: { embedded: true, storage: host.storage, media: host.files }
 			});
 			let active = true;
 

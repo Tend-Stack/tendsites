@@ -67,6 +67,16 @@ export type DemoEntrySeo = DemoPageSeo;
 
 export type DemoPostStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 
+export type DemoMediaReference = {
+	kind: 'host_files';
+	itemId: string;
+	libraryId: string;
+	name: string;
+	mimeType: string | null;
+	size: number | null;
+	modifiedAt: number | null;
+};
+
 export type DemoPost = {
 	id: string;
 	title: string;
@@ -75,6 +85,7 @@ export type DemoPost = {
 	body: string;
 	coverImage?: string;
 	coverImageAlt?: string;
+	coverImageSource?: DemoMediaReference;
 	author: string;
 	tags: string[];
 	status: DemoPostStatus;
@@ -614,6 +625,23 @@ function isDemoPageSeo(value: unknown): value is DemoPageSeo {
 	);
 }
 
+function isDemoMediaReference(value: unknown): value is DemoMediaReference {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+	const media = value as Partial<DemoMediaReference>;
+	return (
+		media.kind === 'host_files' &&
+		isBoundedString(media.itemId, 200) &&
+		media.itemId.length > 0 &&
+		isBoundedString(media.libraryId, 200) &&
+		media.libraryId.length > 0 &&
+		isBoundedString(media.name, 240) &&
+		media.name.length > 0 &&
+		(media.mimeType === null || isBoundedString(media.mimeType, 120)) &&
+		(media.size === null || (Number.isInteger(media.size) && (media.size ?? -1) >= 0)) &&
+		(media.modifiedAt === null || Number.isFinite(media.modifiedAt))
+	);
+}
+
 export function isDemoSite(value: unknown): value is DemoSite {
 	if (!value || typeof value !== 'object') return false;
 	const candidate = value as Partial<DemoSite>;
@@ -729,6 +757,7 @@ export function isDemoSite(value: unknown): value is DemoSite {
 				(post.status !== 'scheduled' && post.scheduledAt !== null) ||
 				(post.coverImage !== undefined && typeof post.coverImage !== 'string') ||
 				(post.coverImageAlt !== undefined && typeof post.coverImageAlt !== 'string') ||
+				(post.coverImageSource !== undefined && !isDemoMediaReference(post.coverImageSource)) ||
 				!isDemoPageSeo(post.seo)
 			)
 				return false;
