@@ -23,7 +23,11 @@ Completion is measured only from the top-level product milestones below. Nested 
     are encrypted, byte/time bounded, noncanonical, and require every terminal purge event.
     Revision-bound evidence derives `protected`, `external_repository`, `versioned_only`, or
     `at_risk` without treating containers, artifacts, successful deploys, or local history as backup.
-  - **Pending integration:** Persist source bindings and draft leases through tend.host, connect
+  - **Complete host persistence foundation:** tend.host now binds one canonical source to an exact
+    same-user/project accepted creation operation and persists one current Fernet-encrypted draft
+    snapshot with canonical lease evidence, digest/byte validation, 25 MB project quota, seven-day
+    retention, monotonic replacement, restart recovery, and terminal ciphertext purge.
+  - **Pending integration:** Deliver these route-free capabilities to the mounted extension, connect
     customer-owned backup evidence and restore drills, and expose the truthful durability state in
     the project overview.
 - [x] Modular, responsive, read-only Studio foundation.
@@ -84,7 +88,9 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete recovery UX:** Failed or unreadable local saves preserve the visible
     draft and expose explicit retry or local-copy replacement without touching a
     repository or published site.
-  - **Pending integration:** Persist project-scoped drafts through a durable host capability.
+  - **Complete host persistence foundation:** The route-free host service persists the exact public
+    lease and encrypted snapshot under its actor/source/base revision. Browser delivery and source
+    commit remain pending and no draft is canonical source.
 - [x] Accessible block canvas with schema-driven inspector.
 - [x] Safe local page and section management.
   - **Complete:** Friendly unique addresses, page duplication, protected home

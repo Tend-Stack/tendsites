@@ -38,6 +38,9 @@ Source adoption is bound to provider installation, repository, immutable commit/
 15. Resumable drafts are encrypted, byte- and time-bounded, exact-user/project/base-revision bound,
     and structurally noncanonical. They grant no commit or publish authority and are purged after
     commit, discard, retention expiry, project deletion, or account deletion.
+    The current route-free tend.host persistence foundation verifies UTF-8 bytes and SHA-256,
+    requires the exact stored source revision and actor, permits at most seven days and 25 MB per
+    actor/project, and clears ciphertext at terminal purge. Browser delivery remains pending.
 
 16. Durability labels come from exact live evidence. Local history without a verified recovery copy
     is `versioned_only`; stale or incomplete source evidence is `at_risk`. A container image, preview,
