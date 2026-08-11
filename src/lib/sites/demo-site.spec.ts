@@ -133,7 +133,16 @@ describe('interactive demo site', () => {
 			size: 2048,
 			modifiedAt: 1_700_000_000
 		};
+		withHostMedia.collections[0].items[0].coverImagePresentation = {
+			aspect: 'wide',
+			fit: 'cover',
+			focalX: 42,
+			focalY: 58
+		};
 		expect(isDemoSite(withHostMedia)).toBe(true);
+		withHostMedia.collections[0].items[0].coverImagePresentation.focalX = 101;
+		expect(isDemoSite(withHostMedia)).toBe(false);
+		withHostMedia.collections[0].items[0].coverImagePresentation.focalX = 42;
 		withHostMedia.collections[0].items[0].coverImageSource.itemId = '';
 		expect(isDemoSite(withHostMedia)).toBe(false);
 		const invalidForm = createDemoSite();

@@ -13,6 +13,7 @@
 		X
 	} from '@lucide/svelte';
 
+	import type { DemoImagePresentation } from './demo-site';
 	import type { HostImageItem, HostImageLibrary, HostMediaBridge } from './host-media';
 
 	let {
@@ -21,7 +22,7 @@
 		onclose
 	}: {
 		media: HostMediaBridge;
-		onselect: (image: HostImageItem, alt: string) => void;
+		onselect: (image: HostImageItem, alt: string, presentation: DemoImagePresentation) => void;
 		onclose: () => void;
 	} = $props();
 
@@ -105,6 +106,10 @@
 	function choose(image: HostImageItem) {
 		selected = image;
 		altText = image.description.trim();
+		aspectPreset = 'wide';
+		fit = 'cover';
+		focalX = 50;
+		focalY = 50;
 	}
 
 	function chooseUpload(event: Event) {
@@ -131,7 +136,8 @@
 	async function confirmSelection() {
 		if (!altText.trim()) return;
 		if (sourceMode === 'files') {
-			if (selected) onselect(selected, altText.trim());
+			if (selected)
+				onselect(selected, altText.trim(), { aspect: aspectPreset, fit, focalX, focalY });
 			return;
 		}
 		if (!uploadFile || !media.prepareImage || preparing) return;
@@ -160,7 +166,8 @@
 					thumbnailUrl: prepared.dataUrl,
 					contentUrl: prepared.dataUrl
 				},
-				altText.trim()
+				altText.trim(),
+				{ aspect: aspectPreset, fit: 'cover', focalX: 50, focalY: 50 }
 			);
 		} catch (reason) {
 			uploadError = reason instanceof Error ? reason.message : 'The image could not be optimized.';
@@ -207,10 +214,9 @@
 				class:active={sourceMode === 'upload'}
 				aria-pressed={sourceMode === 'upload'}
 				onclick={() => (sourceMode = 'upload')}
-				disabled={!media.prepareImage}
 				><Upload size={17} /><span
 					><b>Upload new</b><small
-						>{media.prepareImage ? 'Optimized locally' : 'Host update required'}</small
+						>{media.prepareImage ? 'Optimized locally' : 'Update tend.host to enable'}</small
 					></span
 				></button
 			>
@@ -236,12 +242,15 @@
 					}}
 				>
 					<label for="media-search">Search</label>
-					<div>
-						<Search size={17} /><input
-							id="media-search"
-							bind:value={query}
-							placeholder="Search images"
-						/><button type="submit">Search</button>
+					<div class="search-row">
+						<div class="search-input">
+							<Search size={17} /><input
+								id="media-search"
+								bind:value={query}
+								placeholder="Search images"
+							/>
+						</div>
+						<button type="submit">Search</button>
 					</div>
 				</form>
 			</div>
@@ -290,9 +299,72 @@
 					{/if}
 				</section>
 				<aside class="inspector">
-					{#if selected}<div class="mini-preview"><img src={selected.contentUrl} alt="" /></div>
-						<strong>{selected.name}</strong><label for="media-alt">Image description</label
-						><textarea
+					{#if selected}<div
+							class="mini-preview"
+							style:aspect-ratio={`${activePreset.width} / ${activePreset.height}`}
+						>
+							<img
+								src={selected.contentUrl}
+								alt=""
+								style:object-fit={fit}
+								style:object-position={`${focalX}% ${focalY}%`}
+							/>
+							<div class="thirds"><i></i><i></i><i></i><i></i></div>
+						</div>
+						<strong>{selected.name}</strong>
+						<section class="frame-controls" aria-labelledby="library-frame-title">
+							<div class="frame-heading">
+								<Crop size={16} /><span
+									><h3 id="library-frame-title">Frame image</h3>
+									<small>Preview the exact placement</small></span
+								>
+							</div>
+							<fieldset>
+								<legend>Canvas</legend>
+								<div class="preset-grid">
+									{#each Object.entries(aspectPresets) as [id, preset] (id)}<button
+											type="button"
+											class:active={aspectPreset === id}
+											onclick={() => (aspectPreset = id as AspectPreset)}
+											><b>{preset.label}</b><small>{preset.hint}</small></button
+										>{/each}
+								</div>
+							</fieldset>
+							<fieldset>
+								<legend>Fit</legend>
+								<div class="fit-grid">
+									<button
+										type="button"
+										class:active={fit === 'cover'}
+										onclick={() => (fit = 'cover')}
+										><Crop size={16} /><span><b>Fill</b><small>Crop edges</small></span></button
+									><button
+										type="button"
+										class:active={fit === 'contain'}
+										onclick={() => (fit = 'contain')}
+										><ImageIcon size={16} /><span><b>Fit</b><small>Keep all</small></span></button
+									>
+								</div>
+							</fieldset>
+							{#if fit === 'cover'}<fieldset>
+									<legend>Focal point</legend><label class="range-row"
+										><span>Horizontal</span><input
+											type="range"
+											min="0"
+											max="100"
+											bind:value={focalX}
+										/></label
+									><label class="range-row"
+										><span>Vertical</span><input
+											type="range"
+											min="0"
+											max="100"
+											bind:value={focalY}
+										/></label
+									>
+								</fieldset>{/if}
+						</section>
+						<label for="media-alt">Image description</label><textarea
 							id="media-alt"
 							bind:value={altText}
 							rows="4"
@@ -313,6 +385,20 @@
 						</div>{/if}
 				</aside>
 			</div>
+		{:else if !media.prepareImage}
+			<section class="capability-state">
+				<div>
+					<Upload size={28} /><span
+						><b>Upload needs the current tend.host media service</b><small
+							>Your existing Files library still works. Update the host, then reopen TEND Sites to
+							optimize new images locally.</small
+						></span
+					>
+				</div>
+				<button type="button" onclick={() => (sourceMode = 'files')}
+					><FolderOpen size={16} /> Browse Files instead</button
+				>
+			</section>
 		{:else}
 			<div class="upload-workspace">
 				<section class="canvas-panel">
@@ -483,7 +569,7 @@
 		align-items: start;
 		justify-content: space-between;
 		gap: 20px;
-		padding: 22px 24px 18px;
+		padding: 15px 20px 13px;
 		border-bottom: 1px solid #17342a;
 	}
 	.eyebrow {
@@ -494,13 +580,13 @@
 		text-transform: uppercase;
 	}
 	h2 {
-		margin: 4px 0;
-		font-size: clamp(1.45rem, 3vw, 2rem);
+		margin: 2px 0;
+		font-size: clamp(1.3rem, 2.5vw, 1.72rem);
 	}
 	.dialog-head p {
 		margin: 0;
 		color: #91a49e;
-		font-size: 0.88rem;
+		font-size: 0.78rem;
 	}
 	button,
 	input,
@@ -512,8 +598,8 @@
 		cursor: pointer;
 	}
 	.icon-button {
-		width: 42px;
-		height: 42px;
+		width: 38px;
+		height: 38px;
 		display: grid;
 		place-items: center;
 		flex: none;
@@ -526,16 +612,16 @@
 		display: flex;
 		align-items: stretch;
 		gap: 8px;
-		padding: 12px 20px;
+		padding: 8px 20px;
 		border-bottom: 1px solid #17342a;
 		background: #081410;
 	}
 	.source-tabs > button {
-		min-width: 170px;
+		min-width: 158px;
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		padding: 9px 12px;
+		padding: 7px 10px;
 		color: #a7b9b3;
 		border: 1px solid transparent;
 		border-radius: 12px;
@@ -571,9 +657,9 @@
 	}
 	.library-controls {
 		display: grid;
-		grid-template-columns: minmax(190px, 0.45fr) minmax(260px, 1fr);
-		gap: 14px;
-		padding: 14px 20px;
+		grid-template-columns: minmax(190px, 280px) minmax(280px, 520px);
+		gap: 12px;
+		padding: 10px 20px;
 		border-bottom: 1px solid #17342a;
 	}
 	.library-controls label,
@@ -586,7 +672,7 @@
 		font-weight: 750;
 	}
 	.library-controls select,
-	.library-controls form > div,
+	.search-input,
 	textarea {
 		width: 100%;
 		box-sizing: border-box;
@@ -599,7 +685,12 @@
 		height: 42px;
 		padding: 0 11px;
 	}
-	.library-controls form > div {
+	.search-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 8px;
+	}
+	.search-input {
 		display: flex;
 		align-items: center;
 		padding-left: 11px;
@@ -623,12 +714,12 @@
 		font-weight: 800;
 	}
 	.library-controls form button {
-		margin-right: 4px;
+		min-width: 84px;
 	}
 	.workspace {
 		min-height: 0;
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 320px;
+		grid-template-columns: minmax(0, 1fr) 370px;
 		flex: 1;
 		overflow: hidden;
 	}
@@ -709,18 +800,17 @@
 		display: grid;
 		place-items: center;
 		overflow: hidden;
-		aspect-ratio: 16/9;
+		max-height: 230px;
 		border-radius: 13px;
 		background: #10211b;
 	}
 	.mini-preview img {
 		width: 100%;
 		height: 100%;
-		object-fit: cover;
 	}
 	.inspector > strong {
 		display: block;
-		margin: 12px 0 16px;
+		margin: 10px 0 12px;
 		overflow-wrap: anywhere;
 	}
 	.inspector textarea,
@@ -735,6 +825,48 @@
 		margin-top: 5px;
 		color: #788e86;
 		font-size: 0.68rem;
+	}
+	.frame-controls {
+		margin-bottom: 16px;
+		padding: 12px;
+		border: 1px solid #24483b;
+		border-radius: 12px;
+		background: #0b1b16;
+	}
+	.frame-heading {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 12px;
+		color: #62e4b2;
+	}
+	.frame-heading span {
+		display: flex;
+		flex-direction: column;
+	}
+	.frame-heading h3 {
+		margin: 0;
+		font-size: 0.75rem;
+	}
+	.frame-heading small {
+		color: #71877f;
+		font-size: 0.6rem;
+	}
+	.frame-controls fieldset {
+		padding: 0;
+		margin: 0 0 12px;
+		border: 0;
+	}
+	.frame-controls fieldset:last-child {
+		margin-bottom: 0;
+	}
+	.frame-controls legend {
+		margin-bottom: 6px;
+		color: #91a69e;
+		font-size: 0.62rem;
+		font-weight: 800;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
 	}
 	.guide {
 		display: flex;
@@ -767,6 +899,41 @@
 		padding: 24px;
 		color: #81978f;
 		text-align: center;
+	}
+	.capability-state {
+		min-height: 360px;
+		display: grid;
+		place-content: center;
+		justify-items: center;
+		gap: 20px;
+		padding: 32px;
+		text-align: center;
+	}
+	.capability-state > div {
+		max-width: 520px;
+		display: grid;
+		justify-items: center;
+		gap: 12px;
+		color: #62e4b2;
+	}
+	.capability-state span {
+		display: grid;
+		gap: 6px;
+	}
+	.capability-state small {
+		color: #81968e;
+		line-height: 1.5;
+	}
+	.capability-state button {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 14px;
+		color: #bdeedf;
+		border: 1px solid #2e6653;
+		border-radius: 10px;
+		background: #10281f;
+		font-weight: 800;
 	}
 	.media-state button {
 		padding: 8px 12px;
@@ -1009,6 +1176,10 @@
 		margin: 7px 0;
 		color: #879b94;
 		font-size: 0.65rem;
+	}
+	.inspector .range-row {
+		display: grid;
+		margin: 7px 0;
 	}
 	.range-row input,
 	.quality input {

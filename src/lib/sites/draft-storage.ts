@@ -1,4 +1,10 @@
-import { cloneDemoSite, upgradeDemoSite, type DemoSite } from './demo-site';
+import {
+	cloneDemoSite,
+	encodeBundledDemoImages,
+	hydrateBundledDemoImages,
+	upgradeDemoSite,
+	type DemoSite
+} from './demo-site';
 
 export const DEMO_DRAFT_CONTRACT = 'tend.host/sites-local-draft/v1' as const;
 
@@ -15,7 +21,10 @@ export type DemoDraftEnvelope = {
 	site: DemoSite;
 };
 
-const MAX_DRAFT_BYTES = 256_000;
+// Keep this just below tend.host's 1 MiB per-value ceiling. Prepared WebP
+// images are capped before base64 encoding, so a 200 KiB image plus the site
+// document safely fits while malformed or runaway drafts are still rejected.
+export const MAX_DRAFT_BYTES = 960_000;
 
 function isBounded(value: unknown): boolean {
 	try {
@@ -36,7 +45,7 @@ export function parseDemoDraft(value: unknown): DemoDraftEnvelope | null {
 			contract: DEMO_DRAFT_CONTRACT,
 			revision: 0,
 			savedAt: new Date(0).toISOString(),
-			site: legacySite
+			site: hydrateBundledDemoImages(legacySite)
 		};
 	}
 
@@ -61,7 +70,7 @@ export function parseDemoDraft(value: unknown): DemoDraftEnvelope | null {
 		contract: DEMO_DRAFT_CONTRACT,
 		revision,
 		savedAt,
-		site: upgradedSite
+		site: hydrateBundledDemoImages(upgradedSite)
 	};
 }
 
@@ -93,6 +102,12 @@ export class DemoDraftStore {
 
 	save(site: DemoSite): Promise<DemoDraftEnvelope> {
 		const snapshot = cloneDemoSite(site);
+		const persistedSite = encodeBundledDemoImages(snapshot);
+		if (!isBounded(persistedSite)) {
+			return Promise.reject(
+				new Error('This draft is too large to save. Remove an uploaded image and try again.')
+			);
+		}
 		const write = this.#tail
 			.catch(() => undefined)
 			.then(async () => {
@@ -101,10 +116,10 @@ export class DemoDraftStore {
 					contract: DEMO_DRAFT_CONTRACT,
 					revision: ++this.#revision,
 					savedAt: this.#now().toISOString(),
-					site: snapshot
+					site: persistedSite
 				};
 				await this.#storage.set(this.#key, envelope);
-				return envelope;
+				return { ...envelope, site: snapshot };
 			});
 		this.#tail = write.then(() => undefined);
 		return write;

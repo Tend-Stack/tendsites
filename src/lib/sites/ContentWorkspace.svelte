@@ -26,7 +26,13 @@
 		TriangleAlert
 	} from '@lucide/svelte';
 
-	import { createDemoPost, uniquePostSlug, type DemoPost, type DemoSite } from './demo-site';
+	import {
+		createDemoPost,
+		uniquePostSlug,
+		type DemoImagePresentation,
+		type DemoPost,
+		type DemoSite
+	} from './demo-site';
 	import MediaPicker from './MediaPicker.svelte';
 	import type { HostImageItem, HostMediaBridge } from './host-media';
 	import { applyMarkdownEdit, type MarkdownEditAction } from './markdown-edit';
@@ -37,12 +43,14 @@
 		onchange,
 		onsave,
 		saveStatus,
+		saveError,
 		media
 	}: {
 		site: DemoSite;
 		onchange: (mutator: (next: DemoSite) => void) => void;
 		onsave: () => Promise<void>;
 		saveStatus: 'loading' | 'saved' | 'local' | 'error';
+		saveError?: string;
 		media?: HostMediaBridge;
 	} = $props();
 
@@ -211,11 +219,16 @@
 		});
 	}
 
-	function selectCoverImage(image: HostImageItem, alt: string) {
+	function selectCoverImage(
+		image: HostImageItem,
+		alt: string,
+		presentation: DemoImagePresentation
+	) {
 		updatePost((post) => {
 			const previous = post.coverImage;
 			post.coverImage = image.contentUrl;
 			post.coverImageAlt = alt;
+			post.coverImagePresentation = presentation;
 			post.coverImageSource =
 				image.libraryId === 'device-upload'
 					? {
@@ -249,6 +262,7 @@
 			delete post.coverImage;
 			delete post.coverImageAlt;
 			delete post.coverImageSource;
+			delete post.coverImagePresentation;
 			if (post.seo.socialImage === previous) delete post.seo.socialImage;
 		});
 	}
@@ -381,7 +395,7 @@
 									: saveStatus === 'saved'
 										? 'Autosaved'
 										: saveStatus === 'error'
-											? 'Save failed'
+											? saveError || 'Save failed'
 											: 'Session only'}
 							</small>
 						</div>
@@ -458,7 +472,12 @@
 							</div>
 							{#if selectedPost.coverImage}
 								<div class="cover-summary">
-									<img src={selectedPost.coverImage} alt="" />
+									<img
+										src={selectedPost.coverImage}
+										alt=""
+										style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
+										style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
+									/>
 									<div>
 										<strong>{selectedPost.coverImageSource?.name ?? 'Starter image'}</strong><span
 											>{selectedPost.coverImageAlt || 'Missing image description'}</span
@@ -527,6 +546,13 @@
 						{#if selectedPost.coverImage}<img
 								src={selectedPost.coverImage}
 								alt={selectedPost.coverImageAlt ?? ''}
+								style:aspect-ratio={selectedPost.coverImagePresentation?.aspect === 'square'
+									? '1 / 1'
+									: selectedPost.coverImagePresentation?.aspect === 'portrait'
+										? '4 / 5'
+										: '16 / 9'}
+								style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
+								style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
 							/>{/if}
 						<h2>{selectedPost.title}</h2>
 						<p>{selectedPost.summary}</p>

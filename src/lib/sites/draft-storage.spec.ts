@@ -68,7 +68,13 @@ describe('versioned local draft storage', () => {
 
 	it('rejects malformed and unbounded stored drafts', () => {
 		expect(parseDemoDraft({ contract: DEMO_DRAFT_CONTRACT, revision: -1 })).toBeNull();
-		expect(parseDemoDraft({ ...createDemoSite(), tagline: 'x'.repeat(300_000) })).toBeNull();
+		expect(parseDemoDraft({ ...createDemoSite(), tagline: 'x'.repeat(970_000) })).toBeNull();
+	});
+
+	it('reloads a prepared image after base64 expansion', () => {
+		const site = createDemoSite();
+		site.collections[0].items[0].coverImage = `data:image/webp;base64,${'a'.repeat(280_000)}`;
+		expect(parseDemoDraft(site)?.site.collections[0].items[0].coverImage).toHaveLength(280_023);
 	});
 
 	it('serializes writes so an older save cannot overwrite a newer edit', async () => {

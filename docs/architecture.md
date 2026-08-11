@@ -64,6 +64,10 @@ Generated site = ordinary files + assets + Git history
   items from the same validated draft, use deterministic newest/featured
   ordering, and open an in-preview article view; draft content never enters the
   visitor projection.
+  Bundled demonstration images are encoded as `tend-sites-asset://demo/*` references only inside
+  that envelope and hydrated back to package URLs at the UI boundary. User-selected Files URLs and
+  bounded optimized uploads are preserved. This prevents library-mode asset inlining from exceeding
+  tend.host's per-value storage limit.
   The post composer applies deterministic selection edits directly to portable Markdown. Its shared
   renderer recognizes headings, inline emphasis, safe links, ordered and unordered lists, block
   quotes, fenced code, and dividers; raw HTML remains escaped and code content never executes.

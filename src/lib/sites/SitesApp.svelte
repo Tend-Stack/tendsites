@@ -145,6 +145,7 @@
 	let selectedSectionId = $state('hero-1');
 	let history = $state<DemoSite[]>([]);
 	let saveStatus = $state<'loading' | 'saved' | 'local' | 'error'>('loading');
+	let saveError = $state('');
 	let showAddPage = $state(false);
 	let showAddSection = $state(false);
 	let showPreview = $state(false);
@@ -275,7 +276,13 @@
 				if (stored && latestSaveRequest === 0) siteDraft = cloneDemoSite(stored.site);
 				saveStatus = 'saved';
 			})
-			.catch(() => (saveStatus = 'error'));
+			.catch((reason) => {
+				saveStatus = 'error';
+				saveError =
+					reason instanceof Error
+						? reason.message.slice(0, 180)
+						: 'The saved draft could not be read.';
+			});
 	});
 
 	function saveDraft(next: DemoSite): Promise<void> {
@@ -285,13 +292,23 @@
 		}
 		const request = ++latestSaveRequest;
 		saveStatus = 'loading';
+		saveError = '';
 		return draftStore
 			.save(next)
 			.then(() => {
-				if (request === latestSaveRequest) saveStatus = 'saved';
+				if (request === latestSaveRequest) {
+					saveStatus = 'saved';
+					saveError = '';
+				}
 			})
-			.catch(() => {
-				if (request === latestSaveRequest) saveStatus = 'error';
+			.catch((reason) => {
+				if (request === latestSaveRequest) {
+					saveStatus = 'error';
+					saveError =
+						reason instanceof Error
+							? reason.message.slice(0, 180)
+							: 'The draft could not be saved.';
+				}
 			});
 	}
 
@@ -300,6 +317,7 @@
 		recoveryBusy = true;
 		try {
 			await draftStore.retryLoad();
+			saveError = '';
 			showDraftRecovery = false;
 			saveDraft(siteDraft);
 		} catch {
@@ -314,6 +332,7 @@
 		recoveryBusy = true;
 		try {
 			await draftStore.reset();
+			saveError = '';
 			showDraftRecovery = false;
 			saveDraft(siteDraft);
 		} catch {
@@ -1002,6 +1021,7 @@
 			onchange={changeDraft}
 			onsave={() => saveDraft(siteDraft)}
 			{saveStatus}
+			{saveError}
 			{media}
 		/>
 	{:else if view === 'structure'}

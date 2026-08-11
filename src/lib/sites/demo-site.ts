@@ -11,6 +11,29 @@ import {
 	type DemoSiteStructure
 } from './site-structure';
 
+const bundledImageTokens = new Map([
+	[fieldNotesImage, 'tend-sites-asset://demo/field-notes'],
+	[forestCabinImage, 'tend-sites-asset://demo/forest-cabin'],
+	[weekendLakeImage, 'tend-sites-asset://demo/weekend-lake']
+]);
+const bundledImages = new Map([...bundledImageTokens].map(([image, token]) => [token, image]));
+
+function replaceBundledImages(site: DemoSite, replacements: Map<string, string>): DemoSite {
+	return JSON.parse(
+		JSON.stringify(site, (_key, value) =>
+			typeof value === 'string' ? (replacements.get(value) ?? value) : value
+		)
+	) as DemoSite;
+}
+
+export function encodeBundledDemoImages(site: DemoSite): DemoSite {
+	return replaceBundledImages(site, bundledImageTokens);
+}
+
+export function hydrateBundledDemoImages(site: DemoSite): DemoSite {
+	return replaceBundledImages(site, bundledImages);
+}
+
 export type DemoSectionKind =
 	'hero' | 'story' | 'post-feed' | 'gallery' | 'quote' | 'newsletter' | 'embed' | 'form';
 
@@ -84,6 +107,13 @@ export type DemoMediaReference =
 			size: number;
 	  };
 
+export type DemoImagePresentation = {
+	aspect: 'wide' | 'square' | 'portrait';
+	fit: 'cover' | 'contain';
+	focalX: number;
+	focalY: number;
+};
+
 export type DemoPost = {
 	id: string;
 	title: string;
@@ -93,6 +123,7 @@ export type DemoPost = {
 	coverImage?: string;
 	coverImageAlt?: string;
 	coverImageSource?: DemoMediaReference;
+	coverImagePresentation?: DemoImagePresentation;
 	author: string;
 	tags: string[];
 	status: DemoPostStatus;
@@ -659,6 +690,21 @@ function isDemoMediaReference(value: unknown): value is DemoMediaReference {
 	);
 }
 
+function isDemoImagePresentation(value: unknown): value is DemoImagePresentation {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+	const presentation = value as Partial<DemoImagePresentation>;
+	return (
+		['wide', 'square', 'portrait'].includes(presentation.aspect ?? '') &&
+		['cover', 'contain'].includes(presentation.fit ?? '') &&
+		Number.isFinite(presentation.focalX) &&
+		(presentation.focalX ?? -1) >= 0 &&
+		(presentation.focalX ?? 101) <= 100 &&
+		Number.isFinite(presentation.focalY) &&
+		(presentation.focalY ?? -1) >= 0 &&
+		(presentation.focalY ?? 101) <= 100
+	);
+}
+
 export function isDemoSite(value: unknown): value is DemoSite {
 	if (!value || typeof value !== 'object') return false;
 	const candidate = value as Partial<DemoSite>;
@@ -775,6 +821,8 @@ export function isDemoSite(value: unknown): value is DemoSite {
 				(post.coverImage !== undefined && typeof post.coverImage !== 'string') ||
 				(post.coverImageAlt !== undefined && typeof post.coverImageAlt !== 'string') ||
 				(post.coverImageSource !== undefined && !isDemoMediaReference(post.coverImageSource)) ||
+				(post.coverImagePresentation !== undefined &&
+					!isDemoImagePresentation(post.coverImagePresentation)) ||
 				!isDemoPageSeo(post.seo)
 			)
 				return false;

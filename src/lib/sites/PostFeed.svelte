@@ -28,7 +28,12 @@
 	<div class="post-grid" aria-label="Published posts">
 		{#each posts as post (post.id)}
 			<article class="post-card">
-				{#if post.coverImage}<img src={post.coverImage} alt={post.coverImageAlt ?? ''} />{/if}
+				{#if post.coverImage}<img
+						src={post.coverImage}
+						alt={post.coverImageAlt ?? ''}
+						style:object-fit={post.coverImagePresentation?.fit ?? 'cover'}
+						style:object-position={`${post.coverImagePresentation?.focalX ?? 50}% ${post.coverImagePresentation?.focalY ?? 50}%`}
+					/>{/if}
 				<div>
 					<small><CalendarDays size={13} /> {displayDate(post.publishedAt)}</small>
 					<h3>{post.title}</h3>

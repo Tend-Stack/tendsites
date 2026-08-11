@@ -93,6 +93,8 @@
 				class="article-cover"
 				src={selectedPost.coverImage}
 				alt={selectedPost.coverImageAlt ?? ''}
+				style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
+				style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
 			/>
 		{/if}
 		<div class="article-heading">
@@ -197,6 +199,8 @@
 								src={post.coverImage}
 								alt={post.coverImageAlt ?? ''}
 								loading="lazy"
+								style:object-fit={post.coverImagePresentation?.fit ?? 'cover'}
+								style:object-position={`${post.coverImagePresentation?.focalX ?? 50}% ${post.coverImagePresentation?.focalY ?? 50}%`}
 							/>{/if}
 						<div>
 							<small>{displayDate(post.publishedAt)} · {readingMinutes(post.body)} min read</small>

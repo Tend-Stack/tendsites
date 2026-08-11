@@ -878,6 +878,7 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 
 	await page.goto('/');
 	await page.evaluate(async () => {
+		let stored: unknown = null;
 		const image =
 			'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="640" height="480"%3E%3Crect width="640" height="480" fill="%23215d49"/%3E%3C/svg%3E';
 		const extensionUrl = '/test-extension/index.js?v=media';
@@ -888,6 +889,18 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 			.default({
 				id: 'host.tend.sites',
 				onUnmount() {},
+				storage: {
+					async get() {
+						return stored;
+					},
+					async set(_key: string, value: unknown) {
+						stored = value;
+						(window as Window & { __tendSitesDraft?: unknown }).__tendSitesDraft = value;
+					},
+					async delete() {
+						stored = null;
+					}
+				},
 				files: {
 					async listImageLibraries() {
 						return [{ id: 'photos', name: 'Photos', itemCount: 1 }];
@@ -933,11 +946,24 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await page.getByRole('button', { name: 'Replace image' }).click();
 	await expect(page.getByRole('heading', { name: 'Prepare a cover image' })).toBeVisible();
 	await page.getByRole('button', { name: 'quiet-lake.jpg' }).click();
+	await expect(page.getByRole('heading', { name: 'Frame image' })).toBeVisible();
+	await page.getByRole('button', { name: /Square · 1:1/ }).click();
 	await expect(page.getByRole('button', { name: 'Use image' })).toBeDisabled();
 	await page.getByLabel('Image description').fill('A quiet green lake at dawn');
 	await page.getByRole('button', { name: 'Use image' }).click();
 	await expect(page.getByText('Connected preview · repository copy pending')).toBeVisible();
 	await expect(page.getByAltText('A quiet green lake at dawn')).toBeVisible();
+	await expect(page.getByText('Autosaved')).toBeVisible();
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const envelope = (window as Window & { __tendSitesDraft?: unknown }).__tendSitesDraft as {
+					site?: { collections?: Array<{ items?: Array<{ coverImagePresentation?: unknown }> }> };
+				};
+				return envelope?.site?.collections?.[0]?.items?.[0]?.coverImagePresentation;
+			})
+		)
+		.toMatchObject({ aspect: 'square', fit: 'cover', focalX: 50, focalY: 50 });
 
 	await page.getByRole('button', { name: 'Replace image' }).click();
 	await page.getByRole('button', { name: /Upload new/ }).click();
