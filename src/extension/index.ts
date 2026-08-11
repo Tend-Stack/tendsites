@@ -12,6 +12,7 @@ type ExtensionHost = {
 		delete(key: string): Promise<void>;
 	};
 	files?: HostMediaBridge;
+	media?: Pick<HostMediaBridge, 'prepareImage'>;
 	onUnmount(callback: () => void): void;
 };
 
@@ -70,7 +71,11 @@ export default function activate(host: ExtensionHost) {
 			await ensureStylesheet();
 			const app = mount(SitesApp, {
 				target: container,
-				props: { embedded: true, storage: host.storage, media: host.files }
+				props: {
+					embedded: true,
+					storage: host.storage,
+					media: host.files ? { ...host.files, prepareImage: host.media?.prepareImage } : undefined
+				}
 			});
 			let active = true;
 

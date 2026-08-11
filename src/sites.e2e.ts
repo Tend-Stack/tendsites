@@ -68,6 +68,12 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 		page.getByRole('heading', { name: 'Stories, organized and ready to reuse.' })
 	).toBeVisible();
 	await expect(page.locator('.post-list > button')).toHaveCount(3);
+	await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+	await expect(page.getByText('Session only')).toBeVisible();
+	await expect(
+		page.getByLabel('Filter posts').getByRole('button', { name: /All/ })
+	).toHaveAttribute('aria-pressed', 'true');
 	await page
 		.getByLabel('Posts')
 		.getByRole('button', { name: /A cabin reading list/ })
@@ -626,12 +632,15 @@ test('recovers an unreadable extension-scoped draft without changing source', as
 	await page.goto('/');
 	await page.evaluate(async () => {
 		let stored: unknown = { contract: 'invalid-draft' };
+		(window as Window & { __tendDraftWrites?: number }).__tendDraftWrites = 0;
 		const host = {
 			id: 'host.tend.sites',
 			storage: {
 				get: async () => stored,
 				set: async (_key: string, value: unknown) => {
 					stored = value;
+					const testWindow = window as Window & { __tendDraftWrites?: number };
+					testWindow.__tendDraftWrites = (testWindow.__tendDraftWrites ?? 0) + 1;
 				},
 				delete: async () => {
 					stored = null;
@@ -653,6 +662,19 @@ test('recovers an unreadable extension-scoped draft without changing source', as
 	await expect(dialog.getByText('No repository or published site will change.')).toBeVisible();
 	await dialog.getByRole('button', { name: 'Replace saved copy' }).click();
 	await expect(page.getByText('Saved in this panel')).toBeVisible();
+	await page.getByRole('button', { name: 'Content', exact: true }).click();
+	const writesBeforeManualSave = await page.evaluate(
+		() => (window as Window & { __tendDraftWrites?: number }).__tendDraftWrites ?? 0
+	);
+	await page.getByRole('button', { name: 'Save changes' }).click();
+	await expect
+		.poll(async () =>
+			page.evaluate(
+				() => (window as Window & { __tendDraftWrites?: number }).__tendDraftWrites ?? 0
+			)
+		)
+		.toBeGreaterThan(writesBeforeManualSave);
+	await expect(page.getByText('Autosaved')).toBeVisible();
 });
 
 test('keeps embedded pages spacious without clipping site or library labels', async ({ page }) => {
@@ -889,20 +911,47 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 							nextCursor: null
 						};
 					}
+				},
+				media: {
+					async prepareImage(file: File) {
+						return {
+							dataUrl: image,
+							mimeType: 'image/webp' as const,
+							size: 1024,
+							width: 1600,
+							height: 900,
+							originalName: file.name,
+							originalSize: file.size
+						};
+					}
 				}
 			})
 			.mount(container);
 	});
 
 	await page.getByRole('button', { name: 'Content', exact: true }).click();
-	await page.getByRole('button', { name: 'Replace from Files' }).click();
-	await expect(page.getByRole('heading', { name: 'Choose a cover image' })).toBeVisible();
+	await page.getByRole('button', { name: 'Replace image' }).click();
+	await expect(page.getByRole('heading', { name: 'Prepare a cover image' })).toBeVisible();
 	await page.getByRole('button', { name: 'quiet-lake.jpg' }).click();
 	await expect(page.getByRole('button', { name: 'Use image' })).toBeDisabled();
 	await page.getByLabel('Image description').fill('A quiet green lake at dawn');
 	await page.getByRole('button', { name: 'Use image' }).click();
 	await expect(page.getByText('Connected preview · repository copy pending')).toBeVisible();
 	await expect(page.getByAltText('A quiet green lake at dawn')).toBeVisible();
+
+	await page.getByRole('button', { name: 'Replace image' }).click();
+	await page.getByRole('button', { name: /Upload new/ }).click();
+	await page
+		.locator('input[type="file"]')
+		.last()
+		.setInputFiles({
+			name: 'new-cover.png',
+			mimeType: 'image/png',
+			buffer: Buffer.from('safe-image-fixture')
+		});
+	await page.getByLabel('Image description').fill('A newly uploaded editorial cover');
+	await page.getByRole('button', { name: 'Use image' }).click();
+	await expect(page.getByText('Optimized upload · saved with this draft')).toBeVisible();
 });
 
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({

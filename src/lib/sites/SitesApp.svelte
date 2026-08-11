@@ -278,14 +278,14 @@
 			.catch(() => (saveStatus = 'error'));
 	});
 
-	function saveDraft(next: DemoSite) {
+	function saveDraft(next: DemoSite): Promise<void> {
 		if (!draftStore) {
 			saveStatus = 'local';
-			return;
+			return Promise.resolve();
 		}
 		const request = ++latestSaveRequest;
 		saveStatus = 'loading';
-		void draftStore
+		return draftStore
 			.save(next)
 			.then(() => {
 				if (request === latestSaveRequest) saveStatus = 'saved';
@@ -997,7 +997,13 @@
 			</section>
 		</main>
 	{:else if view === 'content'}
-		<ContentWorkspace site={siteDraft} onchange={changeDraft} {media} />
+		<ContentWorkspace
+			site={siteDraft}
+			onchange={changeDraft}
+			onsave={() => saveDraft(siteDraft)}
+			{saveStatus}
+			{media}
+		/>
 	{:else if view === 'structure'}
 		<StructureWorkspace
 			site={siteDraft}

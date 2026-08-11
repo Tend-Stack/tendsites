@@ -67,15 +67,22 @@ export type DemoEntrySeo = DemoPageSeo;
 
 export type DemoPostStatus = 'draft' | 'scheduled' | 'published' | 'archived';
 
-export type DemoMediaReference = {
-	kind: 'host_files';
-	itemId: string;
-	libraryId: string;
-	name: string;
-	mimeType: string | null;
-	size: number | null;
-	modifiedAt: number | null;
-};
+export type DemoMediaReference =
+	| {
+			kind: 'host_files';
+			itemId: string;
+			libraryId: string;
+			name: string;
+			mimeType: string | null;
+			size: number | null;
+			modifiedAt: number | null;
+	  }
+	| {
+			kind: 'device_upload';
+			name: string;
+			mimeType: 'image/webp';
+			size: number;
+	  };
 
 export type DemoPost = {
 	id: string;
@@ -628,6 +635,16 @@ function isDemoPageSeo(value: unknown): value is DemoPageSeo {
 function isDemoMediaReference(value: unknown): value is DemoMediaReference {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
 	const media = value as Partial<DemoMediaReference>;
+	if (media.kind === 'device_upload') {
+		return (
+			isBoundedString(media.name, 240) &&
+			media.name.length > 0 &&
+			media.mimeType === 'image/webp' &&
+			Number.isInteger(media.size) &&
+			(media.size ?? -1) > 0 &&
+			(media.size ?? 0) <= 700 * 1024
+		);
+	}
 	return (
 		media.kind === 'host_files' &&
 		isBoundedString(media.itemId, 200) &&

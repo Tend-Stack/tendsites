@@ -22,10 +22,32 @@ export type HostImagePage = {
 	nextCursor: string | null;
 };
 
+export type HostImagePreparationRecipe = {
+	width: number;
+	height: number;
+	fit: 'cover' | 'contain';
+	focalX: number;
+	focalY: number;
+	quality: number;
+	maxBytes: number;
+	background?: string;
+};
+
+export type HostPreparedImage = {
+	dataUrl: string;
+	mimeType: 'image/webp';
+	size: number;
+	width: number;
+	height: number;
+	originalName: string;
+	originalSize: number;
+};
+
 export type HostMediaBridge = {
 	listImageLibraries(): Promise<HostImageLibrary[]>;
 	listImages(
 		libraryId: string,
 		options?: { query?: string; cursor?: string | null }
 	): Promise<HostImagePage>;
+	prepareImage?(file: File, recipe: HostImagePreparationRecipe): Promise<HostPreparedImage>;
 };

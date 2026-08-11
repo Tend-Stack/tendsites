@@ -13,13 +13,17 @@
 		Image,
 		Link2,
 		List,
+		ListFilter,
 		ListOrdered,
+		LoaderCircle,
 		Minus,
 		Quote,
 		Search,
+		Save,
 		Star,
 		Strikethrough,
-		Trash2
+		Trash2,
+		TriangleAlert
 	} from '@lucide/svelte';
 
 	import { createDemoPost, uniquePostSlug, type DemoPost, type DemoSite } from './demo-site';
@@ -31,10 +35,14 @@
 	let {
 		site,
 		onchange,
+		onsave,
+		saveStatus,
 		media
 	}: {
 		site: DemoSite;
 		onchange: (mutator: (next: DemoSite) => void) => void;
+		onsave: () => Promise<void>;
+		saveStatus: 'loading' | 'saved' | 'local' | 'error';
 		media?: HostMediaBridge;
 	} = $props();
 
@@ -90,6 +98,13 @@
 	const archivedCount = $derived(
 		(collection?.items ?? []).filter((post) => post.status === 'archived').length
 	);
+	const statusOptions = $derived([
+		{ id: 'all' as const, label: 'All', count: collection?.items.length ?? 0 },
+		{ id: 'published' as const, label: 'Published', count: publishedCount },
+		{ id: 'scheduled' as const, label: 'Scheduled', count: scheduledCount },
+		{ id: 'draft' as const, label: 'Drafts', count: draftCount },
+		{ id: 'archived' as const, label: 'Archived', count: archivedCount }
+	]);
 
 	$effect(() => {
 		if (!selectedPostId && collection?.items[0]) selectedPostId = collection.items[0].id;
@@ -201,16 +216,27 @@
 			const previous = post.coverImage;
 			post.coverImage = image.contentUrl;
 			post.coverImageAlt = alt;
-			post.coverImageSource = {
-				kind: 'host_files',
-				itemId: image.id,
-				libraryId: image.libraryId,
-				name: image.name,
-				mimeType: image.mimeType,
-				size: image.size,
-				modifiedAt: image.modifiedAt
-			};
-			if (!post.seo.socialImage || post.seo.socialImage === previous) {
+			post.coverImageSource =
+				image.libraryId === 'device-upload'
+					? {
+							kind: 'device_upload',
+							name: image.name,
+							mimeType: 'image/webp',
+							size: image.size ?? 0
+						}
+					: {
+							kind: 'host_files',
+							itemId: image.id,
+							libraryId: image.libraryId,
+							name: image.name,
+							mimeType: image.mimeType,
+							size: image.size,
+							modifiedAt: image.modifiedAt
+						};
+			if (
+				image.libraryId !== 'device-upload' &&
+				(!post.seo.socialImage || post.seo.socialImage === previous)
+			) {
 				post.seo.socialImage = image.contentUrl;
 			}
 		});
@@ -277,13 +303,22 @@
 				<Search size={17} />
 				<input bind:value={query} aria-label="Search posts" placeholder="Search posts" />
 			</div>
-			<div class="filters" aria-label="Filter posts">
-				{#each [['all', 'All'], ['published', 'Published'], ['scheduled', 'Scheduled'], ['draft', 'Drafts'], ['archived', 'Archived']] as option (option[0])}
-					<button
-						class:active={statusFilter === option[0]}
-						onclick={() => (statusFilter = option[0] as typeof statusFilter)}>{option[1]}</button
-					>
-				{/each}
+			<div class="filter-panel">
+				<div class="filter-heading">
+					<span><ListFilter size={15} /> View posts</span>
+					<small>{filteredPosts.length} shown</small>
+				</div>
+				<div class="filters" role="group" aria-label="Filter posts">
+					{#each statusOptions as option (option.id)}
+						<button
+							type="button"
+							class:active={statusFilter === option.id}
+							aria-pressed={statusFilter === option.id}
+							onclick={() => (statusFilter = option.id)}
+							><span>{option.label}</span><strong>{option.count}</strong></button
+						>
+					{/each}
+				</div>
 			</div>
 			<div class="post-list">
 				{#each filteredPosts as post (post.id)}
@@ -328,6 +363,28 @@
 							onclick={() => updatePost((post) => (post.featured = !post.featured))}
 							><Star size={16} /> Featured</button
 						>
+						<div class="save-control">
+							<button
+								type="button"
+								class="save-button"
+								class:error={saveStatus === 'error'}
+								disabled={saveStatus === 'loading' || saveStatus === 'local'}
+								onclick={() => void onsave()}
+							>
+								{#if saveStatus === 'loading'}<LoaderCircle class="spin" size={16} /> Saving…
+								{:else if saveStatus === 'error'}<TriangleAlert size={16} /> Retry save
+								{:else}<Save size={16} /> Save changes{/if}
+							</button>
+							<small class:error={saveStatus === 'error'} aria-live="polite">
+								{saveStatus === 'loading'
+									? 'Saving changes'
+									: saveStatus === 'saved'
+										? 'Autosaved'
+										: saveStatus === 'error'
+											? 'Save failed'
+											: 'Session only'}
+							</small>
+						</div>
 					</div>
 				</header>
 				{#if selectedPost.status === 'scheduled'}
@@ -390,7 +447,7 @@
 								<div class="cover-actions">
 									<button type="button" disabled={!media} onclick={() => (showMediaPicker = true)}
 										><Image size={16} />
-										{selectedPost.coverImage ? 'Replace from Files' : 'Choose from Files'}</button
+										{selectedPost.coverImage ? 'Replace image' : 'Choose image'}</button
 									>
 									{#if selectedPost.coverImage}<button
 											class="remove-cover"
@@ -406,16 +463,18 @@
 										<strong>{selectedPost.coverImageSource?.name ?? 'Starter image'}</strong><span
 											>{selectedPost.coverImageAlt || 'Missing image description'}</span
 										><em class:connected={Boolean(selectedPost.coverImageSource)}
-											>{selectedPost.coverImageSource
-												? 'Connected preview · repository copy pending'
-												: 'Starter image'}</em
+											>{selectedPost.coverImageSource?.kind === 'device_upload'
+												? 'Optimized upload · saved with this draft'
+												: selectedPost.coverImageSource
+													? 'Connected preview · repository copy pending'
+													: 'Starter image'}</em
 										>
 									</div>
 								</div>
 							{:else}
 								<p class="cover-empty">
 									{media
-										? 'Choose an indexed image and add accessible alt text.'
+										? 'Choose from Files or upload a new image, then add accessible alt text.'
 										: 'Files selection is available when TEND Sites is installed in tend.host.'}
 								</p>
 							{/if}
@@ -621,22 +680,81 @@
 		color: #eef6f2;
 		padding: 12px 0;
 	}
+	.filter-panel {
+		margin: 14px 0 16px;
+		border: 1px solid #1d3730;
+		border-radius: 13px;
+		background: #091512;
+		overflow: hidden;
+	}
+	.filter-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		padding: 9px 11px 7px;
+		color: #82978f;
+		font-size: 0.68rem;
+		font-weight: 750;
+		letter-spacing: 0.03em;
+	}
+	.filter-heading span {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: #a8bab4;
+	}
+	.filter-heading small {
+		font-size: 0.65rem;
+		font-weight: 650;
+	}
 	.filters {
 		display: flex;
-		gap: 7px;
-		margin: 14px 0;
+		overflow-x: auto;
+		scrollbar-width: none;
+		border-top: 1px solid #17302a;
+	}
+	.filters::-webkit-scrollbar {
+		display: none;
 	}
 	.filters button {
-		border: 1px solid #203833;
+		position: relative;
+		display: inline-flex;
+		flex: 1 0 auto;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		min-height: 39px;
+		border: 0;
+		border-right: 1px solid #17302a;
 		color: #91a29d;
 		background: transparent;
-		border-radius: 999px;
-		padding: 7px 11px;
+		padding: 8px 9px;
+		font-size: 0.72rem;
+		font-weight: 700;
+	}
+	.filters button:last-child {
+		border-right: 0;
+	}
+	.filters button strong {
+		display: grid;
+		place-items: center;
+		min-width: 19px;
+		height: 19px;
+		padding: 0 5px;
+		border-radius: 6px;
+		color: #71857e;
+		background: #10201c;
+		font-size: 0.64rem;
 	}
 	.filters button.active {
-		color: #56e3ad;
-		border-color: #26775d;
-		background: #0f2921;
+		color: #62e8b5;
+		background: #10251e;
+		box-shadow: inset 0 -2px #4fe0aa;
+	}
+	.filters button.active strong {
+		color: #05130e;
+		background: #57e3ad;
 	}
 	.post-list {
 		display: grid;
@@ -712,6 +830,46 @@
 		display: flex;
 		gap: 10px;
 		align-items: end;
+	}
+	.save-control {
+		display: grid;
+		justify-items: center;
+		gap: 4px;
+	}
+	.save-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
+		height: 43px;
+		padding: 0 14px;
+		color: #07130f;
+		border: 0;
+		border-radius: 11px;
+		background: #57e3ad;
+		font-weight: 850;
+		white-space: nowrap;
+	}
+	.save-button.error {
+		color: #ffd0cb;
+		border: 1px solid #70403c;
+		background: #2a1716;
+	}
+	.save-control small {
+		color: #6f887f;
+		font-size: 0.62rem;
+		line-height: 1;
+	}
+	.save-control small.error {
+		color: #e49c94;
+	}
+	.save-button :global(.spin) {
+		animation: spin 1s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 	.editor-status label {
 		min-width: 130px;
