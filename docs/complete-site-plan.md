@@ -111,15 +111,24 @@ blocks where an adapter proves safe round-tripping.
 
 - [ ] Responsive header/navigation, skip links, keyboard focus, reduced motion, high contrast, and
       readable type/spacing across the complete template library.
+  - **Complete journal navigation slice:** The visitor journal includes a keyboard-visible skip
+    link, semantic breadcrumbs, responsive controls, and explicit focus targets. Complete template
+    library coverage, reduced-motion review, and high-contrast certification remain pending.
 - [ ] Fast image delivery, lazy loading, stable layouts, route prefetch policy, and honest Core Web
       Vitals guidance.
 - [ ] Site search, category/tag browsing, pagination, breadcrumbs, related content, previous/next
       navigation, share links, and reading-time metadata where appropriate.
+  - **Complete journal discovery slice:** Published journal entries now have bounded local search,
+    tag counts and filtering, six-item pagination, breadcrumbs, reading time, encoded share
+    destinations, related-story ranking, and chronological previous/next navigation.
 - [ ] Forms with accessible validation, consent, spam controls, success/failure recovery, and a
       separately authorized delivery destination. Never pretend a message was delivered.
 - [ ] Cookie-free defaults. Analytics, embeds, maps, and marketing integrations disclose external
       requests and require explicit configuration or visitor consent when policy requires it.
 - [ ] Purpose-built empty, loading, offline, not-found, maintenance, and error experiences.
+  - **Complete journal recovery slice:** Empty filters and missing/unpublished story identities show
+    honest recovery actions. Loading, offline, maintenance, and site-wide error states remain
+    pending.
 
 ## Localization and editorial workflow
 

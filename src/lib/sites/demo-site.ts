@@ -246,7 +246,7 @@ export function createDemoCollections(): DemoCollection[] {
 					coverImage: weekendLakeImage,
 					coverImageAlt: 'A quiet lake reflecting distant green hills',
 					author: 'Willow Hart',
-					tags: ['Lakes', 'Photography'],
+					tags: ['Lakes', 'Photography', 'Slow travel'],
 					status: 'published',
 					featured: false,
 					publishedAt: '2026-07-26T13:30:00.000Z',

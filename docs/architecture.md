@@ -149,3 +149,7 @@ The interactive Sites draft owns bounded site identity, page and post SEO, and a
 redirect intents. Older drafts are upgraded with `en-US`, generated entry metadata, and an empty
 redirect list. Sitemap, robots, RSS, Atom, schema.org, and redirect diagnostics are deterministic
 local projections only; they neither write repository files nor claim publish evidence.
+
+The visitor journal is another pure projection over published draft entries. Search, tags,
+pagination, reading time, related ranking, navigation, and share destinations are computed locally;
+they create no analytics event, external request, repository write, or delivery claim on their own.

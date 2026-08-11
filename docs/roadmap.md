@@ -141,6 +141,9 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete discovery extension:** Locale and favicon identity, per-post search controls, Atom
     and schema.org previews, plus a redirect workspace with duplicate, loop, and missing-target
     diagnostics now live in the Sites component itself. Existing v0.9 drafts migrate forward.
+  - **Complete visitor-journal extension:** The real visitor preview now includes local search, tag
+    browsing, pagination, breadcrumbs, reading time, encoded share destinations, related stories,
+    previous/next navigation, a skip link, and honest empty/not-found recovery.
   - **Pending:** Scheduling, repository persistence, deployment, and the remaining visitor
     capability plan.
 - [x] Undo history and clear conflict resolution.

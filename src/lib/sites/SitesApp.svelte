@@ -58,6 +58,7 @@
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import PostFeed from './PostFeed.svelte';
 	import SeoWorkspace, { type SeoArea } from './SeoWorkspace.svelte';
+	import VisitorJournal from './VisitorJournal.svelte';
 	import { goals, modules, projects, themes } from './fixtures';
 	import {
 		assistanceEvidence,
@@ -175,11 +176,6 @@
 	const selectedSection = $derived(
 		selectedPage?.sections.find((section) => section.id === selectedSectionId) ??
 			selectedPage?.sections[0]
-	);
-	const previewPost = $derived(
-		siteDraft.collections
-			.flatMap((collection) => collection.items)
-			.find((post) => post.id === previewPostId) ?? null
 	);
 	const projectImages = [demoImages.lake, demoImages.notes, demoImages.cabin];
 	const siteHealth = $derived(assessDemoSiteHealth(siteDraft));
@@ -2123,19 +2119,8 @@
 									>{/each}
 							</div>
 						</nav>
-						{#if previewPost}
-							<article class="preview-post-detail">
-								<button class="back-to-page" onclick={() => (previewPostId = null)}>
-									<ArrowLeft size={16} /> Back to {selectedPage?.name ?? 'page'}
-								</button>
-								{#if previewPost.coverImage}
-									<img src={previewPost.coverImage} alt={previewPost.coverImageAlt ?? ''} />
-								{/if}
-								<small>{previewPost.author} · {previewPost.publishedAt?.slice(0, 10)}</small>
-								<h1>{previewPost.title}</h1>
-								<p class="post-summary">{previewPost.summary}</p>
-								<div class="post-body" use:richContent={previewPost.body}></div>
-							</article>
+						{#if previewPostId !== null || selectedPage?.id === 'journal'}
+							<VisitorJournal site={siteDraft} bind:postId={previewPostId} />
 						{:else}
 							{#each selectedPage?.sections ?? [] as section (section.id)}
 								<section class="preview-section {section.kind}">
@@ -2179,7 +2164,10 @@
 												<PostFeed
 													posts={postsForSection(siteDraft, section)}
 													interactive
-													onopen={(post) => (previewPostId = post.id)}
+													onopen={(post) => {
+														selectPage('journal');
+														previewPostId = post.id;
+													}}
 												/>
 											{/if}
 										</div>
@@ -4762,58 +4750,6 @@
 	.preview-section.post-feed {
 		display: block;
 		min-height: auto;
-	}
-	.preview-post-detail {
-		max-width: 850px;
-		min-height: 620px;
-		margin: 0 auto;
-		padding: clamp(40px, 7vw, 90px) clamp(24px, 6vw, 70px);
-	}
-	.preview-post-detail > img {
-		width: 100%;
-		max-height: 480px;
-		margin: 26px 0;
-		object-fit: cover;
-		border-radius: 20px;
-	}
-	.preview-post-detail > small {
-		color: #12744f;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-	.preview-post-detail h1 {
-		margin: 12px 0;
-		font-family: Georgia, serif;
-		font-size: clamp(40px, 7vw, 76px);
-		line-height: 1;
-	}
-	.preview-post-detail .post-summary {
-		color: #506159;
-		font-size: 20px;
-		line-height: 1.55;
-	}
-	.preview-post-detail .post-body {
-		max-width: 70ch;
-		font-size: 17px;
-		line-height: 1.75;
-	}
-	.preview-post-detail .post-body :global(h2) {
-		margin: 2rem 0 0.6rem;
-		font-family: Georgia, serif;
-		font-size: 30px;
-	}
-	.back-to-page {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		margin-bottom: 28px;
-		padding: 9px 12px;
-		color: var(--site-ink);
-		background: transparent;
-		border: 1px solid color-mix(in srgb, var(--site-ink) 24%, transparent);
-		border-radius: 999px;
-		cursor: pointer;
 	}
 	.preview-embed {
 		max-width: 900px;

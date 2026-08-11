@@ -382,8 +382,23 @@ test('places published posts on a page and opens a real visitor article', async 
 	await expect(
 		preview.getByRole('heading', { name: 'Field Notes from the long way home' })
 	).toBeVisible();
-	await preview.getByRole('button', { name: 'Back to Home' }).click();
-	await expect(preview.getByText('Recent stories')).toBeVisible();
+	await expect(preview.getByText(/min read/).first()).toBeVisible();
+	await expect(preview.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
+	await expect(preview.getByRole('region', { name: 'Share this story' })).toBeVisible();
+	await expect(preview.getByRole('heading', { name: 'Related stories' })).toBeVisible();
+	await preview
+		.getByRole('navigation', { name: 'Breadcrumb' })
+		.getByRole('button', { name: 'Journal', exact: true })
+		.click();
+	await expect(preview.getByLabel('Search the journal')).toBeVisible();
+	await preview.getByLabel('Search the journal').fill('loons');
+	await expect(preview.getByRole('heading', { name: 'Morning at the lake' })).toBeVisible();
+	await expect(
+		preview.getByRole('heading', { name: 'Field Notes from the long way home' })
+	).toHaveCount(0);
+	await preview.getByRole('button', { name: 'Clear filters' }).click();
+	await preview.getByRole('button', { name: /Slow travel/ }).click();
+	await expect(preview.getByLabel('Journal stories').getByRole('article')).toHaveCount(2);
 });
 
 test('manages page identity and requires named confirmation before removal', async ({ page }) => {
