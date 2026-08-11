@@ -6,13 +6,7 @@ import type { DemoThemeId } from './library-catalog';
 import { isEmbedReference, type EmbedReference } from './embed';
 
 export type DemoSectionKind =
-	| 'hero'
-	| 'story'
-	| 'post-feed'
-	| 'gallery'
-	| 'quote'
-	| 'newsletter'
-	| 'embed';
+	'hero' | 'story' | 'post-feed' | 'gallery' | 'quote' | 'newsletter' | 'embed';
 
 export type DemoPostFeedOrder = 'latest' | 'featured';
 
@@ -444,7 +438,9 @@ export function isDemoSite(value: unknown): value is DemoSite {
 					typeof section.body === 'string' &&
 					(section.image === undefined || typeof section.image === 'string') &&
 					(section.imageAlt === undefined || typeof section.imageAlt === 'string') &&
-					(section.kind === 'embed' ? isEmbedReference(section.embed) : section.embed === undefined) &&
+					(section.kind === 'embed'
+						? isEmbedReference(section.embed)
+						: section.embed === undefined) &&
 					(section.kind === 'post-feed'
 						? typeof section.collectionId === 'string' &&
 							Number.isInteger(section.postLimit) &&

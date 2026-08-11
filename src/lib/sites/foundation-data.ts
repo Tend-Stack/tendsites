@@ -1,4 +1,6 @@
 import { indexSiteContent } from '../content/index';
+import { importGitCmsConfiguration } from '../content/schema-catalog';
+import { frameworkAdapterCatalog } from '../adapters/framework-catalog';
 import {
 	assessSourceSnapshot,
 	type AdoptionPolicy,
@@ -122,6 +124,27 @@ const demoCustomSiteProfile: CustomSiteProfile = {
 };
 
 export const demoCustomSitePlan = planCustomSiteAdoption(demoCustomSiteProfile);
+
+export const supportedFrameworkAdapters = frameworkAdapterCatalog;
+
+export const demoImportedContentSchema = importGitCmsConfiguration({
+	backend: { name: 'github', repo: 'example/field-journal' },
+	publish_mode: 'editorial_workflow',
+	collections: [
+		{
+			name: 'posts',
+			label: 'Blog posts',
+			folder: 'src/content/posts',
+			create: true,
+			fields: [
+				{ name: 'title', label: 'Title', widget: 'string' },
+				{ name: 'date', label: 'Publish date', widget: 'datetime' },
+				{ name: 'cover', label: 'Cover image', widget: 'image', required: false },
+				{ name: 'body', label: 'Story', widget: 'markdown' }
+			]
+		}
+	]
+});
 
 export const starterRepositoryCatalog: readonly StarterRepository[] = [
 	{

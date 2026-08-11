@@ -48,9 +48,11 @@
 		demoAdoptionReport,
 		demoChangePreview,
 		demoCustomSitePlan,
+		demoImportedContentSchema,
 		starterCatalog,
 		starterRepositoryAssessments,
-		starterRepositoryCatalog
+		starterRepositoryCatalog,
+		supportedFrameworkAdapters
 	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import PostFeed from './PostFeed.svelte';
@@ -419,7 +421,8 @@
 				?.sections.find((item) => item.id === selectedSectionId);
 			if (!section || section.kind !== 'post-feed') return;
 			if (field === 'postLimit') section.postLimit = Math.max(1, Math.min(6, Number(value)));
-			else if (field === 'postOrder') section.postOrder = value === 'featured' ? 'featured' : 'latest';
+			else if (field === 'postOrder')
+				section.postOrder = value === 'featured' ? 'featured' : 'latest';
 			else section.collectionId = String(value);
 		});
 	}
@@ -1119,6 +1122,54 @@
 				</dl>
 			</section>
 
+			<section class="adapter-catalog" aria-labelledby="adapter-catalog-title">
+				<div class="section-heading">
+					<div>
+						<span class="eyebrow">Framework-aware, renderer-neutral</span>
+						<h2 id="adapter-catalog-title">We map the content. Your framework stays yours.</h2>
+					</div>
+					<p>
+						Detection reads a bounded snapshot only. It cannot clone, run, build, publish, or
+						receive provider credentials.
+					</p>
+				</div>
+				<div class="framework-list" aria-label="Supported framework detectors">
+					{#each supportedFrameworkAdapters as adapter (adapter.framework)}
+						<span><Code2 size={14} /> {adapter.label}</span>
+					{/each}
+				</div>
+				<div class="schema-preview">
+					<div>
+						<span class="eyebrow">Imported content form</span>
+						<h3>{demoImportedContentSchema.catalog.forms[0].collection.label}</h3>
+						<p>
+							A familiar Git-CMS configuration becomes a reviewed Sites form. Provider and
+							publishing settings are deliberately discarded.
+						</p>
+					</div>
+					<div class="schema-fields">
+						{#each demoImportedContentSchema.catalog.forms[0].fields as field (field.name)}
+							<label>
+								<span>{field.label}{field.required ? ' *' : ''}</span>
+								{#if field.widget === 'markdown'}
+									<textarea disabled placeholder="Write the story…"></textarea>
+								{:else}
+									<input
+										disabled
+										placeholder={field.widget === 'image' ? 'Choose an image' : field.label}
+									/>
+								{/if}
+								<small>{field.widget}</small>
+							</label>
+						{/each}
+					</div>
+				</div>
+				<p class="authority-note">
+					<ShieldCheck size={16} /> Repository access remains unavailable until tend.host supplies a reviewed,
+					short-lived capability.
+				</p>
+			</section>
+
 			<section class="starter-repositories" aria-labelledby="starter-repositories-title">
 				<div class="section-heading">
 					<div>
@@ -1372,8 +1423,7 @@
 							onclick={() => {
 								previewPostId = null;
 								showPreview = true;
-							}}
-							><MonitorPlay size={16} /><span>Preview site</span></button
+							}}><MonitorPlay size={16} /><span>Preview site</span></button
 						><button
 							class="primary"
 							aria-label="Publish"
@@ -1476,8 +1526,8 @@
 											onblur={handleRichBlur}
 											use:richContent={section.title}
 										></div>
-									<div
-										class="inline-body"
+										<div
+											class="inline-body"
 											contenteditable="true"
 											role="textbox"
 											tabindex="0"
@@ -1491,14 +1541,14 @@
 											onkeydown={(event) => handleInlineKeydown(event, true)}
 											onpaste={handleRichPaste}
 											onblur={handleRichBlur}
-										use:richContent={section.body}
-									></div>
-									{#if section.kind === 'post-feed'}
-										<div class="canvas-post-feed">
-											<PostFeed posts={postsForSection(siteDraft, section)} />
-										</div>
-									{/if}
-									{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
+											use:richContent={section.body}
+										></div>
+										{#if section.kind === 'post-feed'}
+											<div class="canvas-post-feed">
+												<PostFeed posts={postsForSection(siteDraft, section)} />
+											</div>
+										{/if}
+										{#if section.kind === 'hero'}<span class="demo-cta">Read the latest story</span
 											>{/if}
 									</div>
 								{/if}
@@ -1743,7 +1793,8 @@
 							value={selectedSection.postLimit}
 							onchange={(event) => updatePostFeed('postLimit', Number(event.currentTarget.value))}
 						>
-							{#each [1, 2, 3, 4, 5, 6] as count}<option value={count}>{count}</option>{/each}
+							{#each [1, 2, 3, 4, 5, 6] as count (count)}<option value={count}>{count}</option
+								>{/each}
 						</select>
 					</label>
 				{/if}
@@ -1871,13 +1922,13 @@
 											? 'A visual collection for places and work.'
 											: kind === 'post-feed'
 												? 'Show published stories automatically, with real read-more pages.'
-											: kind === 'newsletter'
-												? 'A calm invitation to stay in touch.'
-												: kind === 'quote'
-													? 'A memorable thought with room to breathe.'
-													: kind === 'embed'
-														? 'Paste a video or social link. No embed code needed.'
-														: 'A focused feature with supporting imagery.'}</small
+												: kind === 'newsletter'
+													? 'A calm invitation to stay in touch.'
+													: kind === 'quote'
+														? 'A memorable thought with room to breathe.'
+														: kind === 'embed'
+															? 'Paste a video or social link. No embed code needed.'
+															: 'A focused feature with supporting imagery.'}</small
 								></button
 							>{/each}
 					</div>
@@ -2057,55 +2108,55 @@
 								<div class="post-body" use:richContent={previewPost.body}></div>
 							</article>
 						{:else}
-						{#each selectedPage?.sections ?? [] as section (section.id)}
-							<section class="preview-section {section.kind}">
-								{#if section.kind === 'embed' && section.embed}
-									<div class="embed-block preview-embed">
-										<span>{embedProviderLabel(section.embed.provider)}</span>
-										<strong>{section.title}</strong>
-										<small>{section.body}</small>
-										{#if getEmbedPreviewUrl(section.embed) && loadedEmbeds.includes(section.id)}
-											<iframe
-												src={getEmbedPreviewUrl(section.embed) ?? ''}
-												title="{embedProviderLabel(section.embed.provider)} preview"
-												loading="lazy"
-												allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-												referrerpolicy="strict-origin-when-cross-origin"
-												sandbox="allow-scripts allow-same-origin allow-presentation"
-											></iframe>
-										{:else if getEmbedPreviewUrl(section.embed)}
-											<button class="load-embed" onclick={() => loadEmbed(section.id)}
-												><Video size={18} /> Load preview</button
-											>
-										{:else}
-											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- sourceUrl is a validated canonical external URL. -->
-											<a href={section.embed.sourceUrl} target="_blank" rel="noopener noreferrer"
-												>Open on {embedProviderLabel(section.embed.provider)}</a
-											>
-										{/if}
-									</div>
-								{:else}
-									{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
-									<div>
-										<small>{section.eyebrow}</small>
-										<div
-											class="preview-title"
-											role="heading"
-											aria-level="1"
-											use:richContent={section.title}
-										></div>
-										<div class="preview-body" use:richContent={section.body}></div>
-										{#if section.kind === 'post-feed'}
-											<PostFeed
-												posts={postsForSection(siteDraft, section)}
-												interactive
-												onopen={(post) => (previewPostId = post.id)}
-											/>
-										{/if}
-									</div>
-								{/if}
-							</section>
-						{/each}
+							{#each selectedPage?.sections ?? [] as section (section.id)}
+								<section class="preview-section {section.kind}">
+									{#if section.kind === 'embed' && section.embed}
+										<div class="embed-block preview-embed">
+											<span>{embedProviderLabel(section.embed.provider)}</span>
+											<strong>{section.title}</strong>
+											<small>{section.body}</small>
+											{#if getEmbedPreviewUrl(section.embed) && loadedEmbeds.includes(section.id)}
+												<iframe
+													src={getEmbedPreviewUrl(section.embed) ?? ''}
+													title="{embedProviderLabel(section.embed.provider)} preview"
+													loading="lazy"
+													allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+													referrerpolicy="strict-origin-when-cross-origin"
+													sandbox="allow-scripts allow-same-origin allow-presentation"
+												></iframe>
+											{:else if getEmbedPreviewUrl(section.embed)}
+												<button class="load-embed" onclick={() => loadEmbed(section.id)}
+													><Video size={18} /> Load preview</button
+												>
+											{:else}
+												<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- sourceUrl is a validated canonical external URL. -->
+												<a href={section.embed.sourceUrl} target="_blank" rel="noopener noreferrer"
+													>Open on {embedProviderLabel(section.embed.provider)}</a
+												>
+											{/if}
+										</div>
+									{:else}
+										{#if section.image}<img src={section.image} alt={section.imageAlt ?? ''} />{/if}
+										<div>
+											<small>{section.eyebrow}</small>
+											<div
+												class="preview-title"
+												role="heading"
+												aria-level="1"
+												use:richContent={section.title}
+											></div>
+											<div class="preview-body" use:richContent={section.body}></div>
+											{#if section.kind === 'post-feed'}
+												<PostFeed
+													posts={postsForSection(siteDraft, section)}
+													interactive
+													onopen={(post) => (previewPostId = post.id)}
+												/>
+											{/if}
+										</div>
+									{/if}
+								</section>
+							{/each}
 						{/if}
 						<footer>
 							<strong>{siteDraft.name}</strong><span>Example site created in TEND Sites</span>
@@ -3120,6 +3171,7 @@
 		color: var(--muted);
 	}
 	.adoption-paths,
+	.adapter-catalog,
 	.starter-repositories {
 		margin-bottom: 18px;
 		padding: 22px;
@@ -3203,6 +3255,78 @@
 	.custom-site-proof dd {
 		margin: 4px 0 0;
 		font-weight: 750;
+	}
+	.framework-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-bottom: 18px;
+	}
+	.framework-list span {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 7px 10px;
+		color: #b6c9c3;
+		font-size: 12px;
+		border: 1px solid #24433a;
+		border-radius: 999px;
+		background: #0c1a17;
+	}
+	.schema-preview {
+		display: grid;
+		grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
+		gap: 22px;
+		padding: 18px;
+		border: 1px solid #20332f;
+		border-radius: 15px;
+		background: #0d1618;
+	}
+	.schema-preview h3 {
+		margin: 7px 0;
+	}
+	.schema-preview p,
+	.authority-note {
+		margin: 0;
+		color: var(--muted);
+		line-height: 1.5;
+	}
+	.schema-fields {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px;
+	}
+	.schema-fields label {
+		display: grid;
+		gap: 5px;
+		min-width: 0;
+		color: #c8d8d3;
+		font-size: 12px;
+	}
+	.schema-fields input,
+	.schema-fields textarea {
+		box-sizing: border-box;
+		width: 100%;
+		padding: 10px;
+		color: #91a49e;
+		border: 1px solid #263b36;
+		border-radius: 9px;
+		background: #08110f;
+	}
+	.schema-fields textarea {
+		min-height: 64px;
+		resize: none;
+	}
+	.schema-fields small {
+		color: #6f8580;
+		text-transform: capitalize;
+	}
+	.authority-note {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 14px;
+		font-size: 12px;
 	}
 	.starter-repository-heading {
 		display: flex;
@@ -4913,6 +5037,7 @@
 		.publish-grid,
 		.adoption-grid,
 		.custom-site-proof,
+		.schema-preview,
 		.adoption-path-grid,
 		.starter-repository-grid {
 			grid-template-columns: 1fr;

@@ -124,6 +124,13 @@ carry an immutable commit and tree digest plus explicit publisher, license, comm
 identity, and review state. These contracts select no code and grant no checkout or execution
 authority.
 
+`src/lib/adapters/framework-catalog.ts` detects only from a bounded canonical file listing and
+optional parsed package metadata. Multiple framework signals are an ambiguity, not a guess, unless
+an explicit reviewed manifest selects one of the detected adapters. `src/lib/content/schema-catalog.ts`
+normalizes collection fields into non-executable form and editor-block definitions. Its compatibility
+import intentionally drops provider backend, workflow, URL, media-library, authentication, checkout,
+and deployment settings; importing a familiar configuration never imports its authority model.
+
 The canonical repository may be a protected local Git repository outside every application
 container on a selected customer server, an external Git provider, or another customer-controlled
 adapter. tend.host may retain encrypted, quota- and expiry-bounded working drafts plus immutable

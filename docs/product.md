@@ -40,6 +40,12 @@ Advanced users may inspect content formats, collection schemas, field mappings, 
 immutable starter provenance. Ordinary users see understandable labels such as Posts, Services, and
 Portfolio instead of file formats or configuration syntax.
 
+For compatible custom repositories, Sites recognizes SvelteKit, Astro, Eleventy, Next.js, Nuxt,
+Hugo, Jekyll, or an explicit custom manifest from a read-only snapshot. Familiar Git-CMS collection
+definitions can become friendly forms, but their backend credentials, provider configuration,
+publishing workflow, and deployment settings are never imported. Ambiguous detection stops for
+review instead of changing or executing the repository.
+
 ## First release scope
 
 - Create reviewed visual sites and framework-specific starter repositories.

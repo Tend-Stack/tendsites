@@ -57,12 +57,17 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete product path:** The adoption workspace now explains visual, custom headless, and hybrid
     modes; previews an exact content-only mapping that preserves the site's renderer; and presents
     reviewed versus unavailable community starters without pretending to clone or create them.
-- [ ] Framework adapter and declarative content-schema catalog.
-  - **Complete foundation:** Versioned custom-site profiles and structured field mappings are strict,
-    bounded, path-confined, and framework-neutral.
-  - **Pending:** Safe detector/adapters for Astro, Eleventy, Next.js, Nuxt, Hugo, Jekyll, and custom
-    manifests; schema-driven forms; reviewed custom editor blocks; and compatibility import for
-    common Git-CMS configurations without inheriting their authority model.
+- [x] Framework adapter and declarative content-schema catalog.
+  - **Complete:** Versioned custom-site profiles and structured field mappings are strict, bounded,
+    path-confined, and framework-neutral. A pure bounded detector recognizes SvelteKit, Astro,
+    Eleventy, Next.js, Nuxt, Hugo, Jekyll, and explicit custom manifests, fails closed on ambiguity,
+    and can neither execute nor acquire repository authority.
+  - **Complete:** Declarative field and reviewed editor-block schemas generate bounded forms without
+    executable scripts. Common Git-CMS collection configurations can be imported while provider,
+    workflow, deployment, and authentication settings are explicitly discarded. The adoption
+    workspace previews the detected adapters and resulting friendly content form.
+  - **Integration remains under separate milestones:** Authenticated checkout, repository writes,
+    build execution, and publish authority remain host capabilities and are not granted here.
 - [ ] Community starter repository catalog and certification lane.
   - **Complete foundation:** Immutable repository identity, publisher, license, framework, content
     formats, goals, review status, and fail-closed selection assessment.

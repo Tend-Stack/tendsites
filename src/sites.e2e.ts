@@ -26,6 +26,15 @@ test('shows source adoption evidence without granting mutation authority', async
 	await expect(page.getByRole('heading', { name: 'Keep my custom design' })).toBeVisible();
 	await expect(page.getByText('Keep the renderer. Map only the content.')).toBeVisible();
 	await expect(
+		page.getByRole('heading', { name: 'We map the content. Your framework stays yours.' })
+	).toBeVisible();
+	await expect(page.getByLabel('Supported framework detectors').getByText('Astro')).toBeVisible();
+	await expect(page.getByLabel('Supported framework detectors').getByText('Jekyll')).toBeVisible();
+	await expect(page.getByText('Imported content form')).toBeVisible();
+	await expect(
+		page.getByText('Provider and publishing settings are deliberately discarded.')
+	).toBeVisible();
+	await expect(
 		page.getByRole('heading', { name: 'Begin with a complete site, not an empty canvas.' })
 	).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Unavailable until reviewed' })).toBeDisabled();
