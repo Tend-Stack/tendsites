@@ -401,6 +401,43 @@ test('places published posts on a page and opens a real visitor article', async 
 	await expect(preview.getByLabel('Journal stories').getByRole('article')).toHaveCount(2);
 });
 
+test('reviews an accessible visitor form without claiming delivery', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+	await page.getByRole('button', { name: 'Preview site' }).click();
+
+	const preview = page.getByRole('dialog', { name: 'Full example website preview' });
+	await preview.getByRole('button', { name: 'About', exact: true }).click();
+	const form = preview.getByRole('form', { name: 'Contact Willow' });
+	await expect(form).toBeVisible();
+
+	await form.getByRole('button', { name: 'Review message' }).click();
+	await expect(form.getByRole('alert')).toContainText('nothing was sent');
+	await expect(form.getByLabel('Name')).toHaveAttribute('aria-invalid', 'true');
+
+	await form.getByLabel('Name').fill('Willow Hart');
+	await form.getByLabel('Email').fill('willow@example.com');
+	await form
+		.locator('textarea[name="message"]')
+		.fill('Could you share the route from your latest journal?');
+	await form.getByRole('checkbox').check();
+	await form.getByRole('button', { name: 'Review message' }).click();
+
+	await expect(preview.getByText('Delivery destination not connected')).toBeVisible();
+	await expect(preview.getByText(/No message was sent/)).toBeVisible();
+	await preview.getByRole('button', { name: 'Edit message' }).click();
+	await expect(form.getByLabel('Name')).toHaveValue('Willow Hart');
+	await form.getByRole('button', { name: 'Review message' }).click();
+	await preview.getByRole('button', { name: 'Start over' }).click();
+	await expect(form.getByLabel('Name')).toHaveValue('');
+
+	const overflows = await preview
+		.locator('.full-demo-site')
+		.evaluate((element) => element.scrollWidth > element.clientWidth);
+	expect(overflows).toBe(false);
+});
+
 test('manages page identity and requires named confirmation before removal', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Open interactive demo' }).click();

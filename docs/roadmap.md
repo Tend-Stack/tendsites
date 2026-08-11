@@ -144,6 +144,10 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete visitor-journal extension:** The real visitor preview now includes local search, tag
     browsing, pagination, breadcrumbs, reading time, encoded share destinations, related stories,
     previous/next navigation, a skip link, and honest empty/not-found recovery.
+  - **Complete visitor-form foundation:** Studio owns editable consent and destination-status copy,
+    while the responsive visitor preview provides bounded accessible validation, an inert spam
+    honeypot, explicit consent, review-before-send, and edit/reset recovery. The current form never
+    claims delivery or performs a network request; an assigned delivery capability remains pending.
   - **Pending:** Scheduling, repository persistence, deployment, and the remaining visitor
     capability plan.
 - [x] Undo history and clear conflict resolution.

@@ -6,7 +6,7 @@ import type { DemoThemeId } from './library-catalog';
 import { isEmbedReference, type EmbedReference } from './embed';
 
 export type DemoSectionKind =
-	'hero' | 'story' | 'post-feed' | 'gallery' | 'quote' | 'newsletter' | 'embed';
+	'hero' | 'story' | 'post-feed' | 'gallery' | 'quote' | 'newsletter' | 'embed' | 'form';
 
 export type DemoPostFeedOrder = 'latest' | 'featured';
 
@@ -23,6 +23,8 @@ export type DemoSection = {
 	collectionId?: string;
 	postLimit?: number;
 	postOrder?: DemoPostFeedOrder;
+	formConsentLabel?: string;
+	formRecipientLabel?: string;
 };
 
 export type DemoPageSeo = {
@@ -324,7 +326,8 @@ export const sectionLabels: Record<DemoSectionKind, string> = {
 	gallery: 'Photo gallery',
 	quote: 'Quote',
 	newsletter: 'Newsletter',
-	embed: 'Video or social post'
+	embed: 'Video or social post',
+	form: 'Contact form'
 };
 
 export function createSection(kind: DemoSectionKind, sequence: number): DemoSection {
@@ -380,6 +383,14 @@ export function createSection(kind: DemoSectionKind, sequence: number): DemoSect
 			eyebrow: 'FROM THE WEB',
 			title: 'A video or social post',
 			body: 'External content stays private until a visitor chooses to load it.'
+		},
+		form: {
+			label: 'Contact form',
+			eyebrow: 'GET IN TOUCH',
+			title: 'Send a thoughtful note.',
+			body: 'Review your message before anything is sent.',
+			formConsentLabel: 'This site may use my details to reply to this message.',
+			formRecipientLabel: 'Delivery destination not connected'
 		}
 	};
 	return { id, kind, ...templates[kind] };
@@ -455,6 +466,16 @@ export function createDemoSite(): DemoSite {
 					eyebrow: 'WHY THIS EXISTS',
 					title: 'Pay attention. Leave a place better than you found it.',
 					body: 'A simple rule for travel and for life.'
+				},
+				{
+					id: 'form-6',
+					kind: 'form',
+					label: 'Contact Willow',
+					eyebrow: 'GET IN TOUCH',
+					title: 'Send a thoughtful note.',
+					body: 'Review your message before anything is sent.',
+					formConsentLabel: 'This site may use my details to reply to this message.',
+					formRecipientLabel: 'Delivery destination not connected'
 				}
 			]
 		},
@@ -609,9 +630,16 @@ export function isDemoSite(value: unknown): value is DemoSite {
 				(section) =>
 					Boolean(section) &&
 					typeof section.id === 'string' &&
-					['hero', 'story', 'post-feed', 'gallery', 'quote', 'newsletter', 'embed'].includes(
-						section.kind
-					) &&
+					[
+						'hero',
+						'story',
+						'post-feed',
+						'gallery',
+						'quote',
+						'newsletter',
+						'embed',
+						'form'
+					].includes(section.kind) &&
 					typeof section.label === 'string' &&
 					typeof section.eyebrow === 'string' &&
 					typeof section.title === 'string' &&
@@ -629,7 +657,11 @@ export function isDemoSite(value: unknown): value is DemoSite {
 							['latest', 'featured'].includes(section.postOrder ?? '')
 						: section.collectionId === undefined &&
 							section.postLimit === undefined &&
-							section.postOrder === undefined)
+							section.postOrder === undefined) &&
+					(section.kind === 'form'
+						? isBoundedString(section.formConsentLabel, 240) &&
+							isBoundedString(section.formRecipientLabel, 120)
+						: section.formConsentLabel === undefined && section.formRecipientLabel === undefined)
 			)
 	);
 	if (!pagesValid) return false;

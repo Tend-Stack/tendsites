@@ -59,6 +59,11 @@ describe('interactive demo site', () => {
 			kind: 'gallery',
 			label: 'Photo gallery'
 		});
+		expect(createSection('form', 8)).toMatchObject({
+			id: 'form-8',
+			kind: 'form',
+			formRecipientLabel: 'Delivery destination not connected'
+		});
 	});
 
 	it('projects only published posts into deterministic collection-fed sections', () => {
@@ -108,6 +113,10 @@ describe('interactive demo site', () => {
 			createDemoPost(index, [])
 		);
 		expect(isDemoSite(tooManyPosts)).toBe(false);
+		const invalidForm = createDemoSite();
+		const form = invalidForm.pages[1].sections.find((section) => section.kind === 'form')!;
+		delete form.formConsentLabel;
+		expect(isDemoSite(invalidForm)).toBe(false);
 	});
 
 	it('upgrades v0.9 drafts with safe discovery defaults', () => {

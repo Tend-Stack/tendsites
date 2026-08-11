@@ -64,6 +64,10 @@ Generated site = ordinary files + assets + Git history
   items from the same validated draft, use deterministic newest/featured
   ordering, and open an in-preview article view; draft content never enters the
   visitor projection.
+  `src/lib/sites/visitor-form.ts` normalizes and validates bounded visitor input, detects the inert
+  honeypot, and can only return a non-delivered plan. `VisitorForm.svelte` provides accessible
+  field errors, consent, review, edit, and reset states without issuing a network request; a future
+  host capability must separately authorize any delivery destination.
   `src/lib/sites/seo.ts` derives page metadata plus escaped sitemap, robots, and RSS previews from
   the same bounded draft. `SeoWorkspace.svelte` edits only that draft and deliberately has no
   repository, search-index submission, filesystem, or publish authority. Legacy drafts receive

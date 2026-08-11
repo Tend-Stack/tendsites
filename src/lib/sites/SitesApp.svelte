@@ -58,6 +58,7 @@
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import PostFeed from './PostFeed.svelte';
 	import SeoWorkspace, { type SeoArea } from './SeoWorkspace.svelte';
+	import VisitorForm from './VisitorForm.svelte';
 	import VisitorJournal from './VisitorJournal.svelte';
 	import { goals, modules, projects, themes } from './fixtures';
 	import {
@@ -413,12 +414,18 @@
 		showAddSection = false;
 	}
 
-	function updateSection(field: 'eyebrow' | 'title' | 'body' | 'imageAlt', value: string) {
+	function updateSection(
+		field: 'eyebrow' | 'title' | 'body' | 'imageAlt' | 'formConsentLabel' | 'formRecipientLabel',
+		value: string
+	) {
 		changeDraft((next) => {
 			const section = next.pages
 				.find((page) => page.id === selectedPageId)
 				?.sections.find((item) => item.id === selectedSectionId);
-			if (section) section[field] = value.slice(0, field === 'body' ? 600 : 240);
+			if (section) {
+				const maximum = field === 'body' ? 600 : field === 'formRecipientLabel' ? 120 : 240;
+				section[field] = value.slice(0, maximum);
+			}
 		});
 	}
 
@@ -1823,6 +1830,28 @@
 						</select>
 					</label>
 				{/if}
+				{#if selectedSection?.kind === 'form'}
+					<div class="inspector-callout">
+						<strong>Review-only preview</strong>
+						<small>Visitor entries stay in the browser. No delivery destination is connected.</small
+						>
+					</div>
+					<label>
+						<span>Consent text</span>
+						<textarea
+							rows="3"
+							value={selectedSection.formConsentLabel}
+							oninput={(event) => updateSection('formConsentLabel', event.currentTarget.value)}
+						></textarea>
+					</label>
+					<label>
+						<span>Delivery status label</span>
+						<input
+							value={selectedSection.formRecipientLabel}
+							oninput={(event) => updateSection('formRecipientLabel', event.currentTarget.value)}
+						/>
+					</label>
+				{/if}
 				<label
 					><span>Eyebrow</span><input
 						value={selectedSection?.eyebrow ?? ''}
@@ -2169,6 +2198,9 @@
 														previewPostId = post.id;
 													}}
 												/>
+											{/if}
+											{#if section.kind === 'form'}
+												<VisitorForm {section} />
 											{/if}
 										</div>
 									{/if}

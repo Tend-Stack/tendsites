@@ -123,6 +123,10 @@ blocks where an adapter proves safe round-tripping.
     destinations, related-story ranking, and chronological previous/next navigation.
 - [ ] Forms with accessible validation, consent, spam controls, success/failure recovery, and a
       separately authorized delivery destination. Never pretend a message was delivered.
+  - **Complete local review slice:** Contact sections expose bounded name, email, message, consent,
+    and honeypot inputs; validation is announced accessibly; visitors can review, edit, or reset;
+    and mobile preview remains unclipped. Delivery stays explicitly unconnected and performs no
+    network request until tend.host grants a separate destination capability.
 - [ ] Cookie-free defaults. Analytics, embeds, maps, and marketing integrations disclose external
       requests and require explicit configuration or visitor consent when policy requires it.
 - [ ] Purpose-built empty, loading, offline, not-found, maintenance, and error experiences.
