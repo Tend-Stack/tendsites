@@ -27,6 +27,7 @@
 		PanelLeft,
 		Rocket,
 		RemoveFormatting,
+		Search,
 		Settings2,
 		ShieldCheck,
 		TestTube2,
@@ -56,6 +57,7 @@
 	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import PostFeed from './PostFeed.svelte';
+	import SeoWorkspace, { type SeoArea } from './SeoWorkspace.svelte';
 	import { goals, modules, projects, themes } from './fixtures';
 	import {
 		assistanceEvidence,
@@ -67,6 +69,7 @@
 	} from './readiness-data';
 	import {
 		cloneDemoSite,
+		createDefaultPageSeo,
 		createDemoSite,
 		createSection,
 		demoImages,
@@ -91,7 +94,15 @@
 	import { normalizeRichTextLink, renderRichMarkdown, richElementToMarkdown } from './rich-text';
 
 	type View =
-		'home' | 'content' | 'create' | 'adopt' | 'studio' | 'library' | 'readiness' | 'publish';
+		| 'home'
+		| 'content'
+		| 'create'
+		| 'adopt'
+		| 'studio'
+		| 'library'
+		| 'seo'
+		| 'readiness'
+		| 'publish';
 	type ReadinessArea =
 		'overview' | 'health' | 'drafts' | 'media' | 'languages' | 'library' | 'preview' | 'guidance';
 
@@ -106,6 +117,8 @@
 	let accent = $state('#56e6ad');
 	let mobileMenu = $state(false);
 	let readinessArea = $state<ReadinessArea>('overview');
+	let seoArea = $state<SeoArea>('overview');
+	let seoPageId = $state('home');
 	let siteDraft = $state<DemoSite>(createDemoSite());
 	let selectedPageId = $state('home');
 	let selectedSectionId = $state('hero-1');
@@ -326,11 +339,13 @@
 				.replace(/^-|-$/g, '') || 'page'
 		}-${Date.now()}`;
 		changeDraft((next) => {
+			const section = createSection('hero', Date.now());
 			next.pages.push({
 				id,
 				name: name.slice(0, 50),
 				slug: uniquePageSlug(name, next.pages),
-				sections: [createSection('hero', Date.now())]
+				seo: createDefaultPageSeo(name.slice(0, 50), [section], next.seo.description),
+				sections: [section]
 			});
 		});
 		selectPage(id);
@@ -715,6 +730,12 @@
 	}
 
 	function openHealthIssue(issue: SiteHealthIssue) {
+		if (issue.target === 'site-seo' || issue.target === 'page-seo') {
+			seoArea = issue.target === 'site-seo' ? 'site' : 'pages';
+			seoPageId = issue.pageId;
+			open('seo');
+			return;
+		}
 		selectPage(issue.pageId);
 		if (issue.sectionId) selectedSectionId = issue.sectionId;
 		studioPanel = issue.sectionId ? 'inspector' : 'outline';
@@ -823,6 +844,12 @@
 				onclick={() => open('library')}><Library size={17} /><span>Library</span></button
 			>
 			<button
+				class:active={view === 'seo'}
+				aria-label="Search and sharing"
+				title="Search and sharing"
+				onclick={() => open('seo')}><Search size={17} /><span>SEO</span></button
+			>
+			<button
 				class:active={view === 'readiness'}
 				onclick={() => open('readiness')}
 				aria-label="Readiness"
@@ -874,15 +901,17 @@
 								<h2>{project.name}</h2>
 								<p>{project.url}</p>
 							</div>
-							<span class:live={project.status === 'published'} class="status"
-								>{project.status}</span
-							>
 						</div>
 						<div class="project-meta">
-							<span>{project.updated}</span><span
-								>{project.locales.locales.length} language{project.locales.locales.length === 1
-									? ''
-									: 's'}</span
+							<div>
+								<span>{project.updated}</span><span
+									>{project.locales.locales.length} language{project.locales.locales.length === 1
+										? ''
+										: 's'}</span
+								>
+							</div>
+							<span class:live={project.status === 'published'} class="status"
+								>{project.status}</span
 							>
 						</div>
 						<button
@@ -2165,6 +2194,13 @@
 				</div>
 			</div>
 		{/if}
+	{:else if view === 'seo'}
+		<SeoWorkspace
+			site={siteDraft}
+			onchange={(next) => changeDraft((draft) => Object.assign(draft, next))}
+			bind:area={seoArea}
+			bind:selectedPageId={seoPageId}
+		/>
 	{:else if view === 'readiness'}
 		<main class="page readiness-page">
 			<section class="hero-row">
@@ -2176,7 +2212,7 @@
 						unavailable.
 					</p>
 				</div>
-				<span class="status live">5 contracts verified</span>
+				<span class="status live foundation-count">5 verified checks</span>
 			</section>
 			<nav class="readiness-tabs" aria-label="Readiness sections">
 				{#each [['overview', 'Overview'], ['health', 'Site health'], ['drafts', 'Draft safety'], ['media', 'Media'], ['languages', 'Languages'], ['library', 'Library'], ['preview', 'Preview'], ['guidance', 'Guidance']] as tab (tab[0])}
@@ -2235,6 +2271,12 @@
 								>{assistanceEvidence.suggestions.length} helpful suggestions</small
 							></span
 						><em>Local</em></button
+					>
+					<button onclick={() => open('seo')}
+						><Search size={21} /><span
+							><strong>Search & sharing</strong><small>Identity, pages, previews and files</small
+							></span
+						><em>Review</em></button
 					>
 				</section>
 			{:else}
@@ -2615,11 +2657,15 @@
 		--muted: #91a29c;
 		--green: #56e6ad;
 		min-height: 100dvh;
+		min-width: 0;
+		max-width: 100%;
+		overflow-x: clip;
 		container-type: inline-size;
 		background: radial-gradient(circle at 50% -20%, #12322a 0, transparent 34%), #070b0d;
 	}
 	.sites-shell.embedded {
 		min-height: 100%;
+		background: #070b0d;
 	}
 	.sites-shell.embedded .topbar {
 		padding-inline: clamp(16px, 2vw, 32px);
@@ -2687,9 +2733,10 @@
 	}
 	.readiness-tabs {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 8px;
 		margin: 22px 0 26px;
-		overflow-x: auto;
+		max-width: 100%;
 		padding-bottom: 4px;
 	}
 	.readiness-tabs button {
@@ -2881,6 +2928,8 @@
 	}
 	.page {
 		width: min(1180px, calc(100% - 36px));
+		max-width: 100%;
+		min-width: 0;
 		margin: 0 auto;
 		padding: 56px 0 80px;
 	}
@@ -2890,6 +2939,18 @@
 		justify-content: space-between;
 		gap: 30px;
 		margin-bottom: 30px;
+	}
+	.hero-row > div {
+		min-width: 0;
+		max-width: 100%;
+	}
+	.hero-row h1,
+	.hero-row p {
+		overflow-wrap: anywhere;
+	}
+	.hero-row > .status {
+		align-self: flex-start;
+		max-width: 100%;
 	}
 	.eyebrow {
 		display: block;
@@ -3008,7 +3069,9 @@
 		background: linear-gradient(145deg, #11181b, #0d1315);
 	}
 	.project-card {
+		min-width: 0;
 		padding: 12px;
+		overflow: hidden;
 	}
 	.site-preview,
 	.component-preview {
@@ -3120,10 +3183,29 @@
 	}
 	.project-meta {
 		display: flex;
+		align-items: center;
 		justify-content: space-between;
+		gap: 12px;
+		min-width: 0;
 		color: #71847d;
 		font-size: 11px;
 		margin: 0 4px 14px;
+	}
+	.project-meta > div {
+		display: flex;
+		flex: 1 1 auto;
+		flex-wrap: wrap;
+		gap: 4px 16px;
+		min-width: 0;
+	}
+	.project-meta > div span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.project-meta .status {
+		flex: 0 0 auto;
+		max-width: 100%;
 	}
 	.card-action {
 		width: 100%;
@@ -4969,6 +5051,10 @@
 	}
 
 	@media (max-width: 900px) {
+		.hero-row {
+			align-items: start;
+			flex-direction: column;
+		}
 		.section-picker {
 			grid-template-columns: repeat(2, 1fr);
 		}

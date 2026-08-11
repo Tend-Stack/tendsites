@@ -134,6 +134,34 @@ test('organizes readiness evidence into focused tabs', async ({ page }) => {
 	await expect(page.getByText('Not used')).toBeVisible();
 });
 
+test('edits search identity, page metadata, sharing previews, and generated files locally', async ({
+	page
+}) => {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Search and sharing' }).click();
+	await expect(
+		page.getByRole('heading', { name: 'Help people find and trust your site.' })
+	).toBeVisible();
+	await page
+		.getByRole('button', { name: /Site identity/ })
+		.first()
+		.click();
+	await page
+		.getByLabel('Site description')
+		.fill('A thoughtful journal for slow travel and field notes.');
+	await page.getByRole('button', { name: /Pages/ }).click();
+	await page.getByRole('button', { name: /About/ }).click();
+	await page.getByLabel('Search title').fill('Meet Willow');
+	await expect(page.getByText('Meet Willow · Willow Journal')).toBeVisible();
+	await page.getByRole('button', { name: /Sharing preview/ }).click();
+	await page.getByLabel('Sharing title').fill('A quieter way to travel');
+	await expect(page.getByText('A quieter way to travel')).toBeVisible();
+	await page.getByRole('button', { name: /Generated files/ }).click();
+	await expect(page.getByText('TEND Sites has not written or published them.')).toBeVisible();
+	await expect(page.getByText('robots.txt')).toBeVisible();
+	await expect(page.getByText('sitemap.xml', { exact: true })).toBeVisible();
+});
+
 test('supports keyboard block ordering and a purpose-built mobile studio', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'Studio', exact: true }).click();
@@ -261,7 +289,7 @@ test('keeps Studio actions compact when side panels constrain the canvas', async
 
 test('previews reviewed components and applies a real local theme', async ({ page }) => {
 	await page.goto('/');
-	await page.getByRole('button', { name: 'Library', exact: true }).click();
+	await page.locator('.topbar').getByRole('button', { name: 'Library', exact: true }).click();
 
 	await page.getByRole('button', { name: 'Preview', exact: true }).first().click();
 	const componentPreview = page.getByRole('dialog', { name: 'Split Hero' });
@@ -273,7 +301,7 @@ test('previews reviewed components and applies a real local theme', async ({ pag
 	await expect(
 		page.getByLabel('Selected block settings').getByRole('heading', { name: 'Split Hero' })
 	).toBeVisible();
-	await page.getByRole('button', { name: 'Library', exact: true }).click();
+	await page.locator('.topbar').getByRole('button', { name: 'Library', exact: true }).click();
 	await page.getByRole('button', { name: 'Themes', exact: true }).click();
 	await page.getByRole('button', { name: 'Apply theme', exact: true }).last().click();
 	await expect(page.getByText('TEND Docs is now applied to this local draft.')).toBeVisible();
@@ -478,8 +506,45 @@ test('keeps embedded pages spacious without clipping site or library labels', as
 	});
 	expect(homeLayout.contentInset).toBeLessThanOrEqual(20);
 	expect(homeLayout.labelsFit).toBe(true);
+	await page.setViewportSize({ width: 1100, height: 900 });
+	await expect(page.locator('.project-card .status')).toHaveCount(3);
+	expect(
+		await page.evaluate(() =>
+			[...document.querySelectorAll('.project-card .status')].every((label) => {
+				const labelRect = label.getBoundingClientRect();
+				const cardRect = label.closest('.project-card')?.getBoundingClientRect();
+				return Boolean(
+					cardRect && labelRect.left >= cardRect.left && labelRect.right <= cardRect.right
+				);
+			})
+		)
+	).toBe(true);
 
-	await page.getByRole('button', { name: 'Library', exact: true }).click();
+	await page.getByRole('button', { name: 'Readiness', exact: true }).click();
+	await expect(page.getByText('5 verified checks')).toBeVisible();
+	expect(
+		await page.evaluate(() => {
+			const shell = document.querySelector('.sites-shell.embedded')?.getBoundingClientRect();
+			const pageRect = document.querySelector('.readiness-page')?.getBoundingClientRect();
+			const badge = document.querySelector('.foundation-count')?.getBoundingClientRect();
+			const tabs = [...document.querySelectorAll('.readiness-tabs button')];
+			return Boolean(
+				shell &&
+				pageRect &&
+				badge &&
+				pageRect.left >= shell.left &&
+				pageRect.right <= shell.right &&
+				badge.left >= pageRect.left &&
+				badge.right <= pageRect.right &&
+				tabs.every((tab) => {
+					const rect = tab.getBoundingClientRect();
+					return rect.left >= pageRect.left && rect.right <= pageRect.right;
+				})
+			);
+		})
+	).toBe(true);
+
+	await page.locator('.topbar').getByRole('button', { name: 'Library', exact: true }).click();
 	await expect(page.locator('.component-grid .status.live')).toHaveCount(7);
 	const libraryLabelsFit = await page.evaluate(() =>
 		[...document.querySelectorAll('.component-grid .status')].every((label) => {

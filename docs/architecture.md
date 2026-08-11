@@ -64,6 +64,10 @@ Generated site = ordinary files + assets + Git history
   items from the same validated draft, use deterministic newest/featured
   ordering, and open an in-preview article view; draft content never enters the
   visitor projection.
+  `src/lib/sites/seo.ts` derives page metadata plus escaped sitemap, robots, and RSS previews from
+  the same bounded draft. `SeoWorkspace.svelte` edits only that draft and deliberately has no
+  repository, search-index submission, filesystem, or publish authority. Legacy drafts receive
+  deterministic safe defaults before strict validation.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 

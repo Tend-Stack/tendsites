@@ -132,6 +132,12 @@ Completion is measured only from the top-level product milestones below. Nested 
     choose its collection, order featured/newest posts, and show one to six responsive cards.
     Draft posts are excluded, empty collections explain the next step, and visitor preview opens a
     real article view with a clear return path.
+  - **Complete search-and-sharing foundation:** A distinct, responsive workspace now manages
+    site identity, canonical HTTPS origin, language and visibility; per-page search titles,
+    descriptions and index/follow choices; editable social previews; and deterministic local
+    previews of `sitemap.xml`, `robots.txt`, and RSS. Existing v0.8 drafts migrate to safe generated
+    defaults, and Readiness issues deep-link to the exact site or page setting. These previews do
+    not write files, submit search indexes, or publish a site.
   - **Pending:** Scheduling, repository persistence, deployment, and the remaining visitor
     capability plan.
 - [x] Undo history and clear conflict resolution.

@@ -25,11 +25,32 @@ export type DemoSection = {
 	postOrder?: DemoPostFeedOrder;
 };
 
+export type DemoPageSeo = {
+	title: string;
+	description: string;
+	index: boolean;
+	follow: boolean;
+	socialTitle: string;
+	socialDescription: string;
+	socialImage?: string;
+};
+
 export type DemoPage = {
 	id: string;
 	name: string;
 	slug: string;
+	seo: DemoPageSeo;
 	sections: DemoSection[];
+};
+
+export type DemoSiteSeo = {
+	titlePattern: string;
+	description: string;
+	canonicalUrl: string;
+	language: string;
+	visibility: 'public' | 'hidden';
+	identityName: string;
+	identityType: 'person' | 'organization';
 };
 
 export type DemoPostStatus = 'draft' | 'published';
@@ -62,9 +83,39 @@ export type DemoSite = {
 	tagline: string;
 	accent: string;
 	themeId?: DemoThemeId;
+	seo: DemoSiteSeo;
 	pages: DemoPage[];
 	collections: DemoCollection[];
 };
+
+export function createDefaultSiteSeo(name: string, tagline: string): DemoSiteSeo {
+	return {
+		titlePattern: `%s · ${name}`,
+		description: tagline,
+		canonicalUrl: 'https://willow.example',
+		language: 'en',
+		visibility: 'public',
+		identityName: name,
+		identityType: 'organization'
+	};
+}
+
+export function createDefaultPageSeo(
+	name: string,
+	sections: DemoSection[],
+	defaultDescription = ''
+): DemoPageSeo {
+	const firstSection = sections[0];
+	return {
+		title: name,
+		description: firstSection?.body || defaultDescription,
+		index: true,
+		follow: true,
+		socialTitle: firstSection?.title || name,
+		socialDescription: firstSection?.body || defaultDescription,
+		...(firstSection?.image ? { socialImage: firstSection.image } : {})
+	};
+}
 
 export function normalizePostSlug(value: string): string {
 	return (
@@ -114,6 +165,7 @@ export function duplicateDemoPage(page: DemoPage, pages: DemoPage[], sequence: n
 		id,
 		name: `${page.name} copy`.slice(0, 50),
 		slug: uniquePageSlug(`${page.slug}-copy`, pages),
+		seo: { ...page.seo, title: `${page.seo.title} copy`.slice(0, 70), index: false },
 		sections: page.sections.map((section, index) => ({
 			...section,
 			id: `${section.kind}-${sequence}-${index + 1}`
@@ -284,101 +336,107 @@ export function createSection(kind: DemoSectionKind, sequence: number): DemoSect
 }
 
 export function createDemoSite(): DemoSite {
+	const pagesWithoutSeo: Array<Omit<DemoPage, 'seo'>> = [
+		{
+			id: 'home',
+			name: 'Home',
+			slug: '/',
+			sections: [
+				{
+					id: 'hero-1',
+					kind: 'hero',
+					label: 'Lake hero',
+					eyebrow: 'PERSONAL JOURNAL',
+					title: 'Stories, sound & places worth remembering.',
+					body: 'A personal corner for essays, field recordings and the occasional experiment.',
+					image: weekendLakeImage,
+					imageAlt: 'A quiet lake reflecting distant green hills'
+				},
+				{
+					id: 'story-2',
+					kind: 'story',
+					label: 'Field Notes',
+					eyebrow: 'LATEST STORY',
+					title: 'Field Notes from the long way home',
+					body: 'A weekend route, a camera, and a few places that deserved more than a drive-by.',
+					image: fieldNotesImage,
+					imageAlt: 'An open field notebook beside a camera and wildflowers'
+				},
+				{
+					id: 'post-feed-3',
+					kind: 'post-feed',
+					label: 'Latest journal posts',
+					eyebrow: 'FROM THE JOURNAL',
+					title: 'Recent stories',
+					body: 'A few new field notes from the long way home.',
+					collectionId: 'journal-posts',
+					postLimit: 3,
+					postOrder: 'latest'
+				},
+				{
+					id: 'newsletter-4',
+					kind: 'newsletter',
+					label: 'Sunday letter',
+					eyebrow: 'THE SUNDAY NOTE',
+					title: 'A calmer way to keep in touch.',
+					body: 'A short letter about good places and the people who care for them.'
+				}
+			]
+		},
+		{
+			id: 'about',
+			name: 'About',
+			slug: '/about',
+			sections: [
+				{
+					id: 'hero-4',
+					kind: 'hero',
+					label: 'About Willow',
+					eyebrow: 'HELLO, I’M WILLOW',
+					title: 'I collect thoughtful places and the stories behind them.',
+					body: 'This journal is where photography, slow travel and useful notes meet.',
+					image: forestCabinImage,
+					imageAlt: 'A warm wooden cabin surrounded by tall forest trees'
+				},
+				{
+					id: 'quote-5',
+					kind: 'quote',
+					label: 'Journal motto',
+					eyebrow: 'WHY THIS EXISTS',
+					title: 'Pay attention. Leave a place better than you found it.',
+					body: 'A simple rule for travel and for life.'
+				}
+			]
+		},
+		{
+			id: 'journal',
+			name: 'Journal',
+			slug: '/journal',
+			sections: [
+				{
+					id: 'gallery-6',
+					kind: 'gallery',
+					label: 'Recent journeys',
+					eyebrow: 'RECENT JOURNEYS',
+					title: 'Three weekends, three different kinds of quiet.',
+					body: 'Lake mornings, cabin evenings and the notes collected between them.',
+					image: fieldNotesImage,
+					imageAlt: 'An open field notebook beside a camera and wildflowers'
+				}
+			]
+		}
+	];
+	const pages = pagesWithoutSeo.map((page) => ({
+		...page,
+		seo: createDefaultPageSeo(page.name, page.sections)
+	}));
 	return {
 		name: 'Willow Journal',
 		tagline: 'Stories, sound and places worth remembering.',
 		accent: '#d88152',
 		themeId: 'editorial',
-		pages: [
-			{
-				id: 'home',
-				name: 'Home',
-				slug: '/',
-				sections: [
-					{
-						id: 'hero-1',
-						kind: 'hero',
-						label: 'Lake hero',
-						eyebrow: 'PERSONAL JOURNAL',
-						title: 'Stories, sound & places worth remembering.',
-						body: 'A personal corner for essays, field recordings and the occasional experiment.',
-						image: weekendLakeImage,
-						imageAlt: 'A quiet lake reflecting distant green hills'
-					},
-					{
-						id: 'story-2',
-						kind: 'story',
-						label: 'Field Notes',
-						eyebrow: 'LATEST STORY',
-						title: 'Field Notes from the long way home',
-						body: 'A weekend route, a camera, and a few places that deserved more than a drive-by.',
-						image: fieldNotesImage,
-						imageAlt: 'An open field notebook beside a camera and wildflowers'
-					},
-					{
-						id: 'post-feed-3',
-						kind: 'post-feed',
-						label: 'Latest journal posts',
-						eyebrow: 'FROM THE JOURNAL',
-						title: 'Recent stories',
-						body: 'A few new field notes from the long way home.',
-						collectionId: 'journal-posts',
-						postLimit: 3,
-						postOrder: 'latest'
-					},
-					{
-						id: 'newsletter-4',
-						kind: 'newsletter',
-						label: 'Sunday letter',
-						eyebrow: 'THE SUNDAY NOTE',
-						title: 'A calmer way to keep in touch.',
-						body: 'A short letter about good places and the people who care for them.'
-					}
-				]
-			},
-			{
-				id: 'about',
-				name: 'About',
-				slug: '/about',
-				sections: [
-					{
-						id: 'hero-4',
-						kind: 'hero',
-						label: 'About Willow',
-						eyebrow: 'HELLO, I’M WILLOW',
-						title: 'I collect thoughtful places and the stories behind them.',
-						body: 'This journal is where photography, slow travel and useful notes meet.',
-						image: forestCabinImage,
-						imageAlt: 'A warm wooden cabin surrounded by tall forest trees'
-					},
-					{
-						id: 'quote-5',
-						kind: 'quote',
-						label: 'Journal motto',
-						eyebrow: 'WHY THIS EXISTS',
-						title: 'Pay attention. Leave a place better than you found it.',
-						body: 'A simple rule for travel and for life.'
-					}
-				]
-			},
-			{
-				id: 'journal',
-				name: 'Journal',
-				slug: '/journal',
-				sections: [
-					{
-						id: 'gallery-6',
-						kind: 'gallery',
-						label: 'Recent journeys',
-						eyebrow: 'RECENT JOURNEYS',
-						title: 'Three weekends, three different kinds of quiet.',
-						body: 'Lake mornings, cabin evenings and the notes collected between them.',
-						image: fieldNotesImage,
-						imageAlt: 'An open field notebook beside a camera and wildflowers'
-					}
-				]
-			}
-		],
+		seo: createDefaultSiteSeo('Willow Journal', 'Stories, sound and places worth remembering.'),
+		pages,
 		collections: createDemoCollections()
 	};
 }
@@ -393,9 +451,62 @@ export function upgradeDemoSite(value: unknown): DemoSite | null {
 	if (isDemoSite(value)) return cloneDemoSite(value);
 	if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
 	const legacy = value as Record<string, unknown>;
-	if ('collections' in legacy) return null;
-	const upgraded = { ...legacy, collections: createDemoCollections() };
+	if (!Array.isArray(legacy.pages)) return null;
+	const name = typeof legacy.name === 'string' ? legacy.name : '';
+	const tagline = typeof legacy.tagline === 'string' ? legacy.tagline : '';
+	const upgraded = {
+		...legacy,
+		seo: legacy.seo ?? createDefaultSiteSeo(name, tagline),
+		pages: legacy.pages.map((value) => {
+			if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+			const page = value as Record<string, unknown>;
+			return {
+				...page,
+				seo:
+					page.seo ??
+					createDefaultPageSeo(
+						typeof page.name === 'string' ? page.name : '',
+						Array.isArray(page.sections) ? (page.sections as DemoSection[]) : [],
+						tagline
+					)
+			};
+		}),
+		collections: legacy.collections ?? createDemoCollections()
+	};
 	return isDemoSite(upgraded) ? cloneDemoSite(upgraded) : null;
+}
+
+function isBoundedString(value: unknown, maximum: number): value is string {
+	return typeof value === 'string' && value.length <= maximum;
+}
+
+function isDemoSiteSeo(value: unknown): value is DemoSiteSeo {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+	const seo = value as Partial<DemoSiteSeo>;
+	return (
+		isBoundedString(seo.titlePattern, 120) &&
+		seo.titlePattern.includes('%s') &&
+		isBoundedString(seo.description, 320) &&
+		isBoundedString(seo.canonicalUrl, 300) &&
+		isBoundedString(seo.language, 20) &&
+		['public', 'hidden'].includes(seo.visibility ?? '') &&
+		isBoundedString(seo.identityName, 120) &&
+		['person', 'organization'].includes(seo.identityType ?? '')
+	);
+}
+
+function isDemoPageSeo(value: unknown): value is DemoPageSeo {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+	const seo = value as Partial<DemoPageSeo>;
+	return (
+		isBoundedString(seo.title, 120) &&
+		isBoundedString(seo.description, 320) &&
+		typeof seo.index === 'boolean' &&
+		typeof seo.follow === 'boolean' &&
+		isBoundedString(seo.socialTitle, 120) &&
+		isBoundedString(seo.socialDescription, 320) &&
+		(seo.socialImage === undefined || isBoundedString(seo.socialImage, 2_000))
+	);
 }
 
 export function isDemoSite(value: unknown): value is DemoSite {
@@ -409,7 +520,8 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		candidate.pages.length === 0 ||
 		candidate.pages.length > 24 ||
 		!Array.isArray(candidate.collections) ||
-		candidate.collections.length > 12
+		candidate.collections.length > 12 ||
+		!isDemoSiteSeo(candidate.seo)
 	)
 		return false;
 	if (
@@ -423,6 +535,7 @@ export function isDemoSite(value: unknown): value is DemoSite {
 			typeof page.id === 'string' &&
 			typeof page.name === 'string' &&
 			typeof page.slug === 'string' &&
+			isDemoPageSeo(page.seo) &&
 			Array.isArray(page.sections) &&
 			page.sections.length <= 48 &&
 			page.sections.every(

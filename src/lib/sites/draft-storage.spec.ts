@@ -54,6 +54,18 @@ describe('versioned local draft storage', () => {
 		expect(parsed?.site.collections[0].items).toHaveLength(3);
 	});
 
+	it('adds safe search defaults when loading a pre-SEO draft', () => {
+		const legacy = createDemoSite() as unknown as Record<string, unknown>;
+		delete legacy.seo;
+		for (const page of legacy.pages as Array<Record<string, unknown>>) delete page.seo;
+		const parsed = parseDemoDraft(legacy);
+		expect(parsed?.site.seo).toMatchObject({
+			titlePattern: '%s · Willow Journal',
+			visibility: 'public'
+		});
+		expect(parsed?.site.pages.every((page) => page.seo.description.length > 0)).toBe(true);
+	});
+
 	it('rejects malformed and unbounded stored drafts', () => {
 		expect(parseDemoDraft({ contract: DEMO_DRAFT_CONTRACT, revision: -1 })).toBeNull();
 		expect(parseDemoDraft({ ...createDemoSite(), tagline: 'x'.repeat(300_000) })).toBeNull();

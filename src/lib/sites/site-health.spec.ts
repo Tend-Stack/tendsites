@@ -33,4 +33,21 @@ describe('site health guidance', () => {
 			'empty_page'
 		]);
 	});
+
+	it('links search issues to the exact SEO workspace', () => {
+		const site = createDemoSite();
+		site.seo.canonicalUrl = 'http://unsafe.example';
+		site.pages[1].seo.description = '';
+		const report = assessDemoSiteHealth(site);
+		expect(report.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: 'invalid_canonical_url', target: 'site-seo' }),
+				expect.objectContaining({
+					code: 'missing_page_description',
+					pageId: 'about',
+					target: 'page-seo'
+				})
+			])
+		);
+	});
 });

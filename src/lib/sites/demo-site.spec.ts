@@ -87,6 +87,7 @@ describe('interactive demo site', () => {
 			id: `page-${index}`,
 			name: `Page ${index}`,
 			slug: `/page-${index}`,
+			seo: { ...tooManyPages.pages[0].seo },
 			sections: []
 		}));
 		expect(isDemoSite(tooManyPages)).toBe(false);

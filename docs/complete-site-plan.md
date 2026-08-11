@@ -78,15 +78,27 @@ blocks where an adapter proves safe round-tripping.
 
 - [ ] Site-wide identity: title pattern, description, language, locale, canonical host, social image,
       organization/person identity, favicon, and search-engine visibility.
+  - **Complete foundation:** Title pattern, description, primary language, canonical HTTPS origin,
+    public identity, and visibility are editable in a focused workspace with old-draft migration.
+    Locale variants, favicon lifecycle, and a site-wide media picker remain pending.
 - [ ] Per-page and per-entry SEO with sensible generated defaults, editable title/description,
       canonical URL, index/follow control, social image, and preview cards.
+  - **Complete page slice:** Every page owns bounded title, description, index/follow, social copy,
+    and image settings with live search/share previews. Entry-specific fields and media selection
+    remain pending.
 - [ ] Generated `sitemap.xml`, `robots.txt`, RSS/Atom feeds, canonical tags, pagination links, and a
       human-readable search page where the chosen site type needs them.
+  - **Complete local generation slice:** Sitemap, robots, and RSS previews are deterministic,
+    escaped, exclude hidden pages and draft posts, and remain explicitly non-writing. Repository
+    output, Atom, pagination, canonical markup, and site search remain pending.
 - [ ] Structured data for WebSite, Organization/Person, Article, BreadcrumbList, FAQ, Event,
       Product, and other reviewed page types without unsupported claims.
 - [ ] Redirect manager and broken-link report with loop/conflict detection and imported URL history.
 - [ ] Publish-time checks for missing titles, duplicate descriptions, inaccessible headings, missing
       image descriptions, broken internal links, oversized media, and share-card quality.
+  - **Complete local SEO guidance slice:** Invalid canonical origins plus missing site/page
+    descriptions appear in Readiness and open the exact SEO setting. Publish-time enforcement and
+    the remaining quality checks remain pending.
 
 ## Visitor experience
 

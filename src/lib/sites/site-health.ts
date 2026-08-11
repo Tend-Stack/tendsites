@@ -1,10 +1,20 @@
 import type { DemoSite } from './demo-site';
+import { normalizeCanonicalUrl } from './seo';
 
 export type SiteHealthIssue = {
-	code: 'duplicate_address' | 'empty_page' | 'missing_title' | 'missing_body' | 'missing_image_alt';
+	code:
+		| 'duplicate_address'
+		| 'empty_page'
+		| 'missing_title'
+		| 'missing_body'
+		| 'missing_image_alt'
+		| 'invalid_canonical_url'
+		| 'missing_site_description'
+		| 'missing_page_description';
 	severity: 'blocker' | 'attention';
 	pageId: string;
 	sectionId?: string;
+	target?: 'studio' | 'site-seo' | 'page-seo';
 	title: string;
 	guidance: string;
 };
@@ -20,7 +30,38 @@ export function assessDemoSiteHealth(site: DemoSite): SiteHealthReport {
 	const issues: SiteHealthIssue[] = [];
 	const slugOwners = new Map<string, string>();
 
+	if (!normalizeCanonicalUrl(site.seo.canonicalUrl)) {
+		issues.push({
+			code: 'invalid_canonical_url',
+			severity: 'attention',
+			pageId: site.pages[0]?.id ?? 'home',
+			target: 'site-seo',
+			title: 'Website address needs review',
+			guidance: 'Add the complete secure https:// address visitors will use.'
+		});
+	}
+	if (!site.seo.description.trim()) {
+		issues.push({
+			code: 'missing_site_description',
+			severity: 'attention',
+			pageId: site.pages[0]?.id ?? 'home',
+			target: 'site-seo',
+			title: 'Site description is empty',
+			guidance: 'Explain the site in one clear sentence for search and sharing.'
+		});
+	}
+
 	for (const page of site.pages) {
+		if (page.seo.index && !page.seo.description.trim()) {
+			issues.push({
+				code: 'missing_page_description',
+				severity: 'attention',
+				pageId: page.id,
+				target: 'page-seo',
+				title: `${page.name} needs a search description`,
+				guidance: 'Add a short preview that helps someone decide to visit this page.'
+			});
+		}
 		const existingOwner = slugOwners.get(page.slug);
 		if (existingOwner && existingOwner !== page.id) {
 			issues.push({
