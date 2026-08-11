@@ -15,6 +15,13 @@ export type DemoSocialLink = {
 	href: string;
 };
 
+export type DemoSystemPages = {
+	loading: { title: string; body: string };
+	offline: { title: string; body: string; actionLabel: string };
+	maintenance: { title: string; body: string; statusText: string };
+	error: { title: string; body: string; actionLabel: string };
+};
+
 export type DemoSiteStructure = {
 	header: DemoNavigationItem[];
 	footer: DemoNavigationItem[];
@@ -30,10 +37,11 @@ export type DemoSiteStructure = {
 		actionLabel: string;
 		pageId: string;
 	};
+	systemPages: DemoSystemPages;
 };
 
 export type StructureIssue = {
-	area: 'header' | 'footer' | 'social' | 'announcement' | 'not-found';
+	area: 'header' | 'footer' | 'social' | 'announcement' | 'not-found' | 'experiences';
 	message: string;
 };
 
@@ -71,6 +79,50 @@ export function createDefaultSiteStructure(pages: StructurePage[]): DemoSiteStru
 			body: 'The page may have moved, but the rest of the journal is still here.',
 			actionLabel: 'Return home',
 			pageId: pages[0]?.id ?? ''
+		},
+		systemPages: {
+			loading: {
+				title: 'Gathering the next page…',
+				body: 'The site is loading. This usually takes only a moment.'
+			},
+			offline: {
+				title: 'You appear to be offline.',
+				body: 'Check your connection, then try this page again.',
+				actionLabel: 'Try again'
+			},
+			maintenance: {
+				title: 'A short pause for maintenance.',
+				body: 'The site is temporarily unavailable while an update is completed.',
+				statusText: 'Please check back soon.'
+			},
+			error: {
+				title: 'Something did not load correctly.',
+				body: 'Your place is safe. Try loading the page once more.',
+				actionLabel: 'Reload page'
+			}
+		}
+	};
+}
+
+export function upgradeDemoSiteStructure(
+	value: unknown,
+	pages: StructurePage[]
+): DemoSiteStructure {
+	const defaults = createDefaultSiteStructure(pages);
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return defaults;
+	const legacy = value as Partial<DemoSiteStructure>;
+	const systemPages =
+		legacy.systemPages && typeof legacy.systemPages === 'object' ? legacy.systemPages : undefined;
+	return {
+		...defaults,
+		...legacy,
+		announcement: { ...defaults.announcement, ...(legacy.announcement ?? {}) },
+		notFound: { ...defaults.notFound, ...(legacy.notFound ?? {}) },
+		systemPages: {
+			loading: { ...defaults.systemPages.loading, ...(systemPages?.loading ?? {}) },
+			offline: { ...defaults.systemPages.offline, ...(systemPages?.offline ?? {}) },
+			maintenance: { ...defaults.systemPages.maintenance, ...(systemPages?.maintenance ?? {}) },
+			error: { ...defaults.systemPages.error, ...(systemPages?.error ?? {}) }
 		}
 	};
 }
@@ -184,6 +236,7 @@ export function isDemoSiteStructure(
 		return false;
 	const announcement = structure.announcement;
 	const notFound = structure.notFound;
+	const systemPages = structure.systemPages;
 	return Boolean(
 		announcement &&
 		typeof announcement.enabled === 'boolean' &&
@@ -193,7 +246,19 @@ export function isDemoSiteStructure(
 		within(notFound.title, 120) &&
 		within(notFound.body, 320) &&
 		within(notFound.actionLabel, 60) &&
-		pageIds.has(notFound.pageId)
+		pageIds.has(notFound.pageId) &&
+		systemPages &&
+		bounded(systemPages.loading?.title, 120) &&
+		bounded(systemPages.loading?.body, 320) &&
+		bounded(systemPages.offline?.title, 120) &&
+		bounded(systemPages.offline?.body, 320) &&
+		bounded(systemPages.offline?.actionLabel, 60) &&
+		bounded(systemPages.maintenance?.title, 120) &&
+		bounded(systemPages.maintenance?.body, 320) &&
+		bounded(systemPages.maintenance?.statusText, 120) &&
+		bounded(systemPages.error?.title, 120) &&
+		bounded(systemPages.error?.body, 320) &&
+		bounded(systemPages.error?.actionLabel, 60)
 	);
 }
 
@@ -248,6 +313,24 @@ export function analyzeSiteStructure(
 		issues.push({
 			area: 'not-found',
 			message: 'Complete the missing-page message and recovery action.'
+		});
+	const systemCopy = [
+		structure.systemPages.loading.title,
+		structure.systemPages.loading.body,
+		structure.systemPages.offline.title,
+		structure.systemPages.offline.body,
+		structure.systemPages.offline.actionLabel,
+		structure.systemPages.maintenance.title,
+		structure.systemPages.maintenance.body,
+		structure.systemPages.maintenance.statusText,
+		structure.systemPages.error.title,
+		structure.systemPages.error.body,
+		structure.systemPages.error.actionLabel
+	];
+	if (systemCopy.some((value) => !value.trim()))
+		issues.push({
+			area: 'experiences',
+			message: 'Complete every loading, offline, maintenance, and error message.'
 		});
 	return issues;
 }

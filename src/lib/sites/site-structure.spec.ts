@@ -10,7 +10,8 @@ import {
 	removeNavigationItem,
 	removeNavigationPage,
 	resolveAnnouncementHref,
-	resolveNavigationHref
+	resolveNavigationHref,
+	upgradeDemoSiteStructure
 } from './site-structure';
 
 const pages = [
@@ -96,5 +97,25 @@ describe('site structure', () => {
 		const social = createDefaultSiteStructure(pages);
 		social.social.push({ id: 'unsafe', label: 'Unsafe', href: 'http://example.com' });
 		expect(isDemoSiteStructure(social, pages)).toBe(false);
+	});
+
+	it('migrates earlier structures with bounded system-page defaults', () => {
+		const legacy = createDefaultSiteStructure(pages) as unknown as Record<string, unknown>;
+		delete legacy.systemPages;
+		const upgraded = upgradeDemoSiteStructure(legacy, pages);
+		expect(upgraded.systemPages.offline.actionLabel).toBe('Try again');
+		expect(upgraded.header).toHaveLength(2);
+		expect(isDemoSiteStructure(upgraded, pages)).toBe(true);
+	});
+
+	it('rejects empty or oversized system experience copy', () => {
+		const empty = createDefaultSiteStructure(pages);
+		empty.systemPages.error.title = '';
+		expect(isDemoSiteStructure(empty, pages)).toBe(false);
+		expect(analyzeSiteStructure(empty, pages).at(-1)?.area).toBe('experiences');
+
+		const oversized = createDefaultSiteStructure(pages);
+		oversized.systemPages.offline.body = 'x'.repeat(321);
+		expect(isDemoSiteStructure(oversized, pages)).toBe(false);
 	});
 });

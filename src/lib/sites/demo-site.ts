@@ -7,6 +7,7 @@ import { isEmbedReference, type EmbedReference } from './embed';
 import {
 	createDefaultSiteStructure,
 	isDemoSiteStructure,
+	upgradeDemoSiteStructure,
 	type DemoSiteStructure
 } from './site-structure';
 
@@ -562,7 +563,7 @@ export function upgradeDemoSite(value: unknown): DemoSite | null {
 		pages: upgradedPages,
 		collections: (legacy.collections ?? createDemoCollections()) as DemoCollection[],
 		redirects: legacy.redirects ?? [],
-		structure: legacy.structure ?? createDefaultSiteStructure(upgradedPages as DemoPage[])
+		structure: upgradeDemoSiteStructure(legacy.structure, upgradedPages as DemoPage[])
 	};
 	for (const collection of upgraded.collections) {
 		if (!collection || !Array.isArray(collection.items)) continue;

@@ -6,8 +6,10 @@
 		ArrowDown,
 		Bold,
 		Check,
+		CircleAlert,
 		CirclePlus,
 		Cloud,
+		CloudOff,
 		Code2,
 		Copy,
 		DatabaseZap,
@@ -21,6 +23,7 @@
 		Languages,
 		Link2,
 		List,
+		LoaderCircle,
 		Menu,
 		MonitorPlay,
 		Paintbrush,
@@ -37,6 +40,7 @@
 		Strikethrough,
 		Undo2,
 		Video,
+		Wrench,
 		X
 	} from '@lucide/svelte';
 	import { onMount } from 'svelte';
@@ -140,7 +144,9 @@
 	let showAddSection = $state(false);
 	let showPreview = $state(false);
 	let previewViewport = $state<'desktop' | 'tablet' | 'phone'>('desktop');
-	let previewNotFound = $state(false);
+	let previewExperience = $state<
+		'site' | 'not-found' | 'loading' | 'offline' | 'maintenance' | 'error'
+	>('site');
 	let previewPostId = $state<string | null>(null);
 	let showDraftRecovery = $state(false);
 	let recoveryBusy = $state(false);
@@ -791,7 +797,7 @@
 
 	function openPreviewPage(pageId: string) {
 		previewPostId = null;
-		previewNotFound = false;
+		previewExperience = 'site';
 		selectPage(pageId);
 	}
 
@@ -2164,7 +2170,7 @@
 						<div>
 							<strong>Interactive preview</strong><span>Panel-local draft · not published</span>
 						</div>
-						<div class="preview-controls" role="group" aria-label="Preview width">
+						<div class="preview-controls" role="group" aria-label="Preview controls">
 							{#each ['desktop', 'tablet', 'phone'] as width (width)}
 								<button
 									class:active={previewViewport === width}
@@ -2173,10 +2179,14 @@
 									>{width}</button
 								>
 							{/each}
-							<button
-								class:active={previewNotFound}
-								onclick={() => (previewNotFound = !previewNotFound)}>404 page</button
-							>
+							<select aria-label="Preview experience" bind:value={previewExperience}>
+								<option value="site">Site page</option>
+								<option value="not-found">404 page</option>
+								<option value="loading">Loading page</option>
+								<option value="offline">Offline page</option>
+								<option value="maintenance">Maintenance page</option>
+								<option value="error">Error page</option>
+							</select>
 						</div>
 						<button
 							class="modal-close"
@@ -2218,7 +2228,8 @@
 									{@const children = navigationChildren(siteDraft.structure.header, item.id)}
 									<div class="visitor-nav-entry" class:has-submenu={children.length > 0}>
 										{#if item.type === 'page' && item.pageId}<button
-												class:active={!previewNotFound && selectedPageId === item.pageId}
+												class:active={previewExperience === 'site' &&
+													selectedPageId === item.pageId}
 												onclick={() => openPreviewPage(item.pageId!)}>{item.label}</button
 											>{:else if href}
 											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- validated HTTPS/mailto destination. -->
@@ -2274,7 +2285,7 @@
 								</div>
 							</details>
 						</nav>
-						{#if previewNotFound}
+						{#if previewExperience === 'not-found'}
 							<section class="visitor-not-found">
 								<small>404 · PAGE NOT FOUND</small>
 								<h1>{siteDraft.structure.notFound.title}</h1>
@@ -2282,6 +2293,40 @@
 								<button onclick={() => openPreviewPage(siteDraft.structure.notFound.pageId)}
 									>{siteDraft.structure.notFound.actionLabel}</button
 								>
+							</section>
+						{:else if previewExperience !== 'site'}
+							{@const systemPage = siteDraft.structure.systemPages[previewExperience]}
+							<section class="visitor-system-page {previewExperience}" aria-live="polite">
+								{#if previewExperience === 'loading'}
+									<span class="visitor-system-icon"
+										><LoaderCircle size={36} aria-hidden="true" /></span
+									>
+									<small>JUST A MOMENT</small>
+								{:else if previewExperience === 'offline'}
+									<span class="visitor-system-icon"><CloudOff size={36} aria-hidden="true" /></span>
+									<small>CONNECTION LOST</small>
+								{:else if previewExperience === 'maintenance'}
+									<span class="visitor-system-icon"><Wrench size={36} aria-hidden="true" /></span>
+									<small>PLANNED PAUSE</small>
+								{:else}
+									<span class="visitor-system-icon"
+										><CircleAlert size={36} aria-hidden="true" /></span
+									>
+									<small>WE HIT A PROBLEM</small>
+								{/if}
+								<h1>{systemPage.title}</h1>
+								<p>{systemPage.body}</p>
+								{#if previewExperience === 'offline' || previewExperience === 'error'}
+									<button onclick={() => (previewExperience = 'site')}
+										>{previewExperience === 'offline'
+											? siteDraft.structure.systemPages.offline.actionLabel
+											: siteDraft.structure.systemPages.error.actionLabel}</button
+									>
+								{:else if previewExperience === 'maintenance'}
+									<strong>{siteDraft.structure.systemPages.maintenance.statusText}</strong>
+								{:else}
+									<div class="visitor-loading-track"><i></i></div>
+								{/if}
 							</section>
 						{:else if previewPostId !== null || selectedPage?.id === 'journal'}
 							<VisitorJournal site={siteDraft} bind:postId={previewPostId} />
@@ -4894,6 +4939,15 @@
 		border-color: var(--green);
 		background: var(--green);
 	}
+	.preview-controls select {
+		min-height: 32px;
+		padding: 6px 26px 6px 9px;
+		color: #d6e4de;
+		font-size: 11px;
+		border: 1px solid #293a35;
+		border-radius: 7px;
+		background: #10191b;
+	}
 	.full-demo-site {
 		color: var(--site-ink);
 		background: var(--site-paper);
@@ -5065,6 +5119,85 @@
 		border: 0;
 		border-radius: 999px;
 		background: var(--accent);
+	}
+	.visitor-system-page {
+		display: grid;
+		align-content: center;
+		justify-items: center;
+		min-height: 520px;
+		padding: clamp(45px, 9vw, 110px);
+		text-align: center;
+		background: radial-gradient(
+			circle at 50% 20%,
+			color-mix(in srgb, var(--accent) 18%, transparent),
+			transparent 38%
+		);
+	}
+	.visitor-system-icon {
+		display: inline-flex;
+		color: #147650;
+	}
+	.visitor-system-page.loading .visitor-system-icon {
+		animation: visitor-spin 1.7s linear infinite;
+	}
+	.visitor-system-page small {
+		margin-top: 22px;
+		color: #147650;
+		font-weight: 900;
+		letter-spacing: 0.13em;
+	}
+	.visitor-system-page h1 {
+		max-width: 760px;
+		margin: 18px 0 10px;
+		font:
+			500 clamp(38px, 7vw, 70px) / 1.02 Georgia,
+			serif;
+	}
+	.visitor-system-page p {
+		max-width: 600px;
+		margin: 0;
+		color: #506159;
+		font-size: 18px;
+		line-height: 1.6;
+	}
+	.visitor-system-page button {
+		margin-top: 22px;
+		padding: 12px 18px;
+		color: #102219;
+		font-weight: 800;
+		border: 0;
+		border-radius: 999px;
+		background: var(--accent);
+	}
+	.visitor-system-page strong {
+		margin-top: 22px;
+		color: #147650;
+	}
+	.visitor-loading-track {
+		width: min(280px, 75%);
+		height: 5px;
+		margin-top: 26px;
+		overflow: hidden;
+		border-radius: 999px;
+		background: #cbd8d1;
+	}
+	.visitor-loading-track i {
+		display: block;
+		width: 45%;
+		height: 100%;
+		border-radius: inherit;
+		background: #147650;
+		animation: visitor-load 1.5s ease-in-out infinite alternate;
+	}
+	@keyframes visitor-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@keyframes visitor-load {
+		to {
+			transform: translateX(122%);
+		}
 	}
 	.preview-section {
 		display: grid;
@@ -5787,6 +5920,10 @@
 	@media (prefers-reduced-motion: reduce) {
 		button {
 			transition: none;
+		}
+		.visitor-system-page.loading .visitor-system-icon,
+		.visitor-loading-track i {
+			animation: none;
 		}
 	}
 </style>

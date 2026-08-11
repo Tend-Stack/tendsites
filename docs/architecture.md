@@ -76,6 +76,9 @@ Generated site = ordinary files + assets + Git history
   existing local Readiness report and deep-link to the relevant workspace. Post scheduling is
   similarly editorial evidence only: scheduled and archived entries are excluded from visitor
   projections and no timer or publishing request exists in the extension.
+  The same structure model owns bounded loading, offline, maintenance, and error copy. Older drafts
+  receive deterministic defaults, while Studio previews every state without claiming that a host
+  network, maintenance, or runtime-error boundary has been connected.
   `src/lib/sites/seo.ts` derives page metadata plus escaped sitemap, robots, and RSS previews from
   the same bounded draft. `SeoWorkspace.svelte` edits only that draft and deliberately has no
   repository, search-index submission, filesystem, or publish authority. Legacy drafts receive

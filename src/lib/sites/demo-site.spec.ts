@@ -153,6 +153,19 @@ describe('interactive demo site', () => {
 		]);
 	});
 
+	it('upgrades v0.14 structures without discarding navigation', () => {
+		const legacy = structuredClone(createDemoSite()) as unknown as Record<string, unknown>;
+		const structure = legacy.structure as Record<string, unknown>;
+		delete structure.systemPages;
+		const upgraded = upgradeDemoSite(legacy);
+		expect(upgraded?.structure.header.map((item) => item.label)).toEqual([
+			'Home',
+			'About',
+			'Journal'
+		]);
+		expect(upgraded?.structure.systemPages.maintenance.statusText).toBe('Please check back soon.');
+	});
+
 	it('normalizes and de-duplicates friendly page addresses', () => {
 		const pages = createDemoSite().pages;
 		expect(normalizePageSlug('  Field Notes & Photos  ')).toBe('/field-notes-photos');

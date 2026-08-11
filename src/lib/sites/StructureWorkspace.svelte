@@ -2,16 +2,20 @@
 	import {
 		ArrowDown,
 		ArrowUp,
+		CircleAlert,
 		Check,
+		CloudOff,
 		FileQuestion,
 		Link2,
+		LoaderCircle,
 		Megaphone,
 		Menu,
 		PanelBottom,
 		Plus,
 		Share2,
 		Trash2,
-		TriangleAlert
+		TriangleAlert,
+		Wrench
 	} from '@lucide/svelte';
 
 	import { cloneDemoSite, type DemoSite } from './demo-site';
@@ -24,7 +28,9 @@
 		type DemoNavigationItem
 	} from './site-structure';
 
-	export type StructureArea = 'overview' | 'header' | 'footer' | 'announcement' | 'not-found';
+	export type StructureArea =
+		'overview' | 'header' | 'footer' | 'announcement' | 'not-found' | 'experiences';
+	type ExperienceKey = 'loading' | 'offline' | 'maintenance' | 'error';
 
 	let {
 		site,
@@ -45,6 +51,7 @@
 	let socialError = $state('');
 	let announcementHref = $state<string | null>(null);
 	let announcementError = $state('');
+	let experience = $state<ExperienceKey>('offline');
 
 	const issues = $derived(analyzeSiteStructure(site.structure, site.pages));
 	const tabs = [
@@ -52,13 +59,37 @@
 		{ id: 'header', label: 'Header', icon: Menu },
 		{ id: 'footer', label: 'Footer', icon: PanelBottom },
 		{ id: 'announcement', label: 'Announcement', icon: Megaphone },
-		{ id: 'not-found', label: 'Not found', icon: FileQuestion }
+		{ id: 'not-found', label: 'Not found', icon: FileQuestion },
+		{ id: 'experiences', label: 'System pages', icon: CloudOff }
 	] as const;
+	const experiences = [
+		{ id: 'loading', label: 'Loading', eyebrow: 'JUST A MOMENT', icon: LoaderCircle },
+		{ id: 'offline', label: 'Offline', eyebrow: 'CONNECTION LOST', icon: CloudOff },
+		{ id: 'maintenance', label: 'Maintenance', eyebrow: 'PLANNED PAUSE', icon: Wrench },
+		{ id: 'error', label: 'Error', eyebrow: 'WE HIT A PROBLEM', icon: CircleAlert }
+	] as const;
+	const selectedExperience = $derived(experiences.find((item) => item.id === experience)!);
+	const experienceCopy = $derived(site.structure.systemPages[experience]);
+	const experienceAction = $derived(
+		experience === 'offline'
+			? site.structure.systemPages.offline.actionLabel
+			: experience === 'error'
+				? site.structure.systemPages.error.actionLabel
+				: ''
+	);
+	const maintenanceStatus = $derived(site.structure.systemPages.maintenance.statusText);
 
 	function update(mutator: (draft: DemoSite) => void) {
 		const draft = cloneDemoSite(site);
 		mutator(draft);
 		onchange(draft);
+	}
+
+	function updateExperience(field: string, value: string, maximum: number) {
+		update((draft) => {
+			const target = draft.structure.systemPages[experience] as unknown as Record<string, string>;
+			target[field] = value.slice(0, maximum);
+		});
 	}
 
 	function togglePage(areaName: 'header' | 'footer', pageId: string) {
@@ -227,6 +258,12 @@
 				<FileQuestion size={22} /><span
 					><strong>Not-found page</strong><small>{site.structure.notFound.title}</small></span
 				><em>Preview</em>
+			</button>
+			<button onclick={() => (area = 'experiences')}>
+				<CloudOff size={22} /><span
+					><strong>System pages</strong><small>Loading, offline, maintenance, and error</small
+					></span
+				><em>4 states</em>
 			</button>
 		</section>
 		{#if issues.length}
@@ -404,7 +441,7 @@
 				<Megaphone size={16} /><span>{site.structure.announcement.text}</span>
 			</div>
 		</section>
-	{:else}
+	{:else if area === 'not-found'}
 		<section class="not-found-layout">
 			<div class="settings-card">
 				<div class="section-heading">
@@ -460,6 +497,80 @@
 				<h2>{site.structure.notFound.title}</h2>
 				<p>{site.structure.notFound.body}</p>
 				<span>{site.structure.notFound.actionLabel}</span>
+			</div>
+		</section>
+	{:else}
+		{@const ExperienceIcon = selectedExperience.icon}
+		<section class="experience-layout">
+			<div class="settings-card">
+				<div class="section-heading">
+					<div>
+						<span>Visitor recovery states</span>
+						<h2>Make interruption feel considered, not broken.</h2>
+					</div>
+				</div>
+				<div class="experience-tabs" role="group" aria-label="System page to edit">
+					{#each experiences as item (item.id)}
+						<button class:active={experience === item.id} onclick={() => (experience = item.id)}
+							>{item.label}</button
+						>
+					{/each}
+				</div>
+				<label
+					>Heading<input
+						aria-label="{selectedExperience.label} heading"
+						maxlength="120"
+						value={experienceCopy.title}
+						oninput={(event) => updateExperience('title', event.currentTarget.value, 120)}
+					/></label
+				>
+				<label
+					>Explanation<textarea
+						aria-label="{selectedExperience.label} explanation"
+						maxlength="320"
+						rows="4"
+						value={experienceCopy.body}
+						oninput={(event) => updateExperience('body', event.currentTarget.value, 320)}
+					></textarea></label
+				>
+				{#if experience === 'offline' || experience === 'error'}
+					<label
+						>Retry button<input
+							aria-label="{selectedExperience.label} action"
+							maxlength="60"
+							value={experienceAction}
+							oninput={(event) => updateExperience('actionLabel', event.currentTarget.value, 60)}
+						/></label
+					>
+				{:else if experience === 'maintenance'}
+					<label
+						>Status line<input
+							aria-label="Maintenance status"
+							maxlength="120"
+							value={maintenanceStatus}
+							oninput={(event) => updateExperience('statusText', event.currentTarget.value, 120)}
+						/></label
+					>
+				{/if}
+				<p class="honesty-note">
+					These drafts customize visitor copy and preview behavior. A host build must still connect
+					the actual network, maintenance, and error boundaries before publishing them.
+				</p>
+			</div>
+			<div class="system-preview" aria-label="{selectedExperience.label} page preview">
+				<span class="experience-icon" class:spinning={experience === 'loading'}
+					><ExperienceIcon size={34} /></span
+				>
+				<small>{selectedExperience.eyebrow}</small>
+				<h2>{experienceCopy.title}</h2>
+				<p>{experienceCopy.body}</p>
+				{#if experience === 'offline' || experience === 'error'}
+					<span class="system-action">{experienceAction}</span>
+				{:else if experience === 'maintenance'}
+					<strong>{maintenanceStatus}</strong>
+				{:else}
+					<div class="loading-track"><i></i></div>
+				{/if}
 			</div>
 		</section>
 	{/if}
@@ -810,6 +921,111 @@
 		border-radius: 999px;
 		background: #56e6ad;
 	}
+	.experience-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr);
+		gap: 16px;
+	}
+	.experience-tabs {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 6px;
+	}
+	.experience-tabs button {
+		padding: 10px;
+		color: #8ba098;
+		font-weight: 800;
+		border: 1px solid #293b36;
+		border-radius: 9px;
+		background: #101b1d;
+	}
+	.experience-tabs button.active {
+		color: #092219;
+		border-color: #56e6ad;
+		background: #56e6ad;
+	}
+	.honesty-note {
+		margin: 0;
+		padding: 13px;
+		color: #9db0a8;
+		font-size: 13px;
+		line-height: 1.55;
+		border-left: 3px solid #56e6ad;
+		background: #0a1214;
+	}
+	.system-preview {
+		display: grid;
+		align-content: center;
+		justify-items: start;
+		min-height: 460px;
+		padding: clamp(30px, 5vw, 64px);
+		color: #1c2b25;
+		border-radius: 18px;
+		background: radial-gradient(circle at 85% 15%, #56e6ad33, transparent 30%), #eef4ef;
+	}
+	.system-preview small {
+		margin-top: 24px;
+		color: #23835f;
+		font-weight: 900;
+		letter-spacing: 0.12em;
+	}
+	.system-preview h2 {
+		margin: 14px 0 10px;
+		font:
+			500 clamp(32px, 4vw, 52px) / 1.04 Georgia,
+			serif;
+	}
+	.system-preview p {
+		max-width: 460px;
+		margin: 0;
+		color: #52635b;
+		line-height: 1.65;
+	}
+	.system-preview strong {
+		margin-top: 20px;
+		color: #23835f;
+	}
+	.system-action {
+		margin-top: 22px;
+		padding: 11px 16px;
+		color: #092219;
+		font-weight: 800;
+		border-radius: 999px;
+		background: #56e6ad;
+	}
+	.loading-track {
+		width: min(260px, 100%);
+		height: 5px;
+		margin-top: 24px;
+		overflow: hidden;
+		border-radius: 999px;
+		background: #cbd8d1;
+	}
+	.loading-track i {
+		display: block;
+		width: 45%;
+		height: 100%;
+		border-radius: inherit;
+		background: #23835f;
+		animation: load-preview 1.5s ease-in-out infinite alternate;
+	}
+	.experience-icon {
+		display: inline-flex;
+		color: #23835f;
+	}
+	.experience-icon.spinning {
+		animation: spin-preview 1.7s linear infinite;
+	}
+	@keyframes load-preview {
+		to {
+			transform: translateX(120%);
+		}
+	}
+	@keyframes spin-preview {
+		to {
+			transform: rotate(360deg);
+		}
+	}
 	.issue-card button {
 		display: flex;
 		gap: 9px;
@@ -841,7 +1057,8 @@
 			flex-direction: column;
 		}
 		.overview-grid,
-		.not-found-layout {
+		.not-found-layout,
+		.experience-layout {
 			grid-template-columns: 1fr;
 		}
 		.link-list article {
@@ -875,6 +1092,15 @@
 		.link-list article > div,
 		.destination {
 			grid-column: 2;
+		}
+		.experience-tabs {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.loading-track i,
+		.experience-icon.spinning {
+			animation: none;
 		}
 	}
 </style>

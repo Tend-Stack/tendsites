@@ -506,12 +506,53 @@ test('builds responsive site navigation, announcements, footer links, and 404 re
 	await expect(preview.locator('.visitor-mobile-nav')).toBeVisible();
 	await preview.locator('.visitor-mobile-nav').getByText('Menu', { exact: true }).click();
 	await expect(preview.locator('.visitor-mobile-submenu').getByText('Field guide')).toBeVisible();
-	await preview.getByRole('button', { name: '404 page' }).click();
+	await preview.getByLabel('Preview experience').selectOption('not-found');
 	await expect(preview.getByRole('heading', { name: 'This trail ends here.' })).toBeVisible();
 	await preview.getByRole('button', { name: 'Back to the journal' }).click();
 	await expect(
 		preview.getByRole('heading', { name: 'Stories, sound & places worth remembering.' })
 	).toBeVisible();
+});
+
+test('customizes truthful loading, offline, maintenance, and error experiences', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Open interactive demo' }).click();
+	await page.getByLabel('Sites navigation').getByRole('button', { name: 'Structure' }).click();
+	await page
+		.getByRole('navigation', { name: 'Site structure settings' })
+		.getByRole('button', { name: 'System pages' })
+		.click();
+
+	await page.getByLabel('Offline heading').fill('This trail is temporarily offline.');
+	await page.getByLabel('Offline action').fill('Check again');
+	await expect(page.getByLabel('Offline page preview')).toContainText(
+		'This trail is temporarily offline.'
+	);
+
+	await page.getByLabel('Sites navigation').getByRole('button', { name: 'Studio' }).click();
+	await page.getByRole('button', { name: 'Preview site' }).click();
+	const preview = page.getByRole('dialog', { name: 'Full example website preview' });
+	const experience = preview.getByLabel('Preview experience');
+	await experience.selectOption('offline');
+	await expect(
+		preview.getByRole('heading', { name: 'This trail is temporarily offline.' })
+	).toBeVisible();
+	await preview.getByRole('button', { name: 'Check again' }).click();
+	await expect(
+		preview.getByRole('heading', { name: 'Stories, sound & places worth remembering.' })
+	).toBeVisible();
+
+	await experience.selectOption('loading');
+	await expect(preview.getByRole('heading', { name: 'Gathering the next page…' })).toBeVisible();
+	await experience.selectOption('maintenance');
+	await expect(preview.getByText('Please check back soon.')).toBeVisible();
+	await experience.selectOption('error');
+	await expect(preview.getByRole('button', { name: 'Reload page' })).toBeVisible();
+	await preview.getByRole('button', { name: 'phone preview' }).click();
+	await expect(preview.locator('.visitor-system-page.error')).toBeVisible();
 });
 
 test('manages page identity and requires named confirmation before removal', async ({ page }) => {

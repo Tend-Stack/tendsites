@@ -63,4 +63,17 @@ describe('site health guidance', () => {
 			})
 		);
 	});
+
+	it('links incomplete recovery copy to the system-pages editor', () => {
+		const site = createDemoSite();
+		site.structure.systemPages.offline.actionLabel = '';
+		const report = assessDemoSiteHealth(site);
+		expect(report.issues).toContainEqual(
+			expect.objectContaining({
+				code: 'structure_issue',
+				target: 'structure',
+				structureArea: 'experiences'
+			})
+		);
+	});
 });

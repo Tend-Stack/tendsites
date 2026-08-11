@@ -155,6 +155,9 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete nested-navigation slice:** Header and footer links support one deliberately bounded
     submenu level with sibling-aware ordering, safe parent removal, desktop disclosure controls,
     mobile indentation, and strict rejection of missing parents, cycles, duplicate IDs, or deeper trees.
+  - **Complete visitor-system-state slice:** A focused Structure tab customizes loading, offline,
+    maintenance, and error experiences with bounded migration-safe copy, responsive previews,
+    reduced-motion handling, and explicit disclosure that host runtime wiring remains separate.
   - **Complete editorial-lifecycle foundation:** Posts now support draft, scheduled, published, and
     archived states with forward migration, bounded planned timestamps, dedicated filters, and
     explicit non-executing schedule guidance. Only published entries reach visitor collections.

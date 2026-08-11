@@ -145,10 +145,12 @@ blocks where an adapter proves safe round-tripping.
     network request until tend.host grants a separate destination capability.
 - [ ] Cookie-free defaults. Analytics, embeds, maps, and marketing integrations disclose external
       requests and require explicit configuration or visitor consent when policy requires it.
-- [ ] Purpose-built empty, loading, offline, not-found, maintenance, and error experiences.
+- [x] Purpose-built empty, loading, offline, not-found, maintenance, and error experiences.
   - **Complete journal recovery slice:** Empty filters and missing/unpublished story identities show
-    honest recovery actions. Loading, offline, maintenance, and site-wide error states remain
-    pending.
+    honest recovery actions.
+  - **Complete system-state slice:** Loading, offline, maintenance, and error copy is bounded,
+    editable, migrated into older drafts, and previewable at desktop, tablet, and phone widths.
+    Actual runtime detection and serving remains a separately authorized host/build integration.
 
 ## Localization and editorial workflow
 

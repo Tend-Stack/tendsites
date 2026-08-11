@@ -17,7 +17,7 @@ export type SiteHealthIssue = {
 	pageId: string;
 	sectionId?: string;
 	target?: 'studio' | 'site-seo' | 'page-seo' | 'structure';
-	structureArea?: 'header' | 'footer' | 'announcement' | 'not-found';
+	structureArea?: 'header' | 'footer' | 'announcement' | 'not-found' | 'experiences';
 	title: string;
 	guidance: string;
 };
