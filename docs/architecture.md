@@ -36,6 +36,11 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/sites/host-creation.ts` validates the only creation bridge responses the browser accepts:
   eligible server summaries, short-lived assignments, durable creation evidence, and persisted
   Your-sites summaries. Server coordinates and filesystem paths never cross this boundary.
+- `src/lib/sites/host-preview.ts` validates the credential-free lifecycle projection for a
+  host-created site's exact source revision and commit. The browser can request, inspect, open, or
+  clean only its own opaque preview identity; Docker, storage, routing, and server coordinates stay
+  inside tend.host. The current execution adapter deliberately excludes externally connected source
+  until the host owns an equally exact immutable source copy.
 - `src/lib/planning/` produces deterministic creation and change-review plans that are structurally unable to apply themselves.
 - `src/lib/content/index.ts` validates collection, locale, path, and navigation relationships without reading a repository.
 - `src/lib/contracts/drafts.ts` separates draft revisions from committed source and detects stale-base conflicts.

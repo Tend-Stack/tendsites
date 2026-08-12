@@ -1266,10 +1266,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 						};
 						return savedConnection;
 					},
-					async updateConnectionSetup(input: {
-						editingMode: string;
-						stage: string;
-					}) {
+					async updateConnectionSetup(input: { editingMode: string; stage: string }) {
 						if (!savedConnection) throw new Error('Connected source is missing.');
 						savedConnection = {
 							...savedConnection,
@@ -1327,9 +1324,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(
 		page.getByText('Keep my custom design saved. Review the source-specific setup plan next.')
 	).toBeVisible();
-	await expect(
-		page.getByLabel('Connected site setup plan')
-	).toBeInViewport();
+	await expect(page.getByLabel('Connected site setup plan')).toBeInViewport();
 	await expect(page.getByLabel('Connected site setup plan')).toContainText('sveltekit');
 	const connectedAuthority = page.locator('.authority-note--connected');
 	await expect(connectedAuthority).toContainText('remains connected at commit');
@@ -1623,6 +1618,107 @@ test('starts the shared GitHub connection without sending users to a second sett
 		)
 		.toBe(true);
 	await expect(page.getByText(/Finish the GitHub steps in the new tab/)).toBeVisible();
+});
+
+test('launches an isolated created-site preview and advances from build progress to ready', async ({
+	page
+}) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	await page.evaluate(async () => {
+		const queued = {
+			contract: 'tend.host/sites-preview/v1',
+			previewId: 'preview-alpha',
+			projectId: 'site.alpha',
+			sourceId: 'source.alpha',
+			sourceRevision: 'a'.repeat(64),
+			gitCommit: 'b'.repeat(40),
+			hostname: 'preview.example.com',
+			url: null,
+			generation: 1,
+			state: 'queued',
+			requestedAt: '2026-08-12T00:00:00.000Z',
+			startedAt: null,
+			readyAt: null,
+			expiresAt: '2026-08-12T01:00:00.000Z',
+			artifact: null,
+			errorCode: null
+		};
+		const extensionUrl = '/test-extension/index.js?v=preview';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension
+			.default({
+				id: 'host.tend.sites',
+				onUnmount() {},
+				sites: {
+					async getConnection() {
+						return null;
+					},
+					async listCreatedSites() {
+						return [
+							{
+								projectId: 'site.alpha',
+								name: 'Alpha Site',
+								sourceId: 'source.alpha',
+								sourceRevision: 'a'.repeat(64),
+								gitCommit: 'b'.repeat(40),
+								serverName: 'Home server',
+								durability: 'versioned_only',
+								createdAt: '2026-08-12T00:00:00.000Z'
+							}
+						];
+					},
+					async listPreviews() {
+						return [];
+					},
+					async requestPreview() {
+						return queued;
+					},
+					async getPreview() {
+						return {
+							...queued,
+							state: 'ready',
+							url: 'https://preview.example.com',
+							startedAt: '2026-08-12T00:00:01.000Z',
+							readyAt: '2026-08-12T00:00:20.000Z',
+							artifact: {
+								sha256: 'c'.repeat(64),
+								files: 8,
+								bytes: 4096,
+								builderImage: 'node@example',
+								serverImage: 'nginx@example'
+							}
+						};
+					}
+				}
+			})
+			.mount(container);
+	});
+
+	await expect(page.getByRole('heading', { name: 'Alpha Site' })).toBeVisible();
+	await page.getByRole('button', { name: 'Create preview' }).click();
+	await expect(page.getByRole('heading', { name: 'Preview Alpha Site' })).toBeVisible();
+	await page.getByLabel('Preview address').fill('preview.example.com');
+	await page.getByRole('button', { name: 'Build preview' }).click();
+	await expect(page.getByText('Building and deploying')).toBeVisible();
+	await expect(page.getByText('Preview is ready')).toBeVisible({ timeout: 5_000 });
+	await expect(
+		page.getByLabel('Preview Alpha Site').getByRole('button', { name: 'Open preview' })
+	).toBeVisible();
 });
 
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({

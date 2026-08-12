@@ -227,19 +227,18 @@ Completion is measured only from the top-level product milestones below. Nested 
 
 ## 3. Isolated previews
 
-- [ ] Separate-origin preview service with no panel credentials.
-  - **Complete:** Exact source/change/policy execution intent with project/revision binding and structurally absent panel/deployment authority.
-  - **Pending:** Durable host queue, isolated execution, separate-origin routing, and retained evidence.
+- [x] Separate-origin preview service with no panel credentials.
+  - **Complete:** Exact source/change/policy execution intent with project/revision binding and structurally absent panel/deployment authority. The separately granted host bridge now queues an actor-bound created-site revision, rechecks its Git commit inside a bounded disposable builder, serves only the static artifact through an isolated HTTPS preview app, and returns credential-free lifecycle evidence.
 - [x] Resource, time, network, and storage limits.
 - [x] Frozen installs and truthful required-check evidence.
   - **Complete:** Separate-origin resource policy and required-check assessment with no deploy authority.
     The four reviewed first-party starters now contain a complete pinned SvelteKit static runtime,
     lockfile, app shell, build configuration, prerender contract, and exact per-file digests. A
     disposable verifier runs frozen installs and proves every starter emits a static production page.
-  - **Pending integration:** Execute isolated previews and retain bounded evidence through durable host jobs.
+  - **Complete integration:** Host jobs enforce pinned builder/server images, a read-only source mount, a 1 GiB tmpfs build workspace, memory/process/time limits, a read-only served artifact, and bounded retained digest/file/byte evidence.
 - [x] Preview supersession, expiry, cleanup, and recovery.
   - **Complete:** Generation, supersession, expiry, and cleanup-eligibility evidence.
-  - **Pending integration:** Perform reference-aware cleanup through the host.
+  - **Complete integration:** New ready generations supersede and remove prior preview apps; explicit cleanup, expiry polling, restart recovery, and exact owned-volume ledgers converge through the host's ordinary preview lifecycle.
 
 ## 4. Publishing and domains
 

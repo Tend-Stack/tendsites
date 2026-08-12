@@ -16,7 +16,7 @@ Target repositories, site templates, themes, community components, user content,
 6. AI output is data, never authority. Show an understandable change set before committing source changes.
 7. Build and preview secrets use explicit purpose-bound delivery and never appear in logs, layers, cache keys, diffs, or AI prompts.
 8. Fork and pull-request snapshots are untrusted by default and receive neither protected secrets nor production destination authority.
-9. Starter, adoption, content-index, change-preview, draft, media, localization, library, and preview-policy contracts are evidence only. Creation can cross only the separately granted `sites.create` bridge, where the host revalidates the exact plan and archive before its fixed worker initializes source; it grants no generic repository or deployment mutation.
+9. Starter, adoption, content-index, change-preview, draft, media, localization, library, and preview-policy contracts are evidence only. Creation can cross only the separately granted `sites.create` bridge, where the host revalidates the exact plan and archive before its fixed worker initializes source. Temporary execution can cross only `sites.preview`, which is actor/project/source/revision/commit/hostname/expiry bound and grants no generic repository or production deployment mutation.
 10. Passing compatibility or preview checks never grants installation, publishing, or deployment authority.
 
 11. Custom-site content mappings never grant ownership of repository templates or renderer code.

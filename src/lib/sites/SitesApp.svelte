@@ -65,6 +65,7 @@
 	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import type { HostMediaBridge } from './host-media';
+	import { SitePreviewSchema, type SitePreview } from './host-preview';
 	import {
 		CreatedSiteSummarySchema,
 		CreationAssignmentSchema,
@@ -179,6 +180,12 @@
 	let creationError = $state('');
 	let creationResult = $state<SiteCreationResult | null>(null);
 	let createdSites = $state<CreatedSiteSummary[]>([]);
+	let sitePreviews = $state<Record<string, SitePreview>>({});
+	let previewTarget = $state<CreatedSiteSummary | null>(null);
+	let previewHostname = $state('');
+	let previewLifetime = $state(60);
+	let previewStatus = $state<'idle' | 'requesting' | 'watching' | 'error'>('idle');
+	let previewError = $state('');
 	let selectedRepositoryStarter = $state<string | null>(null);
 	let sourceRepositories = $state<ConnectedRepository[]>([]);
 	let sourceBranches = $state<ConnectedRepositoryBranch[]>([]);
@@ -380,6 +387,7 @@
 		window.addEventListener('message', handleSourceConnection);
 		if (sourceBridge) void loadSourceConnection();
 		if (sourceBridge?.listCreatedSites) void loadCreatedSites();
+		if (sourceBridge?.listPreviews) void loadSitePreviews();
 		if (!storage) {
 			saveStatus = 'local';
 			return () => window.removeEventListener('message', handleSourceConnection);
@@ -946,6 +954,7 @@
 		else if (showAddSection) showAddSection = false;
 		else if (showEmbedDialog) showEmbedDialog = false;
 		else if (showPreview) showPreview = false;
+		else if (previewTarget && previewStatus !== 'requesting') previewTarget = null;
 	}
 
 	function toggleModule(module: string) {
@@ -963,19 +972,85 @@
 		}
 	}
 
+	async function loadSitePreviews() {
+		if (!sourceBridge?.listPreviews) return;
+		try {
+			const rows = SitePreviewSchema.array().parse(await sourceBridge.listPreviews());
+			const current: Record<string, SitePreview> = {};
+			for (const row of [...rows].reverse()) current[row.projectId] = row;
+			sitePreviews = current;
+		} catch {
+			// Created sites remain usable when preview status is temporarily unavailable.
+		}
+	}
+
+	function openPreviewLauncher(site: CreatedSiteSummary) {
+		previewTarget = site;
+		previewHostname = sitePreviews[site.projectId]?.hostname ?? '';
+		previewLifetime = 60;
+		previewStatus = 'idle';
+		previewError = '';
+	}
+
+	function openSitePreview(url: string | null) {
+		if (url) window.open(url, '_blank', 'noopener,noreferrer');
+	}
+
+	async function requestSitePreview() {
+		if (!previewTarget || !sourceBridge?.requestPreview || previewStatus === 'requesting') return;
+		previewStatus = 'requesting';
+		previewError = '';
+		try {
+			let preview = SitePreviewSchema.parse(
+				await sourceBridge.requestPreview({
+					projectId: previewTarget.projectId,
+					sourceId: previewTarget.sourceId,
+					sourceRevision: previewTarget.sourceRevision,
+					gitCommit: previewTarget.gitCommit,
+					hostname: previewHostname.trim(),
+					expiresInMinutes: previewLifetime
+				})
+			);
+			sitePreviews = { ...sitePreviews, [preview.projectId]: preview };
+			previewStatus = 'watching';
+			for (
+				let attempt = 0;
+				attempt < 150 && ['queued', 'running'].includes(preview.state);
+				attempt += 1
+			) {
+				await new Promise((resolve) => setTimeout(resolve, 2000));
+				if (!sourceBridge.getPreview) break;
+				preview = SitePreviewSchema.parse(await sourceBridge.getPreview(preview.previewId));
+				sitePreviews = { ...sitePreviews, [preview.projectId]: preview };
+			}
+			if (preview.state === 'failed') {
+				previewStatus = 'error';
+				previewError = 'The isolated build did not complete. No partial preview was kept.';
+			} else previewStatus = 'idle';
+		} catch (error) {
+			previewStatus = 'error';
+			previewError = error instanceof Error ? error.message : 'The preview could not be started.';
+		}
+	}
+
 	async function loadCreationServers() {
 		if (!sourceBridge?.listCreationServers) return;
 		creationStatus = 'loading';
 		creationError = '';
 		try {
-			creationServers = CreationServerSchema.array().parse(await sourceBridge.listCreationServers());
-			if (!creationServers.some((server) => server.id === selectedCreationServerId && server.ready)) {
+			creationServers = CreationServerSchema.array().parse(
+				await sourceBridge.listCreationServers()
+			);
+			if (
+				!creationServers.some((server) => server.id === selectedCreationServerId && server.ready)
+			) {
 				selectedCreationServerId = creationServers.find((server) => server.ready)?.id ?? '';
 			}
 			creationStatus = 'idle';
 		} catch (error) {
 			creationStatus = 'error';
-			creationError = error instanceof Error ? error.message : 'Managed servers could not be loaded.';
+			creationError =
+				error instanceof Error ? error.message : 'Managed servers could not be loaded.';
 		}
 	}
 
@@ -990,7 +1065,8 @@
 			!sourceBridge.executeSiteCreation ||
 			!selectedCreationServerId ||
 			creationStatus === 'creating'
-		) return;
+		)
+			return;
 		creationStatus = 'creating';
 		creationError = '';
 		creationResult = null;
@@ -1034,7 +1110,8 @@
 		} catch (error) {
 			creationStatus = 'error';
 			creationProgress = '';
-			creationError = error instanceof Error ? error.message : 'The source repository could not be created.';
+			creationError =
+				error instanceof Error ? error.message : 'The source repository could not be created.';
 		}
 	}
 
@@ -1151,8 +1228,7 @@
 			const message =
 				error instanceof Error ? error.message : 'Source connections could not be loaded.';
 			if (sourceConnection) {
-				sourceControlPrompt =
-					`${sourceConnection.repository.fullName} is still connected. Provider access could not be refreshed, but you can continue setup.`;
+				sourceControlPrompt = `${sourceConnection.repository.fullName} is still connected. Provider access could not be refreshed, but you can continue setup.`;
 			} else {
 				sourceError = message;
 			}
@@ -1561,15 +1637,45 @@
 							<div><small>SOURCE READY</small><strong>{created.name}</strong></div>
 						</div>
 						<div class="project-heading">
-							<div><h2>{created.name}</h2><p>Stored on {created.serverName}</p></div>
+							<div>
+								<h2>{created.name}</h2>
+								<p>Stored on {created.serverName}</p>
+							</div>
 						</div>
 						<div class="project-meta">
 							<div><span>Main branch</span><span>Commit {created.gitCommit.slice(0, 7)}</span></div>
-							<span class="sites-badge sites-badge--positive">Versioned</span>
+							<span
+								class:sites-badge--positive={sitePreviews[created.projectId]?.state === 'ready'}
+								class="sites-badge"
+							>
+								{sitePreviews[created.projectId]?.state === 'ready'
+									? 'Preview ready'
+									: ['queued', 'running'].includes(sitePreviews[created.projectId]?.state)
+										? 'Building preview'
+										: 'Versioned'}
+							</span>
 						</div>
-						<button class="card-action" onclick={() => open('studio')}>
-							Open Studio <ArrowRight size={16} />
-						</button>
+						<div class="created-site-actions">
+							<button class="card-action" onclick={() => open('studio')}>Open Studio</button>
+							{#if sitePreviews[created.projectId]?.state === 'ready' && sitePreviews[created.projectId]?.url}
+								<button
+									class="card-action preview-action"
+									onclick={() => openSitePreview(sitePreviews[created.projectId].url)}
+								>
+									<MonitorPlay size={16} /> Open preview
+								</button>
+							{:else}
+								<button
+									class="card-action preview-action"
+									onclick={() => openPreviewLauncher(created)}
+								>
+									<MonitorPlay size={16} />
+									{['queued', 'running'].includes(sitePreviews[created.projectId]?.state)
+										? 'View progress'
+										: 'Create preview'}
+								</button>
+							{/if}
+						</div>
 					</article>
 				{/each}
 				{#if sourceConnection}
@@ -1592,7 +1698,10 @@
 								<span>{sourceConnection.repository.ref}</span>
 								<span>Commit {sourceConnection.commit.slice(0, 7)}</span>
 							</div>
-							<span class:sites-badge--positive={sourceConnection.onboarding.stage === 'plan_reviewed'} class="sites-badge">
+							<span
+								class:sites-badge--positive={sourceConnection.onboarding.stage === 'plan_reviewed'}
+								class="sites-badge"
+							>
 								{sourceConnection.onboarding.stage === 'plan_reviewed'
 									? 'Plan reviewed'
 									: sourceConnection.onboarding.stage === 'mode_selected'
@@ -1649,6 +1758,98 @@
 					</article>
 				{/each}
 			</section>
+
+			{#if previewTarget}
+				<div class="modal-backdrop" role="presentation">
+					<div
+						class="studio-modal preview-launcher"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="preview-launch-title"
+					>
+						<button
+							class="modal-close"
+							aria-label="Close"
+							disabled={previewStatus === 'requesting'}
+							onclick={() => (previewTarget = null)}><X size={18} /></button
+						>
+						<span class="eyebrow">Isolated site preview</span>
+						<h2 id="preview-launch-title">Preview {previewTarget.name}</h2>
+						<p>
+							Sites builds the exact saved commit in a temporary workspace, then serves only the
+							static result. Source and originals stay untouched.
+						</p>
+						{#if sitePreviews[previewTarget.projectId]?.state === 'ready'}
+							<div class="preview-launch-state preview-launch-state--ready" aria-live="polite">
+								<Check size={20} />
+								<div>
+									<strong>Preview is ready</strong><span
+										>{sitePreviews[previewTarget.projectId].hostname}</span
+									>
+								</div>
+							</div>
+							<div class="modal-actions">
+								<button class="secondary" onclick={() => (previewTarget = null)}>Done</button>
+								<button
+									class="primary"
+									onclick={() =>
+										openSitePreview(
+											previewTarget ? sitePreviews[previewTarget.projectId].url : null
+										)}><MonitorPlay size={17} /> Open preview</button
+								>
+							</div>
+						{:else if ['queued', 'running'].includes(sitePreviews[previewTarget.projectId]?.state) || previewStatus === 'watching'}
+							<div class="preview-launch-state" aria-live="polite">
+								<LoaderCircle class="spin" size={20} />
+								<div>
+									<strong>Building and deploying</strong><span
+										>Checking source, installing pinned packages, and preparing HTTPS…</span
+									>
+								</div>
+							</div>
+							<button class="secondary preview-dismiss" onclick={() => (previewTarget = null)}
+								>Continue in background</button
+							>
+						{:else}
+							<label
+								><span>Preview address</span><input
+									type="text"
+									autocomplete="url"
+									placeholder="preview.your-domain.com"
+									bind:value={previewHostname}
+									onkeydown={(event) => event.key === 'Enter' && void requestSitePreview()}
+								/></label
+							>
+							<label
+								><span>Automatic cleanup</span><select bind:value={previewLifetime}
+									><option value={30}>30 minutes</option><option value={60}>1 hour</option><option
+										value={240}>4 hours</option
+									><option value={1440}>24 hours</option></select
+								></label
+							>
+							<div class="preview-safety-note">
+								<ShieldCheck size={18} /><span
+									><strong>Temporary by design</strong> The host applies memory, process, disk, and time
+									limits and removes superseded preview resources.</span
+								>
+							</div>
+							{#if previewError}<p class="embed-error" role="alert">{previewError}</p>{/if}
+							<div class="modal-actions">
+								<button class="secondary" onclick={() => (previewTarget = null)}>Cancel</button>
+								<button
+									class="primary"
+									disabled={!previewHostname.trim() || previewStatus === 'requesting'}
+									onclick={() => void requestSitePreview()}
+								>
+									{#if previewStatus === 'requesting'}<LoaderCircle class="spin" size={17} /> Requesting…{:else}<MonitorPlay
+											size={17}
+										/> Build preview{/if}
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			<section class="continue-grid">
 				<article class="resume-card">
@@ -1803,7 +2004,9 @@
 								<p>The panel stores only identity, revision, and recovery evidence.</p>
 							</div>
 							{#if creationStatus === 'loading'}
-								<p class="creation-state"><LoaderCircle class="spin" size={18} /> Loading managed servers…</p>
+								<p class="creation-state">
+									<LoaderCircle class="spin" size={18} /> Loading managed servers…
+								</p>
 							{:else}
 								<div class="creation-server-grid" role="radiogroup" aria-label="Source server">
 									{#each creationServers as server (server.id)}
@@ -1817,26 +2020,40 @@
 										>
 											<span><DatabaseZap size={19} /></span>
 											<strong>{server.name}</strong>
-											<small>{server.ready ? (server.local ? 'This host · ready' : 'Managed server · ready') : server.reason}</small>
+											<small
+												>{server.ready
+													? server.local
+														? 'This host · ready'
+														: 'Managed server · ready'
+													: server.reason}</small
+											>
 										</button>
 									{/each}
 								</div>
 								{#if creationServers.length === 0}
-									<p class="creation-state">Add a managed server in tend.host before creating source.</p>
+									<p class="creation-state">
+										Add a managed server in tend.host before creating source.
+									</p>
 								{/if}
 							{/if}
 						</div>
 						{#if creationStatus === 'creating'}
 							<div class="creation-progress" role="status">
 								<LoaderCircle class="spin" size={21} />
-								<div><strong>Creating {siteName || 'your site'}</strong><p>{creationProgress}</p></div>
+								<div>
+									<strong>Creating {siteName || 'your site'}</strong>
+									<p>{creationProgress}</p>
+								</div>
 							</div>
 						{:else if creationStatus === 'succeeded' && creationResult}
 							<div class="creation-success" role="status">
 								<Check size={22} />
 								<div>
 									<strong>Source repository ready</strong>
-									<p>{creationResult.name} now has a main branch and verified first commit on {creationResult.server.name}.</p>
+									<p>
+										{creationResult.name} now has a main branch and verified first commit on {creationResult
+											.server.name}.
+									</p>
 								</div>
 							</div>
 						{:else if creationError}
@@ -1844,7 +2061,11 @@
 						{/if}
 					{:else}
 						<div class="honesty-note">
-							<Cloud size={20} /><div><strong>Open this extension inside tend.host to create source.</strong><p>The standalone preview cannot select or write to a managed server.</p></div>
+							<Cloud size={20} />
+							<div>
+								<strong>Open this extension inside tend.host to create source.</strong>
+								<p>The standalone preview cannot select or write to a managed server.</p>
+							</div>
 						</div>
 					{/if}
 				{/if}
@@ -1867,7 +2088,9 @@
 						disabled={!selectedCreationServerId || creationStatus === 'creating'}
 						onclick={() => void createSiteSource()}
 					>
-						{#if creationStatus === 'creating'}<LoaderCircle class="spin" size={17} /> Creating source…{:else}<DatabaseZap size={17} /> Create site source{/if}
+						{#if creationStatus === 'creating'}<LoaderCircle class="spin" size={17} /> Creating source…{:else}<DatabaseZap
+								size={17}
+							/> Create site source{/if}
 					</button>
 				{:else}
 					<button class="primary" onclick={() => open('studio')}
@@ -2318,7 +2541,11 @@
 					{/each}
 				</div>
 				{#if sourceSetupMessage}
-					<p class:error={sourceSetupStatus === 'error'} class="source-action-status" role={sourceSetupStatus === 'error' ? 'alert' : 'status'}>
+					<p
+						class:error={sourceSetupStatus === 'error'}
+						class="source-action-status"
+						role={sourceSetupStatus === 'error' ? 'alert' : 'status'}
+					>
 						{#if sourceSetupStatus === 'saving'}<LoaderCircle class="spin" size={16} />{/if}
 						{sourceSetupMessage}
 					</p>
@@ -2419,8 +2646,14 @@
 								Review preview requirements <ArrowRight size={16} />
 							</button>
 						{:else}
-							<button class="primary" type="button" disabled={sourceSetupStatus === 'saving'} onclick={() => void reviewConnectedAdoptionPlan()}>
-								{sourceSetupStatus === 'saving' ? 'Saving…' : 'Confirm plan and continue'} <ArrowRight size={16} />
+							<button
+								class="primary"
+								type="button"
+								disabled={sourceSetupStatus === 'saving'}
+								onclick={() => void reviewConnectedAdoptionPlan()}
+							>
+								{sourceSetupStatus === 'saving' ? 'Saving…' : 'Confirm plan and continue'}
+								<ArrowRight size={16} />
 							</button>
 						{/if}
 					</div>
@@ -2471,14 +2704,15 @@
 				</div>
 				{#if sourceConnection}
 					<p class="authority-note authority-note--connected">
-						<Check size={16} /> {sourceConnection.repository.fullName} remains connected at commit
-						{sourceConnection.commit.slice(0, 10)}…. Choosing an editing mode does not require GitHub or
-						GitLab again; reconnect only to inspect a newer revision.
+						<Check size={16} />
+						{sourceConnection.repository.fullName} remains connected at commit
+						{sourceConnection.commit.slice(0, 10)}…. Choosing an editing mode does not require
+						GitHub or GitLab again; reconnect only to inspect a newer revision.
 					</p>
 				{:else if activeSourceConnection?.available}
 					<p class="authority-note">
-						<ShieldCheck size={16} /> Repository access is ready for a read-only analysis. Sites will ask
-						you to confirm the exact source before saving it.
+						<ShieldCheck size={16} /> Repository access is ready for a read-only analysis. Sites will
+						ask you to confirm the exact source before saving it.
 					</p>
 				{:else}
 					<p class="authority-note">
@@ -4568,9 +4802,7 @@
 	}
 	.created-project-card {
 		border-color: #34785f;
-		background:
-			radial-gradient(circle at 88% 10%, #1c624a3d 0, transparent 34%),
-			var(--surface);
+		background: radial-gradient(circle at 88% 10%, #1c624a3d 0, transparent 34%), var(--surface);
 	}
 	.connected-source-handoff {
 		display: grid;
@@ -4881,6 +5113,20 @@
 		color: #dbe8e3;
 		background: #131d20;
 		border: 1px solid var(--border);
+	}
+	.created-site-actions {
+		display: grid;
+		grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+		gap: 8px;
+	}
+	.preview-action {
+		color: #071812;
+		text-decoration: none;
+		background: var(--green);
+		border-color: var(--green);
+	}
+	.preview-action:hover {
+		background: #78f2c3;
 	}
 	.continue-grid {
 		display: grid;
@@ -6791,12 +7037,57 @@
 		color: var(--muted);
 		font-size: 12px;
 	}
-	.studio-modal input {
+	.studio-modal input,
+	.studio-modal select {
 		color: #fff;
 		background: #080d0f;
 		border: 1px solid var(--border);
 		border-radius: 11px;
 		padding: 13px;
+	}
+	.preview-launcher {
+		width: min(560px, 100%);
+	}
+	.preview-launcher > p {
+		margin: 0 0 20px;
+		color: var(--muted);
+		line-height: 1.55;
+	}
+	.preview-launcher label + label {
+		margin-top: 14px;
+	}
+	.preview-launch-state,
+	.preview-safety-note {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 11px;
+		align-items: start;
+		padding: 15px;
+		color: #b9cbc4;
+		border: 1px solid #2d4c41;
+		border-radius: 13px;
+		background: #0b1a16;
+	}
+	.preview-launch-state div,
+	.preview-safety-note span {
+		display: grid;
+		gap: 4px;
+	}
+	.preview-launch-state strong,
+	.preview-safety-note strong {
+		color: #eaf6f1;
+	}
+	.preview-launch-state--ready {
+		color: var(--green);
+		border-color: #34785f;
+		background: #0b211a;
+	}
+	.preview-safety-note {
+		margin-top: 16px;
+	}
+	.preview-dismiss {
+		width: 100%;
+		margin-top: 14px;
 	}
 	.embed-modal .provider-row {
 		display: flex;
