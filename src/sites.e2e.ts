@@ -1224,7 +1224,34 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 						return null;
 					},
 					async connectRepository() {
-						throw new Error('not used in this test');
+						return {
+							contract: 'tend.host/sites-connected-source-evidence/v1',
+							connectionId: '33333333-3333-4333-8333-333333333333',
+							projectId: 'connected-site',
+							provider: 'github',
+							repository: {
+								owner: 'Tend-Stack',
+								name: 'tendsites',
+								fullName: 'Tend-Stack/tendsites',
+								ref: 'main'
+							},
+							commit: 'a'.repeat(40),
+							treeSha256: 'b'.repeat(64),
+							archiveSha256: 'c'.repeat(64),
+							framework: 'sveltekit',
+							contentPaths: ['src/routes'],
+							pagesDeployment: {
+								method: 'github-actions',
+								sourceBranch: null,
+								sourcePath: null,
+								artifactPath: 'build',
+								customDomain: 'example.com'
+							},
+							connectedAt: '2026-08-11T20:00:00Z',
+							verifiedAt: '2026-08-11T20:00:00Z',
+							repositoryMutationAvailable: false,
+							publishingAvailable: false
+						};
 					}
 				}
 			})
@@ -1240,6 +1267,29 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.getByText('sveltekit site · compatible')).toBeVisible();
 	await expect(page.getByText(/checkout was removed/)).toBeVisible();
 	await expect(page.getByText('0 delivered')).toBeVisible();
+	const reviewLayout = await page.locator('.source-result').evaluate((element) => {
+		const bounds = element.getBoundingClientRect();
+		const action = element.querySelector('.source-connect-action')?.getBoundingClientRect();
+		return {
+			resultWidth: Math.round(bounds.width),
+			actionWidth: Math.round(action?.width ?? 0),
+			pageWidth: document.documentElement.clientWidth,
+			horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+		};
+	});
+	expect(reviewLayout.resultWidth).toBeGreaterThan(reviewLayout.pageWidth * 0.65);
+	expect(reviewLayout.actionWidth).toBeGreaterThan(reviewLayout.resultWidth * 0.9);
+	expect(reviewLayout.horizontalOverflow).toBe(false);
+	await page.getByRole('button', { name: 'Connect source' }).click();
+	await expect(page.getByRole('button', { name: 'Connected', exact: true })).toBeVisible();
+	await expect(page.getByText(/Tend-Stack\/tendsites is connected at commit aaaaaaaaaa/)).toBeVisible();
+	await expect(page.getByText('Choose how Sites should work with this repository')).toBeVisible();
+	await page.getByRole('button', { name: 'Choose editing mode' }).click();
+	await expect(page.getByRole('heading', { name: 'Your website does not have to look or work like ours.' })).toBeInViewport();
+	await page.getByRole('main').getByRole('button', { name: 'Your sites' }).click();
+	await expect(page.getByRole('heading', { name: 'tendsites', exact: true })).toBeVisible();
+	await expect(page.getByText('Tend-Stack/tendsites', { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Continue setup' })).toBeVisible();
 });
 
 test('starts the shared GitHub connection without sending users to a second settings area', async ({

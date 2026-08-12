@@ -194,6 +194,11 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Pending:** Scheduling, repository persistence, deployment, and the remaining visitor
     capability plan.
 - [x] Undo history and clear conflict resolution.
+- [x] Connected-source continuation.
+  - **Complete:** A successfully re-verified repository becomes a persistent, truthful entry on
+    the Your Sites dashboard. Analysis and connection outcomes use the full workspace width, keep
+    action feedback visible, and lead directly into an explicit visual, custom-renderer, or hybrid
+    editing-mode choice without implying repository writes or deployment authority.
 - [x] Repository media lifecycle with accessible variants.
   - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.
   - **Complete connected picker:** A sealed, read-only tend.host Files bridge exposes sanitized image

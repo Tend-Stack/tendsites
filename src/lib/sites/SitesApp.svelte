@@ -44,7 +44,7 @@
 		Wrench,
 		X
 	} from '@lucide/svelte';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
 	import type { SiteGoal, SiteModule } from '../contracts/catalog';
 	import { planSiteCreation } from '../planning/site-creation';
@@ -167,8 +167,12 @@
 		'idle'
 	);
 	let sourceError = $state('');
+	let sourceConnectionNotice = $state('');
 	let sourceReport = $state<ConnectedRepositoryReport | null>(null);
+	let sourceResultElement = $state<HTMLElement | null>(null);
+	let adoptionPathsElement = $state<HTMLElement | null>(null);
 	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
+	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
 	let sourceControlConnections = $state<SourceControlConnections | null>(null);
 	let sourceControlBusy = $state(false);
 	let sourceControlPrompt = $state('');
@@ -336,6 +340,7 @@
 			}
 		};
 		window.addEventListener('message', handleSourceConnection);
+		if (sourceBridge) void loadSourceConnection();
 		if (!storage) {
 			saveStatus = 'local';
 			return () => window.removeEventListener('message', handleSourceConnection);
@@ -919,6 +924,17 @@
 		}
 	}
 
+	async function continueConnectedSource() {
+		open('adopt');
+		await tick();
+		adoptionPathsElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	async function showAdoptionChoices() {
+		await tick();
+		adoptionPathsElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
 	async function loadSourceControlConnections() {
 		if (!sourceBridge) return;
 		sourceControlBusy = true;
@@ -1026,6 +1042,8 @@
 				})
 			);
 			sourceStatus = 'ready';
+			await tick();
+			sourceResultElement?.scrollIntoView({ block: 'nearest' });
 		} catch (error) {
 			sourceStatus = 'error';
 			sourceError =
@@ -1037,6 +1055,7 @@
 		if (!sourceBridge || !sourceReport) return;
 		sourceStatus = 'connecting';
 		sourceError = '';
+		sourceConnectionNotice = '';
 		try {
 			sourceConnection = ConnectedSourceEvidenceSchema.parse(
 				await sourceBridge.connectRepository({
@@ -1051,9 +1070,13 @@
 				})
 			);
 			sourceStatus = 'ready';
+			sourceConnectionNotice = `${sourceConnection.repository.fullName} is connected at commit ${sourceConnection.commit.slice(0, 10)}….`;
+			await tick();
+			sourceResultElement?.scrollIntoView({ block: 'nearest' });
 		} catch (error) {
 			sourceStatus = 'error';
 			sourceError = error instanceof Error ? error.message : 'The source could not be connected.';
+			sourceConnectionNotice = sourceError;
 		}
 	}
 
@@ -1242,6 +1265,33 @@
 			</section>
 
 			<section class="project-grid" aria-label="Your sites">
+				{#if sourceConnection}
+					<article class="project-card connected-project-card">
+						<div class="connected-source-preview" aria-hidden="true">
+							<GitBranch size={30} />
+							<div>
+								<small>CONNECTED SOURCE</small>
+								<strong>{sourceConnection.repository.name}</strong>
+							</div>
+						</div>
+						<div class="project-heading">
+							<div>
+								<h2>{sourceConnection.repository.name}</h2>
+								<p>{sourceConnection.repository.fullName}</p>
+							</div>
+						</div>
+						<div class="project-meta">
+							<div>
+								<span>{sourceConnection.repository.ref}</span>
+								<span>Commit {sourceConnection.commit.slice(0, 7)}</span>
+							</div>
+							<span class="sites-badge sites-badge--positive">Connected</span>
+						</div>
+						<button class="card-action" onclick={() => void continueConnectedSource()}>
+							Continue setup <ArrowRight size={16} />
+						</button>
+					</article>
+				{/if}
 				{#each projects as project, projectIndex (project.id)}
 					<article class="project-card">
 						<div class="site-preview rich-preview" aria-hidden="true">
@@ -1589,7 +1639,7 @@
 							</div>
 						</div>
 						{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
-						<div class="source-connect-grid">
+						<div class:analyzed={sourceReport !== null} class="source-connect-grid">
 							<div class="source-repository-list" aria-label="Connected GitHub repositories">
 								{#each sourceRepositories as repository (repository.fullName)}
 									<button
@@ -1647,35 +1697,10 @@
 									<h3>Select a repository</h3>
 									<p>Then choose its branch and request a disposable analysis.</p>
 								{/if}
-								{#if sourceReport}<div class="source-connect-action">
-										<div>
-											<strong
-												>{reportIsConnected ? 'Source connected' : 'Keep this selection'}</strong
-											>
-											<p>
-												The host re-verifies the exact commit before saving this repository
-												selection. It does not grant Git write or deployment access.
-											</p>
-										</div>
-										<button
-											class="primary"
-											type="button"
-											disabled={reportIsConnected || sourceStatus === 'connecting'}
-											onclick={() => void connectSourceRepository()}
-										>
-											{#if sourceStatus === 'connecting'}
-												<LoaderCircle class="spin" size={17} /> Re-verifying…
-											{:else if reportIsConnected}
-												<Check size={17} /> Connected
-											{:else}
-												<GitBranch size={17} /> Connect source
-											{/if}
-										</button>
-									</div>{/if}
 							</div>
 						</div>
 						{#if sourceReport}
-							<div class="source-result" aria-live="polite">
+							<div class="source-result" aria-live="polite" bind:this={sourceResultElement}>
 								<div>
 									<span class="eyebrow">Live compatibility evidence</span>
 									<h3>{sourceReport.framework} site · {activeAdoptionReport.status}</h3>
@@ -1725,6 +1750,54 @@
 										</div>
 									</div>
 								{/if}
+								<div class="source-connect-action">
+									<div>
+										<strong>{reportIsConnected ? 'Source connected' : 'Keep this selection'}</strong>
+										<p>
+											The host re-verifies the exact commit before saving this repository selection.
+											It does not grant Git write or deployment access.
+										</p>
+									</div>
+									<button
+										class="primary"
+										type="button"
+										disabled={reportIsConnected || sourceStatus === 'connecting'}
+										onclick={() => void connectSourceRepository()}
+									>
+										{#if sourceStatus === 'connecting'}
+											<LoaderCircle class="spin" size={17} /> Re-verifying…
+										{:else if reportIsConnected}
+											<Check size={17} /> Connected
+										{:else}
+											<GitBranch size={17} /> Connect source
+										{/if}
+									</button>
+									{#if sourceConnectionNotice}
+										<p
+											class:error={sourceStatus === 'error'}
+											class="source-action-status"
+											role={sourceStatus === 'error' ? 'alert' : 'status'}
+										>
+											{sourceConnectionNotice}
+										</p>
+									{/if}
+								</div>
+								{#if reportIsConnected}
+									<div class="source-next-step">
+										<span><ArrowRight size={18} /></span>
+										<div>
+											<small>Next step</small>
+											<strong>Choose how Sites should work with this repository</strong>
+											<p>
+												Keep its custom renderer, move into visual building, or combine both. This
+												choice still makes no repository changes.
+											</p>
+										</div>
+										<button class="primary" type="button" onclick={() => void showAdoptionChoices()}>
+											Choose editing mode <ArrowRight size={16} />
+										</button>
+									</div>
+								{/if}
 							</div>
 						{/if}
 					{:else if !sourceControlBusy}
@@ -1752,7 +1825,11 @@
 					</div>
 				{/if}
 			</section>
-			<section class="adoption-paths" aria-labelledby="adoption-paths-title">
+			<section
+				class="adoption-paths"
+				aria-labelledby="adoption-paths-title"
+				bind:this={adoptionPathsElement}
+			>
 				<div class="section-heading">
 					<div>
 						<span class="eyebrow">Choose how Sites helps</span>
@@ -1765,7 +1842,7 @@
 				</div>
 				<div class="adoption-path-grid">
 					{#each customSiteModes as mode (mode.id)}
-						<article>
+						<article class:selected={selectedAdoptionMode === mode.id}>
 							<span class="path-icon">
 								{#if mode.id === 'visual'}<Paintbrush
 										size={21}
@@ -1776,6 +1853,14 @@
 							<small>{mode.bestFor}</small>
 							<h3>{mode.name}</h3>
 							<p>{mode.summary}</p>
+							<button
+								class="secondary"
+								type="button"
+								onclick={() => (selectedAdoptionMode = mode.id)}
+							>
+								{selectedAdoptionMode === mode.id ? 'Selected' : 'Choose this mode'}
+								{#if selectedAdoptionMode === mode.id}<Check size={16} />{:else}<ArrowRight size={16} />{/if}
+							</button>
 						</article>
 					{/each}
 				</div>
@@ -3952,6 +4037,33 @@
 		padding: 12px;
 		overflow: hidden;
 	}
+	.connected-source-preview {
+		display: flex;
+		align-items: end;
+		gap: 14px;
+		min-height: 154px;
+		padding: 22px;
+		color: var(--green);
+		border-radius: 12px;
+		background:
+			radial-gradient(circle at 80% 20%, #1e6b53 0, transparent 34%),
+			linear-gradient(145deg, #17302a, #122024);
+	}
+	.connected-source-preview div {
+		display: grid;
+		gap: 4px;
+		min-width: 0;
+	}
+	.connected-source-preview small {
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.12em;
+	}
+	.connected-source-preview strong {
+		color: #f2faf6;
+		font-size: 20px;
+		overflow-wrap: anywhere;
+	}
 	.site-preview,
 	.component-preview {
 		display: flex;
@@ -4345,7 +4457,10 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
 		gap: 14px;
-		min-height: 260px;
+		min-height: 0;
+	}
+	.source-connect-grid.analyzed .source-repository-list {
+		max-height: 240px;
 	}
 	.source-repository-list {
 		display: grid;
@@ -4397,6 +4512,7 @@
 	}
 	.source-review {
 		display: grid;
+		min-width: 0;
 		align-content: start;
 		gap: 13px;
 		padding: 18px;
@@ -4436,9 +4552,9 @@
 		color: #a4b8b1;
 	}
 	.source-connect-action {
-		display: flex;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		justify-content: space-between;
 		gap: 18px;
 		padding-top: 14px;
 		border-top: 1px solid #244038;
@@ -4452,6 +4568,19 @@
 	}
 	.source-connect-action .primary {
 		flex: 0 0 auto;
+	}
+	.source-action-status {
+		grid-column: 1 / -1;
+		margin: 0;
+		padding: 9px 11px;
+		color: #66e4b2;
+		font-size: 12px;
+		border-radius: 9px;
+		background: #0b241b;
+	}
+	.source-action-status.error {
+		color: #f0aaa4;
+		background: #241313;
 	}
 	.source-safety {
 		display: grid;
@@ -4481,6 +4610,44 @@
 		border: 1px solid #39876a;
 		border-radius: 13px;
 		background: #0c271e;
+	}
+	.source-result > .source-pages,
+	.source-result > .source-connect-action,
+	.source-result > .source-next-step {
+		grid-column: 1 / -1;
+	}
+	.source-next-step {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		gap: 13px;
+		align-items: center;
+		padding: 16px;
+		border: 1px solid #2c735d;
+		border-radius: 13px;
+		background: linear-gradient(120deg, #0d281f, #0c1717);
+	}
+	.source-next-step > span {
+		display: grid;
+		place-items: center;
+		width: 38px;
+		height: 38px;
+		color: #062017;
+		border-radius: 11px;
+		background: var(--green);
+	}
+	.source-next-step small,
+	.source-next-step strong {
+		display: block;
+	}
+	.source-next-step small {
+		margin-bottom: 3px;
+		color: var(--green);
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+	}
+	.source-next-step p {
+		margin: 3px 0 0;
 	}
 	.source-result h3 {
 		margin: 5px 0;
@@ -4565,6 +4732,15 @@
 		margin: 0;
 		color: var(--muted);
 		line-height: 1.5;
+	}
+	.adoption-path-grid article.selected {
+		border-color: #45c894;
+		background: #10251f;
+		box-shadow: inset 0 0 0 1px #45c89433;
+	}
+	.adoption-path-grid article .secondary {
+		width: 100%;
+		margin-top: 16px;
 	}
 	.adoption-path-grid small,
 	.starter-repository-grid small {
@@ -6755,6 +6931,15 @@
 			flex-direction: column;
 		}
 		.source-connect-action .primary {
+			width: 100%;
+		}
+		.source-next-step {
+			grid-template-columns: 1fr;
+		}
+		.source-next-step > span {
+			display: none;
+		}
+		.source-next-step .primary {
 			width: 100%;
 		}
 		.section-heading {
