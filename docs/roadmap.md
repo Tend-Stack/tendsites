@@ -280,6 +280,14 @@ Publish workspace shows that evidence and keeps the production action disabled
 until its separate permanent-app, traffic, and domain authority is explicitly
 approved. No production route or domain mutation is exposed by this checkpoint.
 
+TEND Sites 0.32.1 hardens that inactive boundary before execution exists. Every
+result must correlate to the exact request and reviewed artifact, recipe, SBOM,
+platform, source, commit, preview, hostname, and timestamp. State can only move
+forward, terminal replay must remain identical, and a ready result requires
+complete health, rollback, DNS ownership, TLS, and canonical HTTPS evidence.
+The host promotion lookup applies the same exact reviewed-evidence matching
+without exposing an execution route.
+
 - [x] Reviewable source commit plan and durable repository update operation.
   - **Complete integration:** Host-created sites use actor/project/source/revision-bound requests, bounded raster-only archives, a fixed renderer, deterministic replay recovery, exact Git commit evidence, and source-ledger advancement only after verified acknowledgement.
   - **Pending deployment integration:** Production publish remains a separate health-gated authority.

@@ -53,8 +53,10 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/contracts/preview-lifecycle.ts` models supersession, expiry, and cleanup eligibility without performing cleanup.
 - `src/lib/contracts/publishing.ts` freezes reviewed commit, artifact, traffic, domain, and outage-recovery evidence.
 - `src/lib/sites/host-publishing.ts` binds a future production request to one exact actor-owned
-  source revision, Git commit, ready preview, artifact digest, and hostname. The portable contract
-  cannot mutate an app, volume, route, DNS record, or certificate.
+  source revision, Git commit, ready preview, artifact, recipe, SBOM, platform, and hostname. It
+  rejects mismatched responses, state regression, changed terminal replay, incomplete health or
+  rollback evidence, and incoherent DNS, TLS, or HTTPS identity. The portable contract cannot
+  mutate an app, volume, route, DNS record, or certificate.
 - `src/lib/contracts/library-state.ts` separates installed provenance from review-only install/update/removal plans.
 - `src/lib/contracts/ai.ts` enforces user-configured providers, browser credential denial, purpose, redaction, input, and cost policy before a request can be reviewed.
 - `src/lib/starters/archives.ts` ships four complete ordinary SvelteKit source bundles and verifies every file plus the canonical revision digest.
