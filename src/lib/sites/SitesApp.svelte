@@ -1151,12 +1151,32 @@
 	}
 
 	async function showAdoptionChoices() {
+		if (sourceBridge && !sourceConnection) {
+			sourceSetupStatus = 'saving';
+			sourceSetupMessage = 'Recovering your saved source…';
+			await loadSourceConnection();
+			if (!sourceConnection) {
+				sourceSetupStatus = 'error';
+				sourceSetupMessage =
+					'Your saved source record is not available to this session. Return to Source and refresh the Sites connection; reinstalling the Git provider is not required.';
+				adoptionStep = 'source';
+				await tick();
+				document.getElementById('source-connect-title')?.scrollIntoView({ block: 'start' });
+				return;
+			}
+			sourceSetupStatus = 'idle';
+			sourceSetupMessage = '';
+		}
 		adoptionStep = 'mode';
 		await tick();
 		adoptionPathsElement?.scrollIntoView({ block: 'start' });
 	}
 
 	async function selectAdoptionMode(mode: (typeof customSiteModes)[number]['id']) {
+		if (sourceBridge && !sourceConnection) {
+			await showAdoptionChoices();
+			if (!sourceConnection) return;
+		}
 		selectedAdoptionMode = mode;
 		sourceSetupStatus = sourceConnection && sourceBridge ? 'saving' : 'saved';
 		sourceSetupMessage = sourceConnection ? 'Saving editing mode…' : 'Example mode selected.';
@@ -2159,7 +2179,7 @@
 						class:complete={Boolean(selectedAdoptionMode)}
 						class:current={adoptionStep === 'mode'}
 						disabled={!sourceConnection}
-						onclick={() => (adoptionStep = 'mode')}
+						onclick={() => void showAdoptionChoices()}
 					>
 						<span>{selectedAdoptionMode ? '✓' : '2'}</span>
 						<small>Editing</small>

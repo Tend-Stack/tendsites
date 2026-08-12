@@ -249,6 +249,11 @@ Completion is measured only from the top-level product milestones below. Nested 
 
 ## 4. Publishing and domains
 
+TEND Sites 0.30.3 hardens the connected-source onboarding boundary: opening or
+choosing an editing mode first recovers the actor's durable Sites source record,
+continues without GitHub or GitLab authorization, and gives a focused recovery
+message instead of sending the user through a provider reinstall loop.
+
 - [ ] Reviewable commit plan and durable publish operation.
   - **Complete:** The immutable non-committing plan plus an assigned-deployment execution intent bound to explicit review and health-gated prior-artifact retention.
   - **Pending:** Durable host execution and evidence persistence.
