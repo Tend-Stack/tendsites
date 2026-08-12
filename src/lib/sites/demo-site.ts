@@ -127,6 +127,7 @@ export type DemoPost = {
 	coverImagePresentation?: DemoImagePresentation;
 	author: string;
 	tags: string[];
+	relatedPostIds: string[];
 	status: DemoPostStatus;
 	featured: boolean;
 	publishedAt: string | null;
@@ -288,6 +289,7 @@ export function createDemoCollections(): DemoCollection[] {
 					coverImageAlt: 'An open field notebook beside a camera and wildflowers',
 					author: 'Willow Hart',
 					tags: ['Field notes', 'Slow travel'],
+					relatedPostIds: ['morning-at-the-lake'],
 					status: 'published',
 					featured: true,
 					publishedAt: '2026-08-02T14:00:00.000Z',
@@ -308,6 +310,7 @@ export function createDemoCollections(): DemoCollection[] {
 					coverImageAlt: 'A quiet lake reflecting distant green hills',
 					author: 'Willow Hart',
 					tags: ['Lakes', 'Photography', 'Slow travel'],
+					relatedPostIds: ['field-notes-long-way-home'],
 					status: 'published',
 					featured: false,
 					publishedAt: '2026-07-26T13:30:00.000Z',
@@ -328,6 +331,7 @@ export function createDemoCollections(): DemoCollection[] {
 					coverImageAlt: 'A warm wooden cabin surrounded by tall forest trees',
 					author: 'Willow Hart',
 					tags: ['Reading', 'Cabins'],
+					relatedPostIds: [],
 					status: 'draft',
 					featured: false,
 					publishedAt: null,
@@ -354,6 +358,7 @@ export function createDemoPost(sequence: number, posts: DemoPost[]): DemoPost {
 		body: 'Start writing here.',
 		author: 'Willow Hart',
 		tags: [],
+		relatedPostIds: [],
 		status: 'draft',
 		featured: false,
 		publishedAt: null,
@@ -624,6 +629,9 @@ export function upgradeDemoSite(value: unknown): DemoSite | null {
 			if (post && typeof post === 'object' && post.scheduledAt === undefined) {
 				post.scheduledAt = null;
 			}
+			if (post && typeof post === 'object' && post.relatedPostIds === undefined) {
+				post.relatedPostIds = [];
+			}
 			if (
 				post &&
 				typeof post === 'object' &&
@@ -821,6 +829,10 @@ export function isDemoSite(value: unknown): value is DemoSite {
 				!Array.isArray(post.tags) ||
 				post.tags.length > 20 ||
 				!post.tags.every((tag) => typeof tag === 'string' && tag.length <= 40) ||
+				!Array.isArray(post.relatedPostIds) ||
+				post.relatedPostIds.length > 4 ||
+				new Set(post.relatedPostIds).size !== post.relatedPostIds.length ||
+				!post.relatedPostIds.every((id) => isBoundedString(id, 120) && id !== post.id) ||
 				!['draft', 'scheduled', 'published', 'archived'].includes(post.status) ||
 				typeof post.featured !== 'boolean' ||
 				(post.publishedAt !== null &&
@@ -845,6 +857,15 @@ export function isDemoSite(value: unknown): value is DemoSite {
 		});
 	});
 	if (!collectionsValid) return false;
+	if (
+		!candidate.collections.every((collection) => {
+			const postIds = new Set(collection.items.map((post) => post.id));
+			return collection.items.every((post) =>
+				post.relatedPostIds.every((relatedId) => postIds.has(relatedId))
+			);
+		})
+	)
+		return false;
 	const redirectIds = new Set<string>();
 	if (
 		!candidate.redirects.every((redirect) => {

@@ -50,10 +50,15 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Pending:** Deliver the assigned context to the mounted extension and
     execute an accepted plan through a separately reviewed host worker. No
     source creation is currently enabled.
-- [ ] Existing-repository analyzer with bounded checkout and compatibility report.
+- [x] Existing-repository analyzer with bounded checkout and compatibility report.
   - **Complete:** Pure snapshot classification and compatibility report.
   - **Complete:** Opaque repository selector, bounded disposable-checkout intent, host-only credential policy, and strict cleanup result.
-  - **Pending:** Authenticated, digest-bound, bounded checkout supplied by the host.
+  - **Complete host integration:** Installed builds can search GitHub repositories available to the
+    host connection, select a branch, and request an inert HTTPS-archive inspection. The host caps
+    compressed and expanded bytes plus file count, rejects unsafe entries, never extracts or runs
+    repository code, removes the temporary archive, and returns immutable digest evidence without
+    credentials, paths, or production authority. Reports include framework/content-path detection
+    and discover GitHub Pages Actions, artifact folders, and custom domains from inert source files.
   - **Complete product path:** The adoption workspace now explains visual, custom headless, and hybrid
     modes; previews an exact content-only mapping that preserves the site's renderer; and presents
     reviewed versus unavailable community starters without pretending to clone or create them.
@@ -66,8 +71,8 @@ Completion is measured only from the top-level product milestones below. Nested 
     executable scripts. Common Git-CMS collection configurations can be imported while provider,
     workflow, deployment, and authentication settings are explicitly discarded. The adoption
     workspace previews the detected adapters and resulting friendly content form.
-  - **Integration remains under separate milestones:** Authenticated checkout, repository writes,
-    build execution, and publish authority remain host capabilities and are not granted here.
+  - **Integration remains under separate milestones:** Repository writes, build execution, and
+    publish authority remain host capabilities and are not granted here.
 - [ ] Community starter repository catalog and certification lane.
   - **Complete foundation:** Immutable repository identity, publisher, license, framework, content
     formats, goals, review status, and fail-closed selection assessment.

@@ -80,9 +80,28 @@ export function readingMinutes(body: string): number {
 }
 
 export function relatedJournalPosts(posts: DemoPost[], current: DemoPost, limit = 3): DemoPost[] {
+	const boundedLimit = Math.max(0, Math.min(6, Math.trunc(limit)));
+	const publishedById = new Map(
+		posts
+			.filter(
+				(post) => post.id !== current.id && post.status === 'published' && post.publishedAt !== null
+			)
+			.map((post) => [post.id, post])
+	);
+	const explicit = current.relatedPostIds
+		.map((id) => publishedById.get(id))
+		.filter((post): post is DemoPost => Boolean(post))
+		.slice(0, boundedLimit);
+	const selectedIds = new Set(explicit.map((post) => post.id));
 	const tags = new Set(current.tags.map((tag) => tag.toLocaleLowerCase()));
-	return posts
-		.filter((post) => post.id !== current.id)
+	const fallback = posts
+		.filter(
+			(post) =>
+				post.id !== current.id &&
+				!selectedIds.has(post.id) &&
+				post.status === 'published' &&
+				post.publishedAt !== null
+		)
 		.map((post) => ({
 			post,
 			overlap: post.tags.filter((tag) => tags.has(tag.toLocaleLowerCase())).length
@@ -93,8 +112,9 @@ export function relatedJournalPosts(posts: DemoPost[], current: DemoPost, limit 
 				right.overlap - left.overlap ||
 				(right.post.publishedAt ?? '').localeCompare(left.post.publishedAt ?? '')
 		)
-		.slice(0, Math.max(0, Math.min(6, Math.trunc(limit))))
+		.slice(0, boundedLimit - explicit.length)
 		.map((candidate) => candidate.post);
+	return [...explicit, ...fallback];
 }
 
 export function postNavigation(posts: DemoPost[], currentId: string): PostNavigation {

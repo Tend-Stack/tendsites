@@ -97,6 +97,9 @@
 	const selectedPost = $derived(
 		collection?.items.find((post) => post.id === selectedPostId) ?? collection?.items[0]
 	);
+	const relatedPostChoices = $derived(
+		(collection?.items ?? []).filter((post) => post.id !== selectedPost?.id)
+	);
 	const filteredPosts = $derived(
 		(collection?.items ?? []).filter((post) => {
 			const matchesStatus = statusFilter === 'all' || post.status === statusFilter;
@@ -230,6 +233,16 @@
 		updatePost((post) => (post.tags = tags));
 	}
 
+	function toggleRelatedPost(relatedId: string) {
+		updatePost((post) => {
+			if (post.relatedPostIds.includes(relatedId)) {
+				post.relatedPostIds = post.relatedPostIds.filter((id) => id !== relatedId);
+			} else if (post.relatedPostIds.length < 4) {
+				post.relatedPostIds = [...post.relatedPostIds, relatedId];
+			}
+		}, 'related-stories');
+	}
+
 	function updateStatus(status: DemoPost['status']) {
 		updatePost((post) => {
 			post.status = status;
@@ -320,7 +333,14 @@
 		const fallback = collection?.items.find((post) => post.id !== targetId)?.id ?? '';
 		onchange((next) => {
 			const target = next.collections.find((item) => item.id === collection?.id);
-			if (target) target.items = target.items.filter((post) => post.id !== targetId);
+			if (target) {
+				target.items = target.items
+					.filter((post) => post.id !== targetId)
+					.map((post) => ({
+						...post,
+						relatedPostIds: post.relatedPostIds.filter((id) => id !== targetId)
+					}));
+			}
 		});
 		selectedPostId = fallback;
 		showDelete = false;
@@ -592,6 +612,34 @@
 								/></label
 							>
 						</div>
+						<section class="relationship-field" aria-labelledby="related-stories-title">
+							<div class="relationship-heading">
+								<div>
+									<span id="related-stories-title">Related stories</span>
+									<small>Choose up to four stories to recommend after this article.</small>
+								</div>
+								<strong>{selectedPost.relatedPostIds.length}/4</strong>
+							</div>
+							<div class="relationship-options" role="group" aria-label="Related stories">
+								{#each relatedPostChoices as post (post.id)}
+									{@const selected = selectedPost.relatedPostIds.includes(post.id)}
+									<button
+										type="button"
+										class:active={selected}
+										aria-pressed={selected}
+										disabled={!selected && selectedPost.relatedPostIds.length >= 4}
+										onclick={() => toggleRelatedPost(post.id)}
+									>
+										<Link2 size={15} />
+										<span><strong>{post.title}</strong><small>{post.status}</small></span>
+										{#if selected}<Check size={15} />{/if}
+									</button>
+								{:else}
+									<p>No other stories are available yet.</p>
+								{/each}
+							</div>
+							<small>Unpublished choices stay hidden from visitors until they are published.</small>
+						</section>
 					</div>
 					<aside class="post-preview">
 						<span class="eyebrow">Reader preview</span>
@@ -1040,6 +1088,89 @@
 	.editor-fields {
 		display: grid;
 		gap: 15px;
+	}
+	.relationship-field {
+		display: grid;
+		gap: 11px;
+		padding: 14px;
+		border: 1px solid #263f38;
+		border-radius: 13px;
+		background: #0a1613;
+	}
+	.relationship-heading {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.relationship-heading span,
+	.relationship-heading small {
+		display: block;
+	}
+	.relationship-heading span {
+		color: #dfeae6;
+		font-size: 0.83rem;
+		font-weight: 750;
+	}
+	.relationship-heading small,
+	.relationship-field > small {
+		margin-top: 3px;
+		color: #71867f;
+		font-size: 0.72rem;
+	}
+	.relationship-heading > strong {
+		color: #5ee2af;
+		font-size: 0.75rem;
+	}
+	.relationship-options {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+	}
+	.relationship-options button {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 9px;
+		min-width: 0;
+		padding: 10px;
+		color: #9db0a9;
+		text-align: left;
+		border: 1px solid #29443b;
+		border-radius: 10px;
+		background: #0c1a16;
+	}
+	.relationship-options button.active {
+		color: #63e5b4;
+		border-color: #347b61;
+		background: #10271f;
+	}
+	.relationship-options button:disabled {
+		opacity: 0.45;
+	}
+	.relationship-options button span,
+	.relationship-options button strong,
+	.relationship-options button small {
+		display: block;
+		min-width: 0;
+	}
+	.relationship-options button strong {
+		overflow: hidden;
+		color: inherit;
+		font-size: 0.75rem;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.relationship-options button small {
+		margin-top: 2px;
+		color: #71867f;
+		font-size: 0.65rem;
+		text-transform: capitalize;
+	}
+	.relationship-options p {
+		margin: 0;
+		color: #71867f;
+		font-size: 0.75rem;
 	}
 	.story-field {
 		display: grid;

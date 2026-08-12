@@ -62,6 +62,16 @@
 	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import type { HostMediaBridge } from './host-media';
+	import {
+		ConnectedRepositoryBranchSchema,
+		ConnectedRepositoryReportSchema,
+		ConnectedRepositorySchema,
+		assessConnectedRepository,
+		type ConnectedRepository,
+		type ConnectedRepositoryBranch,
+		type ConnectedRepositoryReport,
+		type HostSourceBridge
+	} from './host-source';
 	import PostFeed from './PostFeed.svelte';
 	import SeoWorkspace, { type SeoArea } from './SeoWorkspace.svelte';
 	import StructureWorkspace, { type StructureArea } from './StructureWorkspace.svelte';
@@ -131,13 +141,27 @@
 	let {
 		embedded = false,
 		storage,
-		media
-	}: { embedded?: boolean; storage?: DraftStorage; media?: HostMediaBridge } = $props();
+		media,
+		sourceBridge
+	}: {
+		embedded?: boolean;
+		storage?: DraftStorage;
+		media?: HostMediaBridge;
+		sourceBridge?: HostSourceBridge;
+	} = $props();
 	let view = $state<View>('home');
 	let wizardStep = $state(1);
 	let selectedGoal = $state<SiteGoal>('blog');
 	let selectedTheme = $state('editorial');
 	let selectedRepositoryStarter = $state<string | null>(null);
+	let sourceRepositories = $state<ConnectedRepository[]>([]);
+	let sourceBranches = $state<ConnectedRepositoryBranch[]>([]);
+	let selectedSourceRepository = $state<ConnectedRepository | null>(null);
+	let selectedSourceRef = $state('');
+	let sourceQuery = $state('');
+	let sourceStatus = $state<'idle' | 'loading' | 'inspecting' | 'ready' | 'error'>('idle');
+	let sourceError = $state('');
+	let sourceReport = $state<ConnectedRepositoryReport | null>(null);
 	let selectedModules = $state<string[]>(['Home', 'About', 'Blog', 'Gallery', 'Contact']);
 	let siteName = $state('Weekend Notes');
 	let accent = $state('#56e6ad');
@@ -216,6 +240,9 @@
 	const siteHealth = $derived(assessDemoSiteHealth(siteDraft));
 	const activeTheme = $derived(getDemoTheme(siteDraft.themeId));
 	const detectedEmbed = $derived(parseEmbedUrl(embedSource));
+	const activeAdoptionReport = $derived(
+		sourceReport ? assessConnectedRepository(sourceReport) : demoAdoptionReport
+	);
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -851,6 +878,69 @@
 	function open(next: View) {
 		view = next;
 		mobileMenu = false;
+		if (next === 'adopt' && sourceBridge && sourceStatus === 'idle') {
+			void loadSourceRepositories();
+		}
+	}
+
+	async function loadSourceRepositories() {
+		if (!sourceBridge) return;
+		sourceStatus = 'loading';
+		sourceError = '';
+		try {
+			sourceRepositories = ConnectedRepositorySchema.array().parse(
+				await sourceBridge.listRepositories(sourceQuery.trim())
+			);
+			sourceStatus = 'idle';
+		} catch (error) {
+			sourceRepositories = [];
+			sourceStatus = 'error';
+			sourceError = error instanceof Error ? error.message : 'Repositories could not be loaded.';
+		}
+	}
+
+	async function selectSourceRepository(repository: ConnectedRepository) {
+		if (!sourceBridge) return;
+		selectedSourceRepository = repository;
+		selectedSourceRef = repository.defaultBranch;
+		sourceReport = null;
+		sourceStatus = 'loading';
+		sourceError = '';
+		try {
+			sourceBranches = ConnectedRepositoryBranchSchema.array().parse(
+				await sourceBridge.listBranches(repository.owner, repository.name)
+			);
+			sourceStatus = 'idle';
+		} catch (error) {
+			sourceBranches = [{ name: repository.defaultBranch, protected: false }];
+			sourceStatus = 'error';
+			sourceError =
+				error instanceof Error
+					? error.message
+					: 'Branches could not be loaded. The default remains available.';
+		}
+	}
+
+	async function inspectSourceRepository() {
+		if (!sourceBridge || !selectedSourceRepository || !selectedSourceRef) return;
+		sourceStatus = 'inspecting';
+		sourceError = '';
+		sourceReport = null;
+		try {
+			sourceReport = ConnectedRepositoryReportSchema.parse(
+				await sourceBridge.inspectRepository({
+					owner: selectedSourceRepository.owner,
+					repository: selectedSourceRepository.name,
+					ref: selectedSourceRef,
+					projectId: 'connected-site'
+				})
+			);
+			sourceStatus = 'ready';
+		} catch (error) {
+			sourceStatus = 'error';
+			sourceError =
+				error instanceof Error ? error.message : 'Repository analysis was safely stopped.';
+		}
 	}
 
 	async function resolvePortableAsset(
@@ -1263,9 +1353,166 @@
 				<span class="eyebrow">Safe repository adoption</span>
 				<h1>Understand first. Change nothing.</h1>
 				<p>
-					This sample report shows what TEND Sites will verify before proposing any source changes.
+					Choose a repository already authorized in tend.host. Analysis is read-only and never runs
+					the site's code.
 				</p>
 			</div>
+			<section class="source-connect" aria-labelledby="source-connect-title">
+				<div class="source-connect-heading">
+					<div>
+						<span class="eyebrow">Connected source</span>
+						<h2 id="source-connect-title">Bring in the site you already own.</h2>
+						<p>
+							Credentials stay in tend.host. TEND Sites receives a short-lived snapshot report
+							without secrets or production access.
+						</p>
+					</div>
+					<span class:available={Boolean(sourceBridge)} class="source-capability">
+						{sourceBridge ? 'Host connection ready' : 'Open inside tend.host to connect'}
+					</span>
+				</div>
+				{#if sourceBridge}
+					<div class="source-search">
+						<label for="source-search-input">Find a GitHub repository</label>
+						<div>
+							<Search size={17} />
+							<input
+								id="source-search-input"
+								bind:value={sourceQuery}
+								placeholder="Repository name"
+								onkeydown={(event) => {
+									if (event.key === 'Enter') void loadSourceRepositories();
+								}}
+							/>
+							<button
+								type="button"
+								disabled={sourceStatus === 'loading' || sourceStatus === 'inspecting'}
+								onclick={() => void loadSourceRepositories()}
+								>{sourceStatus === 'loading' ? 'Loading…' : 'Search'}</button
+							>
+						</div>
+					</div>
+					{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
+					<div class="source-connect-grid">
+						<div class="source-repository-list" aria-label="Connected GitHub repositories">
+							{#each sourceRepositories as repository (repository.fullName)}
+								<button
+									type="button"
+									class:selected={selectedSourceRepository?.fullName === repository.fullName}
+									onclick={() => void selectSourceRepository(repository)}
+								>
+									<GitBranch size={17} />
+									<span
+										><strong>{repository.fullName}</strong><small
+											>{repository.description || 'No repository description'}</small
+										></span
+									>
+									<em>{repository.private ? 'Private' : 'Public'}</em>
+								</button>
+							{:else}
+								{#if sourceStatus !== 'loading'}
+									<p>No connected repositories matched this search.</p>
+								{/if}
+							{/each}
+						</div>
+						<div class="source-review">
+							{#if selectedSourceRepository}
+								<span class="eyebrow">Selected source</span>
+								<h3>{selectedSourceRepository.fullName}</h3>
+								<label>
+									Branch
+									<select bind:value={selectedSourceRef}>
+										{#each sourceBranches as branch (branch.name)}
+											<option value={branch.name}
+												>{branch.name}{branch.protected ? ' · protected' : ''}</option
+											>
+										{/each}
+									</select>
+								</label>
+								<div class="source-safety">
+									<ShieldCheck size={18} />
+									<span
+										><strong>Analysis only</strong><small
+											>No scripts, builds, writes, secrets, or deployment destination.</small
+										></span
+									>
+								</div>
+								<button
+									class="primary"
+									type="button"
+									disabled={!selectedSourceRef || sourceStatus === 'inspecting'}
+									onclick={() => void inspectSourceRepository()}
+								>
+									{#if sourceStatus === 'inspecting'}<LoaderCircle class="spin" size={17} />
+										Analyzing safely…{:else}<FileSearch size={17} /> Analyze repository{/if}
+								</button>
+							{:else}
+								<FileSearch size={28} />
+								<h3>Select a repository</h3>
+								<p>Then choose its branch and request a disposable analysis.</p>
+							{/if}
+						</div>
+					</div>
+					{#if sourceReport}
+						<div class="source-result" aria-live="polite">
+							<div>
+								<span class="eyebrow">Live compatibility evidence</span>
+								<h3>{sourceReport.framework} site · {activeAdoptionReport.status}</h3>
+								<p>
+									Commit {sourceReport.inspection.snapshot.commit.slice(0, 10)}… was inspected and
+									the checkout was removed.
+								</p>
+							</div>
+							<dl>
+								<div>
+									<dt>Files</dt>
+									<dd>{sourceReport.inspection.snapshot.fileCount}</dd>
+								</div>
+								<div>
+									<dt>Source size</dt>
+									<dd>
+										{Math.max(1, Math.round(sourceReport.inspection.snapshot.archiveBytes / 1024))} KB
+									</dd>
+								</div>
+								<div>
+									<dt>Secrets</dt>
+									<dd>0 delivered</dd>
+								</div>
+								<div>
+									<dt>Checkout</dt>
+									<dd>Removed</dd>
+								</div>
+							</dl>
+							{#if sourceReport.pagesDeployment}
+								<div class="source-pages">
+									<GitBranch size={18} />
+									<div>
+										<strong>Published with GitHub Pages</strong>
+										<p>
+											GitHub Actions builds
+											{sourceReport.pagesDeployment.artifactPath
+												? ` ${sourceReport.pagesDeployment.artifactPath}/`
+												: ' a site artifact'}
+											from {sourceReport.repository.ref}.
+											{#if sourceReport.pagesDeployment.customDomain}
+												It is mapped to {sourceReport.pagesDeployment.customDomain}.
+											{/if}
+										</p>
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/if}
+				{:else}
+					<div class="source-unavailable">
+						<GitBranch size={22} />
+						<div>
+							<strong>Repository connection is available in the installed app.</strong>
+							<p>This standalone preview cannot receive host credentials or repository access.</p>
+						</div>
+					</div>
+				{/if}
+			</section>
 			<section class="adoption-paths" aria-labelledby="adoption-paths-title">
 				<div class="section-heading">
 					<div>
@@ -1425,10 +1672,10 @@
 							<span class="eyebrow">Compatibility report</span>
 							<h2>Ready to review</h2>
 						</div>
-						<span class="sites-badge sites-badge--positive">{demoAdoptionReport.status}</span>
+						<span class="sites-badge sites-badge--positive">{activeAdoptionReport.status}</span>
 					</div>
 					<div class="check-list">
-						{#each demoAdoptionReport.checks as check (check.id)}
+						{#each activeAdoptionReport.checks as check (check.id)}
 							<div>
 								<span><Check size={15} /></span>
 								<div>
@@ -1445,11 +1692,11 @@
 					<dl>
 						<div>
 							<dt>Snapshot</dt>
-							<dd>{demoAdoptionReport.snapshotId.slice(0, 8)}…</dd>
+							<dd>{activeAdoptionReport.snapshotId.slice(0, 8)}…</dd>
 						</div>
 						<div>
 							<dt>Commit</dt>
-							<dd>{demoAdoptionReport.commit.slice(0, 10)}…</dd>
+							<dd>{activeAdoptionReport.commit.slice(0, 10)}…</dd>
 						</div>
 						<div>
 							<dt>Secrets</dt>
@@ -1460,8 +1707,12 @@
 							<dd>Not available</dd>
 						</div>
 					</dl>
-					<button class="primary" disabled title="Authenticated host checkout is not connected yet"
-						><GitBranch size={17} /> Connect through tend.host</button
+					<button
+						class="primary"
+						disabled={!sourceBridge}
+						onclick={() => document.getElementById('source-connect-title')?.scrollIntoView()}
+						><GitBranch size={17} />
+						{sourceBridge ? 'Choose connected source' : 'Connect through tend.host'}</button
 					>
 				</aside>
 			</div>
@@ -3638,6 +3889,254 @@
 	}
 	.adoption-page {
 		max-width: 1240px;
+	}
+	.source-connect {
+		margin-bottom: 18px;
+		padding: 22px;
+		border: 1px solid #28634f;
+		border-radius: 18px;
+		background: linear-gradient(140deg, #0b211a, #091315 55%);
+	}
+	.source-connect-heading {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 24px;
+		margin-bottom: 18px;
+	}
+	.source-connect-heading h2 {
+		margin: 6px 0;
+	}
+	.source-connect-heading p,
+	.source-repository-list > p,
+	.source-review > p,
+	.source-unavailable p,
+	.source-result p {
+		margin: 0;
+		color: var(--muted);
+	}
+	.source-capability {
+		flex: 0 0 auto;
+		padding: 7px 10px;
+		color: #c6aa68;
+		font-size: 11px;
+		font-weight: 750;
+		border: 1px solid #5b4925;
+		border-radius: 999px;
+		background: #201a0d;
+	}
+	.source-capability.available {
+		color: #67e6b6;
+		border-color: #28634f;
+		background: #0d2a20;
+	}
+	.source-search {
+		display: grid;
+		gap: 6px;
+		margin-bottom: 14px;
+	}
+	.source-search > label,
+	.source-review label {
+		color: #9fb2ab;
+		font-size: 12px;
+		font-weight: 750;
+	}
+	.source-search > div {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 10px;
+		padding-left: 12px;
+		border: 1px solid #29483e;
+		border-radius: 12px;
+		background: #08130f;
+	}
+	.source-search input,
+	.source-review select {
+		box-sizing: border-box;
+		width: 100%;
+		color: #eef6f2;
+		border: 0;
+		outline: 0;
+		background: transparent;
+		padding: 12px 0;
+	}
+	.source-search button {
+		align-self: stretch;
+		padding-inline: 18px;
+		color: #07130f;
+		font-weight: 850;
+		border: 0;
+		border-radius: 10px;
+		background: var(--green);
+	}
+	.source-error {
+		margin: -4px 0 12px;
+		padding: 10px 12px;
+		color: #f0aaa4;
+		font-size: 12px;
+		border: 1px solid #613735;
+		border-radius: 10px;
+		background: #241313;
+	}
+	.source-connect-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+		gap: 14px;
+		min-height: 260px;
+	}
+	.source-repository-list {
+		display: grid;
+		align-content: start;
+		gap: 7px;
+		max-height: 330px;
+		overflow: auto;
+		padding-right: 3px;
+	}
+	.source-repository-list button {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 11px;
+		min-width: 0;
+		padding: 12px;
+		color: #b9cbc5;
+		text-align: left;
+		border: 1px solid #213b33;
+		border-radius: 11px;
+		background: #0a1713;
+	}
+	.source-repository-list button:hover,
+	.source-repository-list button.selected {
+		color: #62e3b1;
+		border-color: #3a8268;
+		background: #10271f;
+	}
+	.source-repository-list button span,
+	.source-repository-list button strong,
+	.source-repository-list button small {
+		display: block;
+		min-width: 0;
+	}
+	.source-repository-list button strong,
+	.source-repository-list button small {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.source-repository-list button small {
+		margin-top: 3px;
+		color: #748981;
+	}
+	.source-repository-list button em {
+		color: #80958e;
+		font-size: 10px;
+		font-style: normal;
+	}
+	.source-review {
+		display: grid;
+		align-content: start;
+		gap: 13px;
+		padding: 18px;
+		border: 1px solid #263f38;
+		border-radius: 13px;
+		background: #091511;
+	}
+	.source-review h3 {
+		margin: 0;
+	}
+	.source-review label {
+		display: grid;
+		gap: 6px;
+	}
+	.source-review select {
+		padding: 10px;
+		border: 1px solid #29483e;
+		border-radius: 10px;
+		background: #07110e;
+	}
+	.source-review .primary {
+		width: 100%;
+	}
+	.source-pages {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 10px;
+		align-items: start;
+		padding: 12px;
+		border: 1px solid #285445;
+		border-radius: 11px;
+		background: #0b2019;
+		color: #63e6b3;
+	}
+	.source-pages p {
+		margin: 3px 0 0;
+		color: #a4b8b1;
+	}
+	.source-safety {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 9px;
+		padding: 11px;
+		color: #5ee0ad;
+		border-radius: 10px;
+		background: #0d251d;
+	}
+	.source-safety span,
+	.source-safety strong,
+	.source-safety small {
+		display: block;
+	}
+	.source-safety small {
+		margin-top: 3px;
+		color: #82978f;
+	}
+	.source-result {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 18px;
+		align-items: center;
+		margin-top: 14px;
+		padding: 16px;
+		border: 1px solid #39876a;
+		border-radius: 13px;
+		background: #0c271e;
+	}
+	.source-result h3 {
+		margin: 5px 0;
+		text-transform: capitalize;
+	}
+	.source-result dl {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(82px, 1fr));
+		gap: 7px;
+		margin: 0;
+	}
+	.source-result dl div {
+		padding: 9px;
+		border-radius: 9px;
+		background: #081812;
+	}
+	.source-result dt {
+		color: #789087;
+		font-size: 9px;
+		text-transform: uppercase;
+	}
+	.source-result dd {
+		margin: 3px 0 0;
+		font-size: 12px;
+		font-weight: 750;
+	}
+	.source-unavailable {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 12px;
+		align-items: center;
+		padding: 16px;
+		color: #88a099;
+		border: 1px solid #2c403a;
+		border-radius: 12px;
+		background: #0a1512;
 	}
 	.section-heading {
 		display: flex;
@@ -5854,8 +6353,16 @@
 		.custom-site-proof,
 		.schema-preview,
 		.adoption-path-grid,
-		.starter-repository-grid {
+		.starter-repository-grid,
+		.source-connect-grid,
+		.source-result {
 			grid-template-columns: 1fr;
+		}
+		.source-result dl {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.source-connect-heading {
+			flex-direction: column;
 		}
 		.section-heading {
 			align-items: start;

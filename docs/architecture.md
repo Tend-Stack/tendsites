@@ -101,6 +101,12 @@ Generated site = ordinary files + assets + Git history
   repository, search-index submission, filesystem, or publish authority. Legacy drafts receive
   deterministic safe defaults before strict validation.
 - `src/extension/index.ts` mounts the same interface through tend.host extension v2.
+- Installed builds may receive a permission-gated `HostSourceBridge`. It exposes only sanitized
+  repository/branch summaries and a bounded inspection report. tend.host keeps GitHub credentials
+  in HTTPS headers, accepts redirects only to GitHub codeload, streams a capped archive, inventories
+  it without extraction or execution, removes it before returning, and reports digests, framework,
+  content paths, and inert GitHub Pages configuration. The bridge has no write, build, deploy,
+  filesystem-path, environment, or credential method.
 - `scripts/package-extension.mjs` emits a ZIP with SHA-256 integrity for every shipped file.
 
 ## Host operation bridge

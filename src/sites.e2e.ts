@@ -76,6 +76,15 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 	expect(saveButtonBox).not.toBeNull();
 	expect(saveLabelBox).not.toBeNull();
 	expect(saveLabelBox!.y + saveLabelBox!.height).toBeLessThanOrEqual(saveButtonBox!.y);
+	const relatedStories = page.getByRole('group', { name: 'Related stories' });
+	await expect(relatedStories.getByRole('button', { name: /Morning at the lake/ })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await relatedStories.getByRole('button', { name: /A cabin reading list/ }).click();
+	await expect(
+		relatedStories.getByRole('button', { name: /A cabin reading list/ })
+	).toHaveAttribute('aria-pressed', 'true');
 	await expect(
 		page.getByLabel('Filter posts').getByRole('button', { name: /All/ })
 	).toHaveAttribute('aria-pressed', 'true');
@@ -461,6 +470,9 @@ test('places published posts on a page and opens a real visitor article', async 
 	await expect(preview.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
 	await expect(preview.getByRole('region', { name: 'Share this story' })).toBeVisible();
 	await expect(preview.getByRole('heading', { name: 'Related stories' })).toBeVisible();
+	await expect(preview.locator('.related-grid button').first()).toContainText(
+		'Morning at the lake'
+	);
 	await preview
 		.getByRole('navigation', { name: 'Breadcrumb' })
 		.getByRole('button', { name: 'Journal', exact: true })
@@ -1078,6 +1090,111 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await page.getByLabel('Image description').fill('A newly uploaded editorial cover');
 	await page.getByRole('button', { name: 'Use image' }).click();
 	await expect(page.getByText('Optimized upload · saved with this draft')).toBeVisible();
+});
+
+test('connects and safely analyzes an existing GitHub repository through tend.host', async ({
+	page
+}) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	await page.evaluate(async () => {
+		const extensionUrl = '/test-extension/index.js?v=source';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension
+			.default({
+				id: 'host.tend.sites',
+				onUnmount() {},
+				sites: {
+					async listRepositories() {
+						return [
+							{
+								owner: 'Tend-Stack',
+								name: 'tendsites',
+								fullName: 'Tend-Stack/tendsites',
+								private: false,
+								defaultBranch: 'main',
+								description: 'The TEND Sites component',
+								pushedAt: '2026-08-11T20:00:00Z'
+							}
+						];
+					},
+					async listBranches() {
+						return [{ name: 'main', protected: true }];
+					},
+					async inspectRepository() {
+						return {
+							contract: 'tend.host/sites-connected-repository-report/v1',
+							inspection: {
+								contract: 'tend.host/sites-repository-inspection-result/v1',
+								requestId: '11111111-1111-4111-8111-111111111111',
+								projectId: 'connected-site',
+								snapshot: {
+									contract: 'tend.host/sites-source-snapshot/v1',
+									snapshotId: '22222222-2222-4222-8222-222222222222',
+									provider: 'github',
+									providerInstallationId: 'host-github-connection',
+									repositoryId: 'github-tendsites',
+									commit: 'a'.repeat(40),
+									treeSha256: 'b'.repeat(64),
+									archiveSha256: 'c'.repeat(64),
+									actorId: 'user-one',
+									trustClass: 'protected',
+									fileCount: 184,
+									archiveBytes: 1_420_000,
+									hasSubmodules: false,
+									hasLfsPointers: false,
+									hasPrivateDependencies: false,
+									createdAt: '2026-08-11T20:00:00Z',
+									expiresAt: '2099-08-11T20:05:00Z'
+								},
+								checkoutRemoved: true,
+								secretCount: 0
+							},
+							repository: {
+								owner: 'Tend-Stack',
+								name: 'tendsites',
+								fullName: 'Tend-Stack/tendsites',
+								ref: 'main'
+							},
+							framework: 'sveltekit',
+							contentPaths: ['src/routes'],
+							pagesDeployment: {
+								method: 'github-actions',
+								sourceBranch: null,
+								sourcePath: null,
+								artifactPath: 'build',
+								customDomain: 'example.com'
+							},
+							productionDestinationAvailable: false
+						};
+					}
+				}
+			})
+			.mount(container);
+	});
+
+	await page.getByRole('button', { name: 'View safe analysis' }).click();
+	await expect(page.getByText('Host connection ready')).toBeVisible();
+	await page.getByRole('button', { name: /Tend-Stack\/tendsites/ }).click();
+	await expect(page.getByLabel('Branch')).toHaveValue('main');
+	await page.getByRole('button', { name: 'Analyze repository' }).click();
+	await expect(page.getByText('sveltekit site · compatible')).toBeVisible();
+	await expect(page.getByText(/checkout was removed/)).toBeVisible();
+	await expect(page.getByText('0 delivered')).toBeVisible();
 });
 
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({

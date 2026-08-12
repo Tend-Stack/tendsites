@@ -45,6 +45,7 @@ describe('interactive demo site', () => {
 			id: 'post-42',
 			slug: 'untitled-post',
 			status: 'draft',
+			relatedPostIds: [],
 			publishedAt: null
 		});
 	});
@@ -118,6 +119,14 @@ describe('interactive demo site', () => {
 		const duplicatePostSlug = createDemoSite();
 		duplicatePostSlug.collections[0].items[1].slug = duplicatePostSlug.collections[0].items[0].slug;
 		expect(isDemoSite(duplicatePostSlug)).toBe(false);
+		const invalidRelationship = createDemoSite();
+		invalidRelationship.collections[0].items[0].relatedPostIds = ['missing-post'];
+		expect(isDemoSite(invalidRelationship)).toBe(false);
+		invalidRelationship.collections[0].items[0].relatedPostIds = [
+			'morning-at-the-lake',
+			'morning-at-the-lake'
+		];
+		expect(isDemoSite(invalidRelationship)).toBe(false);
 		const tooManyPosts = createDemoSite();
 		tooManyPosts.collections[0].items = Array.from({ length: 251 }, (_, index) =>
 			createDemoPost(index, [])
@@ -163,12 +172,16 @@ describe('interactive demo site', () => {
 		for (const post of collection.items) {
 			delete post.seo;
 			delete post.scheduledAt;
+			delete post.relatedPostIds;
 		}
 		const upgraded = upgradeDemoSite(legacy);
 		expect(upgraded?.seo.locale).toBe('en-US');
 		expect(upgraded?.redirects).toEqual([]);
 		expect(upgraded?.collections[0].items.every((post) => post.seo.title.length > 0)).toBe(true);
 		expect(upgraded?.collections[0].items.every((post) => post.scheduledAt === null)).toBe(true);
+		expect(upgraded?.collections[0].items.every((post) => post.relatedPostIds.length === 0)).toBe(
+			true
+		);
 		expect(upgraded?.structure.header.map((item) => item.label)).toEqual([
 			'Home',
 			'About',

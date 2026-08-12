@@ -3,6 +3,7 @@ import { mount, unmount } from 'svelte';
 import SitesApp from '../lib/sites/SitesApp.svelte';
 
 import type { HostMediaBridge } from '../lib/sites/host-media';
+import type { HostSourceBridge } from '../lib/sites/host-source';
 
 type ExtensionHost = {
 	id: string;
@@ -13,6 +14,7 @@ type ExtensionHost = {
 	};
 	files?: HostMediaBridge;
 	media?: Pick<HostMediaBridge, 'prepareImage'>;
+	sites?: HostSourceBridge;
 	onUnmount(callback: () => void): void;
 };
 
@@ -74,7 +76,8 @@ export default function activate(host: ExtensionHost) {
 				props: {
 					embedded: true,
 					storage: host.storage,
-					media: host.files ? { ...host.files, prepareImage: host.media?.prepareImage } : undefined
+					media: host.files ? { ...host.files, prepareImage: host.media?.prepareImage } : undefined,
+					sourceBridge: host.sites
 				}
 			});
 			let active = true;

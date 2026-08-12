@@ -77,7 +77,7 @@ function pageMarkdown(site: DemoSite, pageIndex: number): string {
 function postMarkdown(site: DemoSite, collectionIndex: number, postIndex: number): string {
 	const collection = site.collections[collectionIndex];
 	const post = collection.items[postIndex];
-	return `---\ntitle: ${yamlString(post.title)}\nslug: ${yamlString(post.slug)}\nsummary: ${yamlString(post.summary)}\nauthor: ${yamlString(post.author)}\nstatus: ${yamlString(post.status)}\nfeatured: ${post.featured}\npublishedAt: ${post.publishedAt ? yamlString(post.publishedAt) : 'null'}\nscheduledAt: ${post.scheduledAt ? yamlString(post.scheduledAt) : 'null'}\ntags: ${JSON.stringify(post.tags)}\ncoverImage: ${post.coverImage ? yamlString(post.coverImage) : 'null'}\ncoverImageAlt: ${post.coverImageAlt ? yamlString(post.coverImageAlt) : 'null'}\n---\n\n${post.body}\n`;
+	return `---\ntitle: ${yamlString(post.title)}\nslug: ${yamlString(post.slug)}\nsummary: ${yamlString(post.summary)}\nauthor: ${yamlString(post.author)}\nstatus: ${yamlString(post.status)}\nfeatured: ${post.featured}\npublishedAt: ${post.publishedAt ? yamlString(post.publishedAt) : 'null'}\nscheduledAt: ${post.scheduledAt ? yamlString(post.scheduledAt) : 'null'}\ntags: ${JSON.stringify(post.tags)}\nrelated: ${JSON.stringify(post.relatedPostIds)}\ncoverImage: ${post.coverImage ? yamlString(post.coverImage) : 'null'}\ncoverImageAlt: ${post.coverImageAlt ? yamlString(post.coverImageAlt) : 'null'}\n---\n\n${post.body}\n`;
 }
 
 function collectOccurrences(site: DemoSite): AssetOccurrence[] {

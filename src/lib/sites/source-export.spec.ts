@@ -28,6 +28,9 @@ describe('portable site source export', () => {
 		expect(document.site.pages[0].sections[0].image).toMatch(/^\/assets\//);
 		expect(Object.keys(files)).toContain('content/pages/home.md');
 		expect(Object.keys(files)).toContain('content/posts/journal/field-notes-long-way-home.md');
+		expect(strFromU8(files['content/posts/journal/field-notes-long-way-home.md'])).toContain(
+			'related: ["morning-at-the-lake"]'
+		);
 		expect(strFromU8(files['README.md'])).toContain('does not require TEND Sites at runtime');
 		expect(strFromU8(files['EXPORT-REPORT.md'])).toContain('All referenced media was copied');
 		expect(result.assetCount).toBe(3);

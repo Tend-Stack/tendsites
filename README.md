@@ -50,7 +50,7 @@ npm run build
 - `artifacts/tendsites-<version>.zip` — a tend.host extension v2 package;
 - `artifacts/extension.json` — the generated integrity manifest for inspection.
 
-The package requests scoped extension storage and `files.read`. The latter exposes only owner-authorized image-library summaries and opaque image URLs through the sealed host API; it does not expose provider paths, credentials, mutation methods, or repository access. Future repository, preview, publishing, domain, media-mutation, and AI work will be added only after each typed host capability exists and is independently reviewed.
+The package requests scoped extension storage, `files.read`, and `sites.source.read`. Files access exposes only owner-authorized image-library summaries and opaque image URLs. Source access exposes only sanitized repository/branch summaries plus a bounded inert compatibility report; GitHub credentials, provider paths, mutations, builds, deployment, and production authority remain in tend.host. Future repository writes, preview execution, publishing, domain, media mutation, and AI work will be added only after each typed host capability exists and is independently reviewed.
 
 ## Documentation
 

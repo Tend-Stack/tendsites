@@ -57,6 +57,22 @@ describe('visitor journal projections', () => {
 		expect(postNavigation(posts, posts[0].id)).toEqual({ previous: posts[1], next: null });
 	});
 
+	it('honors explicit related stories before tag matches and hides unpublished choices', () => {
+		const site = createDemoSite();
+		const allPosts = site.collections[0].items;
+		const current = allPosts[0];
+		current.relatedPostIds = [allPosts[2].id, allPosts[1].id];
+		allPosts[1].tags.push('Field notes');
+
+		expect(relatedJournalPosts(allPosts, current).map((post) => post.id)).toEqual([allPosts[1].id]);
+		allPosts[2].status = 'published';
+		allPosts[2].publishedAt = '2026-08-03T14:00:00.000Z';
+		expect(relatedJournalPosts(allPosts, current).map((post) => post.id)).toEqual([
+			allPosts[2].id,
+			allPosts[1].id
+		]);
+	});
+
 	it('generates encoded, non-executing share destinations', () => {
 		const site = createDemoSite();
 		const post = publishedJournalPosts(site)[0];
