@@ -91,6 +91,15 @@ export const ConnectedSourceEvidenceSchema = z
 		pagesDeployment: ConnectedRepositoryReportSchema.shape.pagesDeployment,
 		connectedAt: z.iso.datetime({ offset: true }),
 		verifiedAt: z.iso.datetime({ offset: true }),
+		onboarding: z
+			.object({
+				editingMode: z.enum(['visual', 'headless', 'hybrid']).nullable(),
+				stage: z.enum(['source_connected', 'mode_selected', 'plan_reviewed']),
+				updatedAt: z.iso.datetime({ offset: true }).nullable()
+			})
+			.strict()
+			.optional()
+			.default({ editingMode: null, stage: 'source_connected', updatedAt: null }),
 		repositoryMutationAvailable: z.literal(false),
 		publishingAvailable: z.literal(false)
 	})
@@ -153,6 +162,12 @@ export type HostSourceBridge = Partial<HostCreationBridge> & {
 		projectId: string;
 	}): Promise<ConnectedRepositoryReport>;
 	getConnection(projectId: string): Promise<ConnectedSourceEvidence | null>;
+	updateConnectionSetup(input: {
+		projectId: string;
+		connectionId: string;
+		editingMode: 'visual' | 'headless' | 'hybrid';
+		stage: 'mode_selected' | 'plan_reviewed';
+	}): Promise<ConnectedSourceEvidence>;
 	connectRepository(input: {
 		provider: string;
 		repositoryId: string;

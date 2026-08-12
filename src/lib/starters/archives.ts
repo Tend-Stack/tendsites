@@ -1,10 +1,56 @@
 import { z } from 'zod';
 import { IdentifierSchema, RelativeProjectPathSchema, Sha256HexSchema } from '../contracts/sites';
+import appHtml from './runtime/src/app.html?raw';
+import layoutJs from './runtime/src/routes/+layout.js?raw';
+import docsPage from './runtime/pages/docs.svelte?raw';
+import editorialPage from './runtime/pages/editorial.svelte?raw';
+import minimalPage from './runtime/pages/minimal.svelte?raw';
+import studioPage from './runtime/pages/studio.svelte?raw';
+import packageJson from './runtime/package.json?raw';
+import packageLock from './runtime/package-lock.json?raw';
+import svelteConfig from './runtime/svelte.config.js?raw';
+import viteConfig from './runtime/vite.config.js?raw';
 
-const packageJson =
-	'{"name":"tend-site","private":true,"type":"module","scripts":{"build":"vite build"},"dependencies":{"@sveltejs/kit":"^2.0.0","svelte":"^5.0.0"},"devDependencies":{"@sveltejs/adapter-static":"^3.0.0","vite":"^7.0.0"}}';
 const tendSiteJson =
 	'{"schema":1,"adapter":"sveltekit","content":{"pages":"src/content/pages","posts":"src/content/posts"},"media":{"provider":"repository","directory":"static/media","publicPath":"/media"},"i18n":{"defaultLocale":"en","locales":["en"],"strategy":"multiple_folders"},"build":{"script":"build","output":"build"}}';
+
+const runtimeFiles = [
+	{
+		path: 'package.json',
+		content: packageJson,
+		sha256: '0e1d601e6a35463dc2932dfd708ec6fb958a7b64f00a2dfcde920519d5fff580'
+	},
+	{
+		path: 'package-lock.json',
+		content: packageLock,
+		sha256: 'c4575b5b29a14d35442201a1dd32afe6eba4cd71fc6d74dac52714e3077f1b85'
+	},
+	{
+		path: 'svelte.config.js',
+		content: svelteConfig,
+		sha256: '0085d4b1d28d2258afeefaff5ff7f51637e57c9a294875a213512fed5782310e'
+	},
+	{
+		path: 'vite.config.js',
+		content: viteConfig,
+		sha256: '57fab6695036bdec420fc24934ecc4cf5344ac2723a6ce0e2728a66ad96785b8'
+	},
+	{
+		path: 'src/app.html',
+		content: appHtml,
+		sha256: 'e1aa9a12e3b6a9b60e76c6bd62dd35b7df836a5fd0e2599fb75db490ff132435'
+	},
+	{
+		path: 'src/routes/+layout.js',
+		content: layoutJs,
+		sha256: '30eec0a0e67c08341a51c51fa019afb5f4815eec5a183501f2e39d5da1c4e67d'
+	},
+	{
+		path: 'tend.site.json',
+		content: tendSiteJson,
+		sha256: 'c42c971a96f3c65c4ac7cdfbf486e6cba6cdf0ba26fe74c8f3c3412d41330a22'
+	}
+] as const;
 
 const StarterSourceFileSchema = z
 	.object({
@@ -29,24 +75,24 @@ export type StarterArchive = z.infer<typeof StarterArchiveSchema>;
 
 const pages = {
 	minimal: [
-		'<script lang="ts">const title = "Welcome";</script><svelte:head><title>{title}</title></svelte:head><main><h1>{title}</h1><p>Your site is ready.</p></main>',
-		'9d2ad93e05d863bfc7dc3fa142ce5698dca73a10d10d653196509068363266fd',
-		'bc191715c3bf414bb5eba0228b3eb8ede704a52a99ef5073244285f932787fef'
+		minimalPage,
+		'e5e78c37d6cc63609af46a77e1ba54c0b15f029a5d97328737105cb872ac112c',
+		'dbb46e269a1a639d14691810235a443508f03946d88cad54fb7522a6a7e51fd1'
 	],
 	editorial: [
-		'<script lang="ts">const title = "Field Notes";</script><svelte:head><title>{title}</title></svelte:head><main><p>JOURNAL</p><h1>{title}</h1><p>Stories worth keeping.</p></main>',
-		'039feaa2bc98c2939ffa493b354941e13719be626efa2bfcfb70efaa2f83eabb',
-		'0c576ab1188fc41d67429922b93bc7f50d0604182c01df473afe67f5ebc626f4'
+		editorialPage,
+		'fdce6765cca696626daa4e9e069d9d1de61d9a3bcb74829bdd120d4a6cb75a8b',
+		'2d0235c37b6166f7bc4590c5fe2e6e293aaf641f7c6d7f9171939a93e9ccffbc'
 	],
 	studio: [
-		'<script lang="ts">const title = "Selected Work";</script><svelte:head><title>{title}</title></svelte:head><main><h1>{title}</h1><p>Projects, process, and practice.</p></main>',
-		'21b0a13c82328a556097b68ec1b69c60211e896d80a17ced38da72b6dd207505',
-		'ba7accd3fd430ebe3c072ae0152c1856ef397b199701cf051a8e152f250e7c48'
+		studioPage,
+		'16b28cf3b50ecf527b9cbd2f899564bc874d67a48bd6704d46fbb7d7cfda7dd9',
+		'47746a646705361d54304ef32838d37b3d2844ca1ed9b13142eecb4610b8549d'
 	],
 	docs: [
-		'<script lang="ts">const title = "Documentation";</script><svelte:head><title>{title}</title></svelte:head><main><nav>Guides</nav><article><h1>{title}</h1><p>Start here.</p></article></main>',
-		'ed2a4e514b3b5c449197475ec161e66f6be54a520eb35a8d21e66ac26b57c007',
-		'57a8a2213707b94fa9c2eb1636db16331bfd1faa438ecf21931c664b4e96027b'
+		docsPage,
+		'3d3cbf2ecd97e1c154032bb1eae8156079c1a7db7567b876c5edbb78fdbd827c',
+		'931d596391e97c43e2e9676727a4c887f11a2140b148f928c30ec2c3a28f1847'
 	]
 } as const;
 
@@ -59,16 +105,7 @@ export const starterArchives: Readonly<Record<keyof typeof pages, StarterArchive
 				templateId,
 				revisionSha256,
 				files: [
-					{
-						path: 'package.json',
-						content: packageJson,
-						sha256: 'eedd5ddbb807092f1690275606fdab40ad0521bb06f4c916954a45afbec58195'
-					},
-					{
-						path: 'tend.site.json',
-						content: tendSiteJson,
-						sha256: 'c42c971a96f3c65c4ac7cdfbf486e6cba6cdf0ba26fe74c8f3c3412d41330a22'
-					},
+					...runtimeFiles,
 					{ path: 'src/routes/+page.svelte', content, sha256: pageSha256 }
 				]
 			})

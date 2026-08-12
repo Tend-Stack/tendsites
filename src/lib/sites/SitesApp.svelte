@@ -199,6 +199,8 @@
 	let adoptionPlanElement = $state<HTMLElement | null>(null);
 	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
 	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
+	let sourceSetupStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+	let sourceSetupMessage = $state('');
 	let sourceControlConnections = $state<SourceControlConnections | null>(null);
 	let selectedSourceProvider = $state<'github' | 'gitlab'>('github');
 	let sourceControlBusy = $state(false);
@@ -1066,8 +1068,29 @@
 
 	async function selectAdoptionMode(mode: (typeof customSiteModes)[number]['id']) {
 		selectedAdoptionMode = mode;
+		sourceSetupStatus = sourceConnection && sourceBridge ? 'saving' : 'saved';
+		sourceSetupMessage = sourceConnection ? 'Saving editing mode…' : 'Example mode selected.';
+		if (sourceConnection && sourceBridge) {
+			try {
+				sourceConnection = ConnectedSourceEvidenceSchema.parse(
+					await sourceBridge.updateConnectionSetup({
+						projectId: sourceConnection.projectId,
+						connectionId: sourceConnection.connectionId,
+						editingMode: mode,
+						stage: 'mode_selected'
+					})
+				);
+				sourceSetupStatus = 'saved';
+				sourceSetupMessage = `${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} saved. Review the source-specific setup plan next.`;
+			} catch (error) {
+				sourceSetupStatus = 'error';
+				sourceSetupMessage =
+					error instanceof Error ? error.message : 'The editing mode could not be saved.';
+				return;
+			}
+		}
 		sourceConnectionNotice = sourceConnection
-			? `${sourceConnection.repository.fullName} remains connected. ${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} is ready to review.`
+			? `${sourceConnection.repository.fullName} remains connected. ${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} is saved and ready to review.`
 			: '';
 		await tick();
 		// Selecting a mode is the user's explicit continuation action. Advance to
@@ -1078,9 +1101,35 @@
 	}
 
 	async function reviewConnectedAdoptionPlan() {
+		if (sourceConnection && selectedAdoptionMode && sourceBridge) {
+			sourceSetupStatus = 'saving';
+			sourceSetupMessage = 'Saving plan review…';
+			try {
+				sourceConnection = ConnectedSourceEvidenceSchema.parse(
+					await sourceBridge.updateConnectionSetup({
+						projectId: sourceConnection.projectId,
+						connectionId: sourceConnection.connectionId,
+						editingMode: selectedAdoptionMode,
+						stage: 'plan_reviewed'
+					})
+				);
+				sourceSetupStatus = 'saved';
+				sourceSetupMessage = 'Setup plan reviewed. Continue to isolated preview requirements.';
+			} catch (error) {
+				sourceSetupStatus = 'error';
+				sourceSetupMessage =
+					error instanceof Error ? error.message : 'The plan review could not be saved.';
+				return;
+			}
+		}
 		await tick();
 		adoptionPlanElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		adoptionPlanElement?.focus({ preventScroll: true });
+	}
+
+	function continueToPreviewReadiness() {
+		readinessArea = 'preview';
+		open('readiness');
 	}
 
 	async function loadSourceControlConnections() {
@@ -1165,6 +1214,14 @@
 			sourceConnectionLoadError = '';
 			if (sourceConnection) {
 				selectedSourceProvider = sourceConnection.provider;
+				selectedAdoptionMode = sourceConnection.onboarding.editingMode;
+				if (sourceConnection.onboarding.stage !== 'source_connected') {
+					sourceSetupStatus = 'saved';
+					sourceSetupMessage =
+						sourceConnection.onboarding.stage === 'plan_reviewed'
+							? 'Setup plan reviewed. Continue to isolated preview requirements.'
+							: 'Editing mode saved. Review the source-specific setup plan next.';
+				}
 			}
 		} catch (error) {
 			// A provider or host refresh failure must never erase a source that this
@@ -1535,7 +1592,13 @@
 								<span>{sourceConnection.repository.ref}</span>
 								<span>Commit {sourceConnection.commit.slice(0, 7)}</span>
 							</div>
-							<span class="sites-badge">Setup needed</span>
+							<span class:sites-badge--positive={sourceConnection.onboarding.stage === 'plan_reviewed'} class="sites-badge">
+								{sourceConnection.onboarding.stage === 'plan_reviewed'
+									? 'Plan reviewed'
+									: sourceConnection.onboarding.stage === 'mode_selected'
+										? 'Mode saved'
+										: 'Setup needed'}
+							</span>
 						</div>
 						<button class="card-action" onclick={() => void continueConnectedSource()}>
 							Continue setup <ArrowRight size={16} />
@@ -2243,6 +2306,7 @@
 							<button
 								class="secondary"
 								type="button"
+								disabled={sourceSetupStatus === 'saving'}
 								onclick={() => void selectAdoptionMode(mode.id)}
 							>
 								{selectedAdoptionMode === mode.id ? 'Mode selected' : 'Choose this mode'}
@@ -2253,6 +2317,12 @@
 						</article>
 					{/each}
 				</div>
+				{#if sourceSetupMessage}
+					<p class:error={sourceSetupStatus === 'error'} class="source-action-status" role={sourceSetupStatus === 'error' ? 'alert' : 'status'}>
+						{#if sourceSetupStatus === 'saving'}<LoaderCircle class="spin" size={16} />{/if}
+						{sourceSetupMessage}
+					</p>
+				{/if}
 			</section>
 
 			{#if selectedAdoptionModeDetails}
@@ -2284,9 +2354,7 @@
 							</p>
 						{/if}
 					</div>
-					<button class="primary" type="button" onclick={() => void reviewConnectedAdoptionPlan()}>
-						Review setup plan <ArrowRight size={16} />
-					</button>
+					<span class="sites-badge sites-badge--positive"><Check size={15} /> Saved</span>
 				</section>
 			{/if}
 
@@ -2332,6 +2400,31 @@
 						<dd>Review required</dd>
 					</div>
 				</dl>
+				{#if sourceConnection && selectedAdoptionMode}
+					<div class="source-plan-action" aria-live="polite">
+						<div>
+							<strong>
+								{sourceConnection.onboarding.stage === 'plan_reviewed'
+									? 'Setup plan reviewed'
+									: 'Confirm this source-specific plan'}
+							</strong>
+							<p>
+								{sourceConnection.onboarding.stage === 'plan_reviewed'
+									? 'Your next step is to review the isolated preview requirements for this exact revision.'
+									: 'This records your choice in tend.host. It does not change or publish the repository.'}
+							</p>
+						</div>
+						{#if sourceConnection.onboarding.stage === 'plan_reviewed'}
+							<button class="primary" type="button" onclick={continueToPreviewReadiness}>
+								Review preview requirements <ArrowRight size={16} />
+							</button>
+						{:else}
+							<button class="primary" type="button" disabled={sourceSetupStatus === 'saving'} onclick={() => void reviewConnectedAdoptionPlan()}>
+								{sourceSetupStatus === 'saving' ? 'Saving…' : 'Confirm plan and continue'} <ArrowRight size={16} />
+							</button>
+						{/if}
+					</div>
+				{/if}
 			</section>
 
 			<section class="adapter-catalog" aria-labelledby="adapter-catalog-title">
@@ -5430,6 +5523,20 @@
 		margin: 4px 0 0;
 		font-weight: 750;
 	}
+	.source-plan-action {
+		display: grid;
+		grid-column: 1 / -1;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 18px;
+		align-items: center;
+		padding-top: 16px;
+		border-top: 1px solid #24483d;
+	}
+	.source-plan-action p {
+		margin-top: 4px;
+		font-size: 13px;
+		line-height: 1.5;
+	}
 	.framework-list {
 		display: flex;
 		flex-wrap: wrap;
@@ -7675,6 +7782,12 @@
 			display: none;
 		}
 		.source-next-step .primary {
+			width: 100%;
+		}
+		.source-plan-action {
+			grid-template-columns: 1fr;
+		}
+		.source-plan-action .primary {
 			width: 100%;
 		}
 		.section-heading {

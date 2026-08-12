@@ -56,7 +56,7 @@ test('guides creation and explains when host source authority is unavailable', a
 	await expect(
 		page.getByText('Open this extension inside tend.host to create source.')
 	).toBeVisible();
-	await expect(page.getByText('3 reviewed files')).toBeVisible();
+	await expect(page.getByText('8 reviewed files')).toBeVisible();
 	await page.getByRole('button', { name: 'Open Studio preview' }).click();
 	await expect(page.getByText('Local demo session')).toBeVisible();
 	await expect(page.getByLabel('Content overview')).toContainText('3 entries');
@@ -1113,6 +1113,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await page.goto('/');
 	await page.evaluate(async () => {
 		let providerAccessAvailable = true;
+		let savedConnection: Record<string, any> | null = null;
 		const extensionUrl = '/test-extension/index.js?v=source';
 		const extension = await import(/* @vite-ignore */ extensionUrl);
 		const container = document.createElement('div');
@@ -1226,11 +1227,11 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 						};
 					},
 					async getConnection() {
-						return null;
+						return savedConnection;
 					},
 					async connectRepository() {
 						providerAccessAvailable = false;
-						return {
+						savedConnection = {
 							contract: 'tend.host/sites-connected-source-evidence/v1',
 							connectionId: '33333333-3333-4333-8333-333333333333',
 							projectId: 'connected-site',
@@ -1255,9 +1256,30 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 							},
 							connectedAt: '2026-08-11T20:00:00Z',
 							verifiedAt: '2026-08-11T20:00:00Z',
+							onboarding: {
+								editingMode: null,
+								stage: 'source_connected',
+								updatedAt: null
+							},
 							repositoryMutationAvailable: false,
 							publishingAvailable: false
 						};
+						return savedConnection;
+					},
+					async updateConnectionSetup(input: {
+						editingMode: string;
+						stage: string;
+					}) {
+						if (!savedConnection) throw new Error('Connected source is missing.');
+						savedConnection = {
+							...savedConnection,
+							onboarding: {
+								editingMode: input.editingMode,
+								stage: input.stage,
+								updatedAt: '2026-08-11T20:01:00Z'
+							}
+						};
+						return savedConnection;
 					}
 				}
 			})
@@ -1303,6 +1325,9 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.getByText('Connection needed')).not.toBeVisible();
 	await page.getByRole('button', { name: 'Choose this mode' }).nth(1).click();
 	await expect(
+		page.getByText('Keep my custom design saved. Review the source-specific setup plan next.')
+	).toBeVisible();
+	await expect(
 		page.getByLabel('Connected site setup plan')
 	).toBeInViewport();
 	await expect(page.getByLabel('Connected site setup plan')).toContainText('sveltekit');
@@ -1312,6 +1337,9 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 		'Choosing an editing mode does not require GitHub or GitLab again'
 	);
 	await expect(page.getByText(/Repository access remains unavailable/)).not.toBeVisible();
+	await page.getByRole('button', { name: 'Confirm plan and continue' }).click();
+	await expect(page.getByText('Setup plan reviewed', { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Review preview requirements' })).toBeVisible();
 	await page.getByRole('main').getByRole('button', { name: 'Your sites' }).click();
 	await expect(page.getByRole('heading', { name: 'tendsites', exact: true })).toBeVisible();
 	await expect(page.getByText('Tend-Stack/tendsites', { exact: true })).toBeVisible();

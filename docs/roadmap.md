@@ -76,7 +76,10 @@ Completion is measured only from the top-level product milestones below. Nested 
     source-specific setup-plan review instead of leaving a passive selected state. The saved source,
     not the provider's current session, is authoritative during setup: temporary GitHub or GitLab
     unavailability cannot force reauthentication, and choosing a mode now advances directly to its
-    reviewed plan with explicit connected-revision feedback.
+    reviewed plan with explicit connected-revision feedback. The editing mode and plan-review stage
+    are now durable host-owned onboarding state. Both transitions remain bound to the saved source
+    connection, survive reloads, make no provider call, and guide the user directly into isolated
+    preview requirements instead of ending on a passive plan.
 - [x] Framework adapter and declarative content-schema catalog.
   - **Complete:** Versioned custom-site profiles and structured field mappings are strict, bounded,
     path-confined, and framework-neutral. A pure bounded detector recognizes SvelteKit, Astro,
@@ -230,6 +233,9 @@ Completion is measured only from the top-level product milestones below. Nested 
 - [x] Resource, time, network, and storage limits.
 - [x] Frozen installs and truthful required-check evidence.
   - **Complete:** Separate-origin resource policy and required-check assessment with no deploy authority.
+    The four reviewed first-party starters now contain a complete pinned SvelteKit static runtime,
+    lockfile, app shell, build configuration, prerender contract, and exact per-file digests. A
+    disposable verifier runs frozen installs and proves every starter emits a static production page.
   - **Pending integration:** Execute isolated previews and retain bounded evidence through durable host jobs.
 - [x] Preview supersession, expiry, cleanup, and recovery.
   - **Complete:** Generation, supersession, expiry, and cleanup-eligibility evidence.
