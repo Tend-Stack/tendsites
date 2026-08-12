@@ -64,6 +64,7 @@ export const ConnectedRepositoryReportSchema = z
 			})
 			.strict()
 			.nullable(),
+		siteProjection: z.unknown().optional(),
 		productionDestinationAvailable: z.literal(false)
 	})
 	.strict();
@@ -71,6 +72,44 @@ export const ConnectedRepositoryReportSchema = z
 export type ConnectedRepository = z.infer<typeof ConnectedRepositorySchema>;
 export type ConnectedRepositoryBranch = z.infer<typeof ConnectedRepositoryBranchSchema>;
 export type ConnectedRepositoryReport = z.infer<typeof ConnectedRepositoryReportSchema>;
+
+export const ImportedSiteProjectionSchema = z
+	.object({
+		contract: z.literal('tend.host/sites-inert-content-projection/v1'),
+		pages: z
+			.array(
+				z
+					.object({
+						path: z.string().min(1).max(240),
+						title: z.string().min(1).max(120),
+						summary: z.string().max(500),
+						sections: z
+							.array(
+								z.object({ title: z.string().min(1).max(120), body: z.string().max(800) }).strict()
+							)
+							.max(8)
+					})
+					.strict()
+			)
+			.max(50),
+		posts: z
+			.array(
+				z
+					.object({
+						path: z.string().min(1).max(240),
+						title: z.string().min(1).max(120),
+						summary: z.string().max(500),
+						body: z.string().max(20_000)
+					})
+					.strict()
+			)
+			.max(100),
+		canonicalUrl: z.url().nullable(),
+		warnings: z.array(z.string().min(1).max(240)).max(8)
+	})
+	.strict();
+
+export type ImportedSiteProjection = z.infer<typeof ImportedSiteProjectionSchema>;
 
 export const ConnectedSourceEvidenceSchema = z
 	.object({
@@ -203,6 +242,7 @@ export type HostSourceBridge = Partial<
 	}): Promise<ConnectedRepositoryReport>;
 	getConnection(projectId: string): Promise<ConnectedSourceEvidence | null>;
 	listConnections?(): Promise<ConnectedSourceEvidence[]>;
+	loadWorkspace?(projectId: string): Promise<ImportedSiteProjection>;
 	updateConnectionSetup?(input: {
 		projectId: string;
 		connectionId: string;

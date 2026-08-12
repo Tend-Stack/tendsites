@@ -80,6 +80,7 @@
 		ConnectedRepositorySchema,
 		ConnectedSourceCacheSchema,
 		ConnectedSourceEvidenceSchema,
+		ImportedSiteProjectionSchema,
 		SourceControlConnectionsSchema,
 		assessConnectedRepository,
 		reconcileConnectedSourceCache,
@@ -108,6 +109,7 @@
 		cloneDemoSite,
 		createDefaultPageSeo,
 		createDemoSite,
+		createImportedSite,
 		createSection,
 		demoImages,
 		duplicateDemoPage,
@@ -219,10 +221,13 @@
 	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
 	let sourceConnections = $state<ConnectedSourceEvidence[]>([]);
 	let activeSiteProjectId = $state('demo-site');
+	let activeSiteDraftKey = $state('studio-draft-v1:demo-site');
 	let sourceConnectionStatus = $state<'checking' | 'connected' | 'missing' | 'error'>('checking');
 	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
 	let sourceSetupStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 	let sourceSetupMessage = $state('');
+	let workspaceLoadStatus = $state<'idle' | 'loading' | 'error'>('idle');
+	let workspaceLoadMessage = $state('');
 	let adoptionStep = $state<'source' | 'mode' | 'plan'>('source');
 	let sourceControlConnections = $state<SourceControlConnections | null>(null);
 	let selectedSourceProvider = $state<'github' | 'gitlab'>('github');
@@ -356,6 +361,9 @@
 	);
 	const selectedAdoptionModeDetails = $derived(
 		customSiteModes.find((mode) => mode.id === selectedAdoptionMode) ?? null
+	);
+	const activeImportedConnection = $derived(
+		sourceConnections.find((connection) => connection.projectId === activeSiteProjectId) ?? null
 	);
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
@@ -1028,26 +1036,52 @@
 		}
 	}
 
-	async function activateSiteDraft(projectId: string, name: string) {
-		if (activeSiteProjectId === projectId && draftStore) return;
+	async function activateSiteDraft(projectId: string, name: string, imported = false) {
+		const storageKey = imported
+			? `studio-import-v2:${projectId}:${sourceConnection?.commit ?? 'unknown'}`
+			: draftStorageKey(projectId);
+		if (activeSiteDraftKey === storageKey && draftStore) return;
 		await draftStore?.flush().catch(() => undefined);
 		activeSiteProjectId = projectId;
+		activeSiteDraftKey = storageKey;
 		history = [];
 		redoHistory = [];
 		selectedPageId = 'home';
 		selectedSectionId = 'hero-1';
+		let importedSite: DemoSite | null = null;
+		if (imported) {
+			if (!sourceBridge?.loadWorkspace) {
+				workspaceLoadStatus = 'error';
+				workspaceLoadMessage = 'Update tend.host to load this repository into the editor.';
+				throw new Error(workspaceLoadMessage);
+			}
+			workspaceLoadStatus = 'loading';
+			workspaceLoadMessage = `Reading ${name} from its saved commit…`;
+			try {
+				const projection = ImportedSiteProjectionSchema.parse(
+					await sourceBridge.loadWorkspace(projectId)
+				);
+				importedSite = createImportedSite(name, projection);
+				workspaceLoadStatus = 'idle';
+				workspaceLoadMessage = projection.warnings[0] ?? '';
+			} catch (error) {
+				workspaceLoadStatus = 'error';
+				workspaceLoadMessage =
+					error instanceof Error ? error.message : 'The imported site could not be loaded safely.';
+				throw error;
+			}
+		}
 		if (!storage) {
-			const fresh = createDemoSite();
-			fresh.name = name;
-			siteDraft = fresh;
+			siteDraft = importedSite ?? createDemoSite();
+			if (!importedSite) siteDraft.name = name;
 			return;
 		}
-		draftStore = new DemoDraftStore(storage, draftStorageKey(projectId));
+		draftStore = new DemoDraftStore(storage, storageKey);
 		const stored = await draftStore.load().catch(() => null);
 		if (stored) siteDraft = cloneDemoSite(stored.site);
 		else {
-			const fresh = createDemoSite();
-			fresh.name = name;
+			const fresh = importedSite ?? createDemoSite();
+			if (!importedSite) fresh.name = name;
 			siteDraft = fresh;
 			await draftStore.save(fresh);
 		}
@@ -1389,10 +1423,13 @@
 	async function openConnectedSiteWorkspace() {
 		connectedSourceJustAdded = false;
 		mobileMenu = false;
-		if (sourceConnection) {
-			await activateSiteDraft(sourceConnection.projectId, sourceConnection.repository.name);
+		if (!sourceConnection) return;
+		try {
+			await activateSiteDraft(sourceConnection.projectId, sourceConnection.repository.name, true);
+			open('studio');
+		} catch {
+			view = 'home';
 		}
-		open('studio');
 	}
 
 	async function selectConnectedSite(connection: ConnectedSourceEvidence) {
@@ -2065,6 +2102,36 @@
 					<button class="primary" type="button" onclick={() => void continueConnectedSource()}>
 						Choose editing mode <ArrowRight size={16} />
 					</button>
+				</section>
+			{/if}
+			{#if workspaceLoadStatus !== 'idle'}
+				<section
+					class:source-error={workspaceLoadStatus === 'error'}
+					class="connected-source-handoff workspace-load-notice"
+					role={workspaceLoadStatus === 'error' ? 'alert' : 'status'}
+				>
+					<div class="connected-source-handoff__heading">
+						<span>
+							{#if workspaceLoadStatus === 'loading'}
+								<LoaderCircle class="spin" size={19} />
+							{:else}
+								<TriangleAlert size={19} />
+							{/if}
+						</span>
+						<div>
+							<small
+								>{workspaceLoadStatus === 'loading'
+									? 'Opening imported site'
+									: 'Site not opened'}</small
+							>
+							<h2>
+								{workspaceLoadStatus === 'loading'
+									? 'Reading the saved repository commit'
+									: 'The imported content could not be loaded'}
+							</h2>
+							<p>{workspaceLoadMessage}</p>
+						</div>
+					</div>
 				</section>
 			{/if}
 
@@ -3369,6 +3436,19 @@
 			style:--outline-width={`${outlineWidth}px`}
 			style:--inspector-width={`${inspectorWidth}px`}
 		>
+			{#if activeImportedConnection}
+				<div class="imported-workspace-banner" role="status">
+					<GitBranch size={17} />
+					<div>
+						<strong>{activeImportedConnection.repository.fullName}</strong>
+						<span>
+							Imported content from commit {activeImportedConnection.commit.slice(0, 10)}…. The
+							repository's custom renderer and styles remain in source and are not executed inside
+							this panel.
+						</span>
+					</div>
+				</div>
+			{/if}
 			<div class="studio-mobile-tabs" aria-label="Studio workspace">
 				<button class:active={studioPanel === 'outline'} onclick={() => (studioPanel = 'outline')}
 					>Outline</button
@@ -7180,6 +7260,26 @@
 			var(--outline-width) 8px minmax(0, 1fr) 8px
 			var(--inspector-width);
 		min-height: calc(100dvh - 64px);
+	}
+	.imported-workspace-banner {
+		grid-column: 1 / -1;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 16px;
+		border-bottom: 1px solid var(--border);
+		background: color-mix(in srgb, var(--green) 8%, var(--surface));
+		color: var(--green);
+	}
+	.imported-workspace-banner div {
+		display: flex;
+		align-items: baseline;
+		gap: 9px;
+		min-width: 0;
+	}
+	.imported-workspace-banner span {
+		color: var(--muted);
+		font-size: 12px;
 	}
 	.studio-page.resizing,
 	.studio-page.resizing * {

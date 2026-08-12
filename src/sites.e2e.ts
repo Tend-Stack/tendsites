@@ -1248,6 +1248,27 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 					async listConnections() {
 						return savedConnection ? [savedConnection] : [];
 					},
+					async loadWorkspace() {
+						return {
+							contract: 'tend.host/sites-inert-content-projection/v1',
+							pages: [
+								{
+									path: '/',
+									title: 'TEND Sites source workspace',
+									summary: 'Content projected from the connected repository.',
+									sections: [
+										{
+											title: 'TEND Sites source workspace',
+											body: 'Content projected from the connected repository.'
+										}
+									]
+								}
+							],
+							posts: [],
+							canonicalUrl: 'https://example.com',
+							warnings: ['Custom renderer preserved in source.']
+						};
+					},
 					async connectRepository() {
 						providerAccessAvailable = false;
 						savedConnection = {
@@ -1444,6 +1465,29 @@ test('switches the active workspace when a different connected site is opened', 
 					},
 					async getConnection(projectId: string) {
 						return connections.find((item) => item.projectId === projectId) ?? null;
+					},
+					async loadWorkspace(projectId: string) {
+						const current = connections.find((item) => item.projectId === projectId);
+						if (!current) throw new Error('unknown site');
+						return {
+							contract: 'tend.host/sites-inert-content-projection/v1',
+							pages: [
+								{
+									path: '/',
+									title: `${current.repository.name} imported home`,
+									summary: `Actual content from ${current.repository.fullName}.`,
+									sections: [
+										{
+											title: `${current.repository.name} imported home`,
+											body: `Actual content from ${current.repository.fullName}.`
+										}
+									]
+								}
+							],
+							posts: [],
+							canonicalUrl: null,
+							warnings: ['Custom renderer preserved in source.']
+						};
 					}
 				}
 			})
@@ -1458,14 +1502,13 @@ test('switches the active workspace when a different connected site is opened', 
 	await expect(betaCard).toBeVisible();
 	await alphaCard.getByRole('button', { name: 'Open site workspace' }).click();
 	await expect(page.getByLabel('Site outline').locator('.eyebrow')).toHaveText('alpha-site');
+	await expect(page.getByText('alpha-site imported home', { exact: true }).first()).toBeVisible();
+	await expect(page.getByText('Stories, sound & places worth remembering.')).toHaveCount(0);
 
 	await page.getByRole('button', { name: 'Your sites' }).click();
 	await betaCard.getByRole('button', { name: 'Open site workspace' }).click();
 	await expect(page.getByLabel('Site outline').locator('.eyebrow')).toHaveText('beta-site');
-
-	await page.getByRole('button', { name: 'Your sites' }).click();
-	await alphaCard.getByRole('button', { name: 'Open site workspace' }).click();
-	await expect(page.getByLabel('Site outline').locator('.eyebrow')).toHaveText('alpha-site');
+	await expect(page.getByText('beta-site imported home', { exact: true }).first()).toBeVisible();
 });
 
 test('selects, analyzes, and connects a GitLab repository through the shared host bridge', async ({

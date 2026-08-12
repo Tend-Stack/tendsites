@@ -3,6 +3,7 @@ import forestCabinImage from '../assets/demo/forest-cabin.png';
 import weekendLakeImage from '../assets/demo/weekend-lake.png';
 
 import type { DemoThemeId } from './library-catalog';
+import type { ImportedSiteProjection } from './host-source';
 import { isEmbedReference, type EmbedReference } from './embed';
 import {
 	createDefaultSiteStructure,
@@ -580,6 +581,93 @@ export function createDemoSite(): DemoSite {
 		structure: createDefaultSiteStructure(pages)
 	};
 	return site;
+}
+
+export function createImportedSite(name: string, projection: ImportedSiteProjection): DemoSite {
+	const projectedPages = projection.pages.length
+		? projection.pages
+		: [
+				{
+					path: '/',
+					title: 'Repository content',
+					summary: 'No static page copy could be mapped safely from this custom renderer.',
+					sections: [
+						{
+							title: 'Custom site connected',
+							body: 'The repository remains connected and its custom components and styles stay in source.'
+						}
+					]
+				}
+			];
+	const pages: DemoPage[] = projectedPages.map((page, pageIndex) => {
+		const id = page.path === '/' ? 'home' : `imported-page-${pageIndex + 1}`;
+		const sections = (
+			page.sections.length ? page.sections : [{ title: page.title, body: page.summary }]
+		).map((section, sectionIndex): DemoSection => ({
+			id: `imported-${pageIndex + 1}-${sectionIndex + 1}`,
+			kind: sectionIndex === 0 ? 'hero' : 'story',
+			label: section.title,
+			eyebrow: sectionIndex === 0 ? 'IMPORTED PAGE' : 'IMPORTED SECTION',
+			title: section.title,
+			body: section.body
+		}));
+		return {
+			id,
+			name: page.path === '/' ? 'Home' : page.title,
+			slug: normalizePageSlug(page.path),
+			seo: createDefaultPageSeo(page.title, sections, page.summary),
+			sections
+		};
+	});
+	const collections: DemoCollection[] = projection.posts.length
+		? [
+				{
+					id: 'imported-posts',
+					name: 'Imported posts',
+					slug: 'posts',
+					kind: 'posts',
+					items: projection.posts.map((post, index) => ({
+						id: `imported-post-${index + 1}`,
+						title: post.title,
+						slug: normalizePostSlug(purePostName(post.path, post.title)),
+						summary: post.summary,
+						body: post.body,
+						author: name,
+						tags: [],
+						relatedPostIds: [],
+						status: 'published',
+						featured: index === 0,
+						publishedAt: '2026-01-01T00:00:00.000Z',
+						scheduledAt: null,
+						seo: createDefaultEntrySeo(post.title, post.summary)
+					}))
+				}
+			]
+		: [];
+	const tagline = pages[0]?.seo.description || `Imported from ${name}`;
+	return {
+		name,
+		tagline,
+		accent: '#56e6ad',
+		themeId: 'minimal',
+		seo: {
+			...createDefaultSiteSeo(name, tagline),
+			canonicalUrl: projection.canonicalUrl ?? ''
+		},
+		pages,
+		collections,
+		redirects: [],
+		structure: createDefaultSiteStructure(pages)
+	};
+}
+
+function purePostName(path: string, fallback: string): string {
+	return (
+		path
+			.split('/')
+			.at(-1)
+			?.replace(/\.(?:md|mdx|mdsvex)$/i, '') || fallback
+	);
 }
 
 export function cloneDemoSite(site: DemoSite): DemoSite {
