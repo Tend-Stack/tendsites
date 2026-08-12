@@ -1229,6 +1229,9 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 					async getConnection() {
 						return savedConnection;
 					},
+					async listConnections() {
+						return savedConnection ? [savedConnection] : [];
+					},
 					async connectRepository() {
 						providerAccessAvailable = false;
 						savedConnection = {
@@ -1316,14 +1319,15 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(
 		page.getByRole('heading', { name: 'Your website does not have to look or work like ours.' })
 	).toBeInViewport();
-	await page.getByRole('button', { name: 'Refresh access' }).click();
-	await expect(page.getByText('Source connected', { exact: true })).toBeVisible();
-	await expect(page.getByText('Continue setup without reconnecting.')).toBeVisible();
+	await expect(page.getByRole('navigation', { name: 'Site import setup' })).toContainText(
+		'Source connected'
+	);
 	await expect(page.getByText('Connection needed')).not.toBeVisible();
 	await page.getByRole('button', { name: 'Choose this mode' }).nth(1).click();
-	await expect(
-		page.getByText('Keep my custom design saved. Review the source-specific setup plan next.')
-	).toBeVisible();
+	await expect(page.getByRole('navigation', { name: 'Site import setup' })).toContainText(
+		'Keep my custom design'
+	);
+	await expect(page.getByText('Editing mode selected')).toBeVisible();
 	await expect(page.getByLabel('Connected site setup plan')).toBeInViewport();
 	await expect(page.getByLabel('Connected site setup plan')).toContainText('sveltekit');
 	const connectedAuthority = page.locator('.authority-note--connected');
@@ -1340,7 +1344,9 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.getByText('Tend-Stack/tendsites', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Continue setup' })).toBeVisible();
 	await page.getByRole('button', { name: 'Continue setup' }).click();
-	await expect(page.getByText('Source connected', { exact: true })).toBeVisible();
+	await expect(page.getByRole('navigation', { name: 'Site import setup' })).toContainText(
+		'Source connected'
+	);
 	await expect(page.getByText('Connection needed')).not.toBeVisible();
 	await expect(page.getByLabel('Connected site setup plan')).toBeInViewport();
 	await expect(page.getByRole('button', { name: 'Review preview requirements' })).toBeVisible();

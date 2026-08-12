@@ -209,6 +209,7 @@
 	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
 	let sourceSetupStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 	let sourceSetupMessage = $state('');
+	let adoptionStep = $state<'source' | 'mode' | 'plan'>('source');
 	let sourceControlConnections = $state<SourceControlConnections | null>(null);
 	let selectedSourceProvider = $state<'github' | 'gitlab'>('github');
 	let sourceControlBusy = $state(false);
@@ -1141,13 +1142,18 @@
 		// adoption view can describe the source as disconnected.
 		if (sourceBridge) await loadSourceConnection();
 		if (sourceBridge) void loadSourceControlConnections();
+		adoptionStep = sourceConnection?.onboarding.editingMode ? 'plan' : 'mode';
 		await tick();
-		adoptionPathsElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		(sourceConnection?.onboarding.editingMode
+			? adoptionPlanElement
+			: adoptionPathsElement
+		)?.scrollIntoView({ block: 'start' });
 	}
 
 	async function showAdoptionChoices() {
+		adoptionStep = 'mode';
 		await tick();
-		adoptionPathsElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		adoptionPathsElement?.scrollIntoView({ block: 'start' });
 	}
 
 	async function selectAdoptionMode(mode: (typeof customSiteModes)[number]['id']) {
@@ -1173,6 +1179,7 @@
 				return;
 			}
 		}
+		adoptionStep = 'plan';
 		sourceConnectionNotice = sourceConnection
 			? `${sourceConnection.repository.fullName} remains connected. ${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} is saved and ready to review.`
 			: '';
@@ -1180,7 +1187,7 @@
 		// Selecting a mode is the user's explicit continuation action. Advance to
 		// the resulting plan immediately so the onboarding never appears stuck on
 		// the choice cards or implies that provider authorization is required again.
-		adoptionPlanElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		adoptionPlanElement?.scrollIntoView({ block: 'start' });
 		adoptionPlanElement?.focus({ preventScroll: true });
 	}
 
@@ -1293,7 +1300,9 @@
 		if (!sourceBridge) return;
 		sourceConnectionStatus = 'checking';
 		try {
-			const connection = await sourceBridge.getConnection(sourceProjectId);
+			const connection = sourceBridge.listConnections
+				? (ConnectedSourceEvidenceSchema.array().parse(await sourceBridge.listConnections())[0] ?? null)
+				: await sourceBridge.getConnection(sourceProjectId);
 			if (connection) {
 				sourceConnection = ConnectedSourceEvidenceSchema.parse(connection);
 				sourceConnectionStatus = 'connected';
@@ -1308,6 +1317,7 @@
 			if (sourceConnection) {
 				selectedSourceProvider = sourceConnection.provider;
 				selectedAdoptionMode = sourceConnection.onboarding.editingMode;
+				adoptionStep = sourceConnection.onboarding.editingMode ? 'plan' : 'mode';
 				if (sourceConnection.onboarding.stage !== 'source_connected') {
 					sourceSetupStatus = 'saved';
 					sourceSetupMessage =
@@ -1416,6 +1426,7 @@
 				})
 			);
 			sourceConnectionStatus = 'connected';
+			adoptionStep = 'mode';
 			sourceStatus = 'ready';
 			sourceConnectionNotice = `${sourceConnection.repository.fullName} is connected at commit ${sourceConnection.commit.slice(0, 10)}….`;
 			connectedSourceJustAdded = true;
@@ -2131,6 +2142,43 @@
 					the site's code.
 				</p>
 			</div>
+			{#if sourceBridge}
+				<nav class="adoption-progress" aria-label="Site import setup">
+					<button
+						type="button"
+						class:complete={Boolean(sourceConnection)}
+						class:current={adoptionStep === 'source'}
+						onclick={() => (adoptionStep = 'source')}
+					>
+						<span>{sourceConnection ? '✓' : '1'}</span>
+						<small>Source</small>
+						<strong>{sourceConnection ? 'Source connected' : 'Connect repository'}</strong>
+					</button>
+					<button
+						type="button"
+						class:complete={Boolean(selectedAdoptionMode)}
+						class:current={adoptionStep === 'mode'}
+						disabled={!sourceConnection}
+						onclick={() => (adoptionStep = 'mode')}
+					>
+						<span>{selectedAdoptionMode ? '✓' : '2'}</span>
+						<small>Editing</small>
+						<strong>{selectedAdoptionModeDetails?.name ?? 'Choose editing mode'}</strong>
+					</button>
+					<button
+						type="button"
+						class:complete={sourceConnection?.onboarding.stage === 'plan_reviewed'}
+						class:current={adoptionStep === 'plan'}
+						disabled={!selectedAdoptionMode}
+						onclick={() => (adoptionStep = 'plan')}
+					>
+						<span>{sourceConnection?.onboarding.stage === 'plan_reviewed' ? '✓' : '3'}</span>
+						<small>Plan</small>
+						<strong>Review next steps</strong>
+					</button>
+				</nav>
+			{/if}
+			{#if adoptionStep === 'source' || !sourceBridge}
 			<section class="source-connect" aria-labelledby="source-connect-title">
 				<div class="source-connect-heading">
 					<div>
@@ -2531,6 +2579,8 @@
 					</div>
 				{/if}
 			</section>
+			{/if}
+			{#if adoptionStep === 'mode' || !sourceBridge}
 			<section
 				class="adoption-paths"
 				aria-labelledby="adoption-paths-title"
@@ -2584,8 +2634,9 @@
 					</p>
 				{/if}
 			</section>
+			{/if}
 
-			{#if selectedAdoptionModeDetails}
+			{#if selectedAdoptionModeDetails && (adoptionStep === 'plan' || !sourceBridge)}
 				<section
 					class="mode-setup-handoff"
 					tabindex="-1"
@@ -2618,6 +2669,7 @@
 				</section>
 			{/if}
 
+			{#if adoptionStep === 'plan' || !sourceBridge}
 			<section
 				class="custom-site-proof"
 				aria-label="Connected site setup plan"
@@ -2692,6 +2744,7 @@
 					</div>
 				{/if}
 			</section>
+			{/if}
 
 			<section class="adapter-catalog" aria-labelledby="adapter-catalog-title">
 				<div class="section-heading">
@@ -5184,6 +5237,70 @@
 	}
 	.adoption-page {
 		max-width: 1240px;
+	}
+	.adoption-progress {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 10px;
+		margin: 0 0 18px;
+		padding: 8px;
+		border: 1px solid var(--border);
+		border-radius: 16px;
+		background: #091315;
+	}
+	.adoption-progress button {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0 10px;
+		align-items: center;
+		min-width: 0;
+		padding: 12px;
+		color: #7f948c;
+		text-align: left;
+		border: 1px solid transparent;
+		border-radius: 12px;
+		background: transparent;
+	}
+	.adoption-progress button > span {
+		display: grid;
+		grid-row: 1 / 3;
+		width: 30px;
+		height: 30px;
+		place-items: center;
+		font-size: 11px;
+		font-weight: 850;
+		border: 1px solid #355047;
+		border-radius: 9px;
+	}
+	.adoption-progress small,
+	.adoption-progress strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.adoption-progress small {
+		font-size: 9px;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.adoption-progress strong {
+		color: #aebfb9;
+		font-size: 12px;
+	}
+	.adoption-progress button.current {
+		color: var(--green);
+		border-color: #2d7059;
+		background: #10281f;
+	}
+	.adoption-progress button.complete > span {
+		color: #07130f;
+		border-color: var(--green);
+		background: var(--green);
+	}
+	.adoption-progress button:disabled {
+		cursor: default;
+		opacity: 0.55;
 	}
 	.source-connect {
 		margin-bottom: 18px;
@@ -8121,6 +8238,9 @@
 	}
 	@media (max-width: 640px) {
 		.connected-source-steps {
+			grid-template-columns: 1fr;
+		}
+		.adoption-progress {
 			grid-template-columns: 1fr;
 		}
 		.sites-shell.embedded .page {

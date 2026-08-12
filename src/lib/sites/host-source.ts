@@ -163,6 +163,7 @@ export type HostSourceBridge = Partial<HostCreationBridge & HostPreviewBridge> &
 		projectId: string;
 	}): Promise<ConnectedRepositoryReport>;
 	getConnection(projectId: string): Promise<ConnectedSourceEvidence | null>;
+	listConnections?(): Promise<ConnectedSourceEvidence[]>;
 	updateConnectionSetup(input: {
 		projectId: string;
 		connectionId: string;

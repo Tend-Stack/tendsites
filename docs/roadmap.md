@@ -218,6 +218,10 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete resilient handoff:** Editing-mode setup uses the last verified source binding even
     when provider access or a host refresh is temporarily unavailable. Reauthentication is reserved
     for inspecting a newer repository revision and no longer resets the connected setup flow.
+  - **Complete durable recovery and guided progression:** Sites enumerates the actor's saved source
+    bindings from tend.host instead of relying on a remembered synthetic project key. The focused
+    Source, Editing, and Plan steps restore the exact saved stage after remount, and choosing an
+    editing mode advances immediately to its source-specific plan without reopening provider access.
 - [x] Repository media lifecycle with accessible variants.
   - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.
   - **Complete connected picker:** A sealed, read-only tend.host Files bridge exposes sanitized image
