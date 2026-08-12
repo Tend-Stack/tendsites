@@ -169,6 +169,10 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete editorial-lifecycle foundation:** Posts now support draft, scheduled, published, and
     archived states with forward migration, bounded planned timestamps, dedicated filters, and
     explicit non-executing schedule guidance. Only published entries reach visitor collections.
+  - **Complete portable-source export:** Publish can download an adapter-neutral ZIP with the
+    versioned site document, Markdown pages/posts, and safely copied deduplicated media. Private or
+    unreadable media references are omitted and reported without granting repository authority or
+    requiring TEND Sites at runtime.
   - **Pending:** Scheduling, repository persistence, deployment, and the remaining visitor
     capability plan.
 - [x] Undo history and clear conflict resolution.

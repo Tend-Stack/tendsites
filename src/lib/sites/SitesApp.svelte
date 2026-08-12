@@ -13,6 +13,7 @@
 		Code2,
 		Copy,
 		DatabaseZap,
+		Download,
 		FileSearch,
 		FileText,
 		GitBranch,
@@ -101,6 +102,11 @@
 	} from './library-catalog';
 	import { normalizeRichTextLink, renderRichMarkdown, richElementToMarkdown } from './rich-text';
 	import {
+		createPortableSource,
+		type PortableAsset,
+		type PortableAssetRequest
+	} from './source-export';
+	import {
 		navigationChildren,
 		navigationRoots,
 		removeNavigationPage,
@@ -156,6 +162,8 @@
 	let previewPostId = $state<string | null>(null);
 	let showDraftRecovery = $state(false);
 	let recoveryBusy = $state(false);
+	let exportStatus = $state<'idle' | 'working' | 'done' | 'error'>('idle');
+	let exportMessage = $state('');
 	let newPageName = $state('');
 	let deleteTarget = $state<
 		| { kind: 'page'; id: string; name: string }
@@ -817,6 +825,61 @@
 	function open(next: View) {
 		view = next;
 		mobileMenu = false;
+	}
+
+	async function resolvePortableAsset(
+		request: PortableAssetRequest
+	): Promise<PortableAsset | null> {
+		const reference = request.reference;
+		if (reference.startsWith('data:')) {
+			if (!reference.toLowerCase().startsWith('data:image/')) return null;
+			const response = await fetch(reference);
+			if (!response.ok) return null;
+			return {
+				bytes: new Uint8Array(await response.arrayBuffer()),
+				mimeType: response.headers.get('content-type')?.split(';')[0] ?? ''
+			};
+		}
+		const url = new URL(reference, window.location.href);
+		if (
+			!['http:', 'https:', 'blob:'].includes(url.protocol) ||
+			url.origin !== window.location.origin ||
+			url.username ||
+			url.password
+		)
+			return null;
+		const response = await fetch(url, { credentials: 'same-origin' });
+		if (!response.ok) return null;
+		return {
+			bytes: new Uint8Array(await response.arrayBuffer()),
+			mimeType: response.headers.get('content-type')?.split(';')[0] ?? ''
+		};
+	}
+
+	async function downloadPortableSource() {
+		if (exportStatus === 'working') return;
+		exportStatus = 'working';
+		exportMessage = 'Preparing content and copying safe media…';
+		try {
+			const result = await createPortableSource(siteDraft, resolvePortableAsset);
+			const bytes = result.archive.slice().buffer;
+			const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = result.filename;
+			link.click();
+			URL.revokeObjectURL(url);
+			exportStatus = 'done';
+			exportMessage = result.warnings.length
+				? `Downloaded ${result.fileCount} files. ${result.warnings.length} media item${result.warnings.length === 1 ? '' : 's'} need review in the export report.`
+				: `Downloaded ${result.fileCount} files with ${result.assetCount} portable media item${result.assetCount === 1 ? '' : 's'}.`;
+		} catch (reason) {
+			exportStatus = 'error';
+			exportMessage =
+				reason instanceof Error
+					? reason.message.slice(0, 180)
+					: 'The source archive could not be prepared.';
+		}
 	}
 
 	function openPreviewPage(pageId: string) {
@@ -2874,6 +2937,31 @@
 					{/each}
 				</section>
 				<aside>
+					<article class="source-export-card">
+						<div class="source-export-heading">
+							<span><Download size={20} /></span>
+							<div>
+								<strong>Take your source with you</strong>
+								<p>Download structured source, Markdown content, and safely copied media.</p>
+							</div>
+						</div>
+						<button
+							class="primary source-export-button"
+							disabled={exportStatus === 'working'}
+							onclick={downloadPortableSource}
+						>
+							{#if exportStatus === 'working'}<LoaderCircle class="spin" size={18} /> Preparing…{:else}<Download
+									size={18}
+								/> Download source archive{/if}
+						</button>
+						<p
+							class:error={exportStatus === 'error'}
+							class="source-export-status"
+							aria-live="polite"
+						>
+							{exportMessage || 'No TEND Sites runtime is required to read the archive.'}
+						</p>
+					</article>
 					<article class="honesty-note">
 						<Rocket size={22} />
 						<div>
@@ -5572,6 +5660,46 @@
 		display: grid;
 		align-content: start;
 		gap: 12px;
+	}
+	.source-export-card {
+		display: grid;
+		gap: 16px;
+		padding: 20px;
+		border: 1px solid color-mix(in srgb, var(--green) 34%, var(--border));
+		border-radius: 18px;
+		background: linear-gradient(145deg, rgba(86, 230, 173, 0.09), rgba(14, 20, 23, 0.96));
+	}
+	.source-export-heading {
+		display: grid;
+		grid-template-columns: 38px 1fr;
+		gap: 12px;
+		align-items: start;
+	}
+	.source-export-heading > span {
+		display: grid;
+		place-items: center;
+		width: 38px;
+		height: 38px;
+		color: var(--green);
+		border-radius: 12px;
+		background: rgba(86, 230, 173, 0.1);
+	}
+	.source-export-heading p,
+	.source-export-status {
+		margin: 5px 0 0;
+		color: var(--muted);
+		font-size: 13px;
+		line-height: 1.45;
+	}
+	.source-export-button {
+		width: 100%;
+	}
+	.source-export-status {
+		min-height: 38px;
+		margin: -4px 2px 0;
+	}
+	.source-export-status.error {
+		color: #ffaaa5;
 	}
 	.publish-grid .honesty-note {
 		margin: 0;

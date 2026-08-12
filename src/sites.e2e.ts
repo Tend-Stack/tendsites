@@ -130,6 +130,12 @@ test('publishing clearly remains non-authoritative', async ({ page }) => {
 	await expect(page.getByText('Not created')).toBeVisible();
 	await expect(page.getByText('Proposed files')).toBeVisible();
 	await expect(page.getByText('Deletes')).toBeVisible();
+	await expect(page.getByText('Take your source with you')).toBeVisible();
+	const downloadPromise = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Download source archive' }).click();
+	const download = await downloadPromise;
+	expect(download.suggestedFilename()).toBe('willow-journal-source.zip');
+	await expect(page.getByText(/Downloaded \d+ files with 3 portable media items/)).toBeVisible();
 });
 
 test('organizes readiness evidence into focused tabs', async ({ page }) => {
@@ -982,9 +988,15 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await expect(page.locator('.large-canvas img')).toHaveCSS('object-position', '75% 50%');
 	const cropCanvas = await page.locator('.large-canvas').boundingBox();
 	expect(cropCanvas).not.toBeNull();
-	await page.mouse.move(cropCanvas!.x + cropCanvas!.width / 2, cropCanvas!.y + cropCanvas!.height / 2);
+	await page.mouse.move(
+		cropCanvas!.x + cropCanvas!.width / 2,
+		cropCanvas!.y + cropCanvas!.height / 2
+	);
 	await page.mouse.down();
-	await page.mouse.move(cropCanvas!.x + cropCanvas!.width / 2 - 80, cropCanvas!.y + cropCanvas!.height / 2);
+	await page.mouse.move(
+		cropCanvas!.x + cropCanvas!.width / 2 - 80,
+		cropCanvas!.y + cropCanvas!.height / 2
+	);
 	await page.mouse.up();
 	await expect(page.getByLabel('Horizontal focal point')).not.toHaveValue('75');
 	await page.getByLabel('Horizontal focal point').fill('75');

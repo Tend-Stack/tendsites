@@ -175,6 +175,12 @@ tend.host-managed vault implements the same adapter contract only after explicit
 remain optional and exportable. Builds and previews consume immutable snapshots in disposable
 workspaces; running containers, build caches, and artifacts are not repository backups.
 
+The browser may also create a bounded `tend-sites/portable-source/v1` download without repository
+or deployment authority. That archive contains a structured site document, ordinary Markdown, and
+deduplicated media copied only from data URLs, same-origin bundled assets, or owner-authorized
+same-origin Files responses. External and unreadable media is omitted and reported by human label;
+the original reference and connected Files metadata are never written into the archive.
+
 ## Local discovery draft
 
 The interactive Sites draft owns bounded site identity, page and post SEO, and at most 50 internal

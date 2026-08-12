@@ -176,7 +176,12 @@ blocks where an adapter proves safe round-tripping.
       understandable revision comparison before repository mutation.
 - [ ] Content import for bounded Markdown/MDX and common structured exports with a dry-run report,
       asset inventory, URL mapping, and unresolved-field questions.
-- [ ] Export remains ordinary source and assets with no TEND Sites runtime requirement.
+- [x] Export remains ordinary source and assets with no TEND Sites runtime requirement.
+  - **Complete portable-source slice:** Publish can download a bounded ZIP containing a versioned
+    structured site document, Markdown pages and posts, and deduplicated image assets. Same-origin
+    Files selections and optimized device uploads are copied when readable; unresolved media is
+    removed from source and named in an export report without leaking its private URL. The archive
+    is adapter-neutral and needs no TEND Sites runtime.
 
 ## Delivery order
 
