@@ -19,6 +19,7 @@
 		Minus,
 		MessageSquareText,
 		Quote,
+		Redo2,
 		Search,
 		Save,
 		Star,
@@ -26,7 +27,8 @@
 		Superscript,
 		Table2,
 		Trash2,
-		TriangleAlert
+		TriangleAlert,
+		Undo2
 	} from '@lucide/svelte';
 
 	import {
@@ -47,14 +49,22 @@
 		onsave,
 		saveStatus,
 		saveError,
-		media
+		media,
+		canUndo = false,
+		canRedo = false,
+		onundo,
+		onredo
 	}: {
 		site: DemoSite;
-		onchange: (mutator: (next: DemoSite) => void) => void;
+		onchange: (mutator: (next: DemoSite) => void, historyKey?: string) => void;
 		onsave: () => Promise<void>;
 		saveStatus: 'loading' | 'saved' | 'local' | 'error';
 		saveError?: string;
 		media?: HostMediaBridge;
+		canUndo?: boolean;
+		canRedo?: boolean;
+		onundo?: () => void;
+		onredo?: () => void;
 	} = $props();
 
 	let selectedPostId = $state('');
@@ -134,22 +144,25 @@
 		return { update };
 	}
 
-	function updatePost(mutator: (post: DemoPost) => void) {
+	function updatePost(mutator: (post: DemoPost) => void, historyKey = 'content-action') {
 		if (!selectedPost) return;
 		onchange((next) => {
 			const posts = next.collections.find((item) => item.id === collection?.id)?.items;
 			const post = posts?.find((item) => item.id === selectedPost.id);
 			if (post) mutator(post);
-		});
+		}, historyKey);
 	}
 
 	function updateText(field: 'title' | 'summary' | 'body' | 'author', value: string) {
-		updatePost((post) => {
-			const next = value
-				.trim()
-				.slice(0, field === 'body' ? 50_000 : field === 'summary' ? 500 : 120);
-			if (next) post[field] = next;
-		});
+		updatePost(
+			(post) => {
+				const next = value
+					.trim()
+					.slice(0, field === 'body' ? 50_000 : field === 'summary' ? 500 : 120);
+				if (next) post[field] = next;
+			},
+			`typing:post:${selectedPost?.id ?? 'none'}:${field}`
+		);
 	}
 
 	function editStory(action: MarkdownEditAction, label: string) {
@@ -163,7 +176,7 @@
 		);
 		const leadingWhitespace = result.value.length - result.value.trimStart().length;
 		const value = result.value.trim().slice(0, 50_000);
-		updatePost((post) => (post.body = value || 'Start writing here.'));
+		updatePost((post) => (post.body = value || 'Start writing here.'), `format:${action}`);
 		editorAnnouncement = `${label} added`;
 		requestAnimationFrame(() => {
 			editor.focus();
@@ -175,7 +188,25 @@
 	}
 
 	function updateStory(value: string) {
-		updatePost((post) => (post.body = value.slice(0, 50_000)));
+		updatePost(
+			(post) => (post.body = value.slice(0, 50_000)),
+			`typing:post:${selectedPost?.id ?? 'none'}:body`
+		);
+	}
+
+	function handleHistoryShortcut(event: KeyboardEvent) {
+		if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+		const key = event.key.toLowerCase();
+		if (key === 'z' && event.shiftKey && canRedo) {
+			event.preventDefault();
+			onredo?.();
+		} else if (key === 'z' && canUndo) {
+			event.preventDefault();
+			onundo?.();
+		} else if (key === 'y' && canRedo) {
+			event.preventDefault();
+			onredo?.();
+		}
 	}
 
 	function updateSlug(value: string) {
@@ -297,6 +328,8 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleHistoryShortcut} />
+
 <main class="content-page">
 	<header class="content-heading">
 		<div>
@@ -304,7 +337,16 @@
 			<h1>Stories, organized and ready to reuse.</h1>
 			<p>Write once, then place posts on your home page, journal, or future collections.</p>
 		</div>
-		<button class="primary" onclick={addPost}><CirclePlus size={18} /> New post</button>
+		<div class="content-heading-actions">
+			<div class="history-actions" aria-label="Editing history">
+				<button type="button" disabled={!canUndo} onclick={onundo} aria-label="Undo last edit"
+					><Undo2 size={17} /> Undo</button
+				><button type="button" disabled={!canRedo} onclick={onredo} aria-label="Redo last edit"
+					><Redo2 size={17} /> Redo</button
+				>
+			</div>
+			<button class="primary" onclick={addPost}><CirclePlus size={18} /> New post</button>
+		</div>
 	</header>
 
 	<section class="content-stats" aria-label="Content overview">
@@ -641,6 +683,38 @@
 	.post-editor footer p {
 		color: #99aaa5;
 		margin: 0;
+	}
+	.content-heading-actions,
+	.history-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.history-actions {
+		padding: 4px;
+		border: 1px solid #1d3730;
+		border-radius: 12px;
+		background: #091512;
+	}
+	.history-actions button {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 10px;
+		color: #c7d7d1;
+		border: 0;
+		border-radius: 8px;
+		background: transparent;
+		cursor: pointer;
+	}
+	.history-actions button:hover:not(:disabled),
+	.history-actions button:focus-visible {
+		color: #56e6ad;
+		background: #10251e;
+	}
+	.history-actions button:disabled {
+		opacity: 0.38;
+		cursor: not-allowed;
 	}
 	button,
 	input,

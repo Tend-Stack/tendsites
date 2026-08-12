@@ -66,7 +66,7 @@ blocks where an adapter proves safe round-tripping.
 - [x] Portable headings, bold, italic, strikethrough, inline code, bullets, and validated links.
 - [x] Typed YouTube, Vimeo, X-post, and Twitch insertion from a normal URL—never pasted script or
       iframe code. Video previews load only after an explicit privacy choice.
-- [ ] Numbered lists, block quotes, code blocks, dividers, tables, callouts, footnotes, and undo that
+- [x] Numbered lists, block quotes, code blocks, dividers, tables, callouts, footnotes, and undo that
       follows logical editing actions.
   - **Complete portable-structure slice:** The post composer provides keyboard-labelled insertion
     tools for numbered lists, block quotes, fenced code, and dividers alongside the existing
@@ -75,8 +75,11 @@ blocks where an adapter proves safe round-tripping.
   - **Complete advanced-writing slice:** The composer now inserts ordinary Markdown tables,
     GitHub-compatible note callouts, and uniquely numbered footnotes from the current selection.
     Studio and visitor renderers provide responsive table overflow, semantic column headers,
-    labelled callouts, linked footnotes, and escaped unsafe input. Selection-aware history remains
-    pending.
+    labelled callouts, linked footnotes, and escaped unsafe input.
+  - **Complete logical-history slice:** Content editing exposes visible Undo and Redo actions plus
+    standard keyboard shortcuts. Rapid typing in the same field coalesces into one understandable
+    history step, while formatting, status, media, and structural actions remain distinct; a new
+    edit safely clears the redo branch.
 - [ ] Repository image insertion by upload, paste, drag, or library selection with required alt
       text, optional caption/credit/link, crop/focal point, and responsive variants.
 - [ ] Gallery, comparison, carousel, hero, card grid, feature list, statistics, FAQ/accordion,

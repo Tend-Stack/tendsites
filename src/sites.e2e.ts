@@ -91,6 +91,14 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 	await expect(page.locator('.post-editor > header h2')).toHaveText(
 		'Books for a rainy cabin weekend'
 	);
+	await expect(page.getByRole('button', { name: 'Undo last edit' })).toBeEnabled();
+	await page.getByRole('button', { name: 'Undo last edit' }).click();
+	await expect(page.locator('.post-editor > header h2')).toHaveText('A cabin reading list');
+	await expect(page.getByRole('button', { name: 'Redo last edit' })).toBeEnabled();
+	await page.getByRole('button', { name: 'Redo last edit' }).click();
+	await expect(page.locator('.post-editor > header h2')).toHaveText(
+		'Books for a rainy cabin weekend'
+	);
 
 	const story = page.getByRole('textbox', { name: 'Story' });
 	await story.fill('A useful field note');

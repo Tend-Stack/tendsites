@@ -149,7 +149,9 @@
 	let siteDraft = $state<DemoSite>(createDemoSite());
 	let selectedPageId = $state('home');
 	let selectedSectionId = $state('hero-1');
-	let history = $state<DemoSite[]>([]);
+	type DraftHistoryEntry = { site: DemoSite; key: string; changedAt: number };
+	let history = $state<DraftHistoryEntry[]>([]);
+	let redoHistory = $state<DemoSite[]>([]);
 	let saveStatus = $state<'loading' | 'saved' | 'local' | 'error'>('loading');
 	let saveError = $state('');
 	let showAddPage = $state(false);
@@ -350,24 +352,48 @@
 		}
 	}
 
-	function changeDraft(mutator: (next: DemoSite) => void) {
-		history = [...history.slice(-19), cloneDemoSite(siteDraft)];
+	function changeDraft(mutator: (next: DemoSite) => void, historyKey = 'action') {
+		const changedAt = Date.now();
+		const previous = cloneDemoSite(siteDraft);
 		const next = cloneDemoSite(siteDraft);
 		mutator(next);
+		if (JSON.stringify(previous) === JSON.stringify(next)) return;
+		const latest = history.at(-1);
+		const coalescesTyping =
+			historyKey.startsWith('typing:') &&
+			latest?.key === historyKey &&
+			changedAt - latest.changedAt < 1_000;
+		history = coalescesTyping
+			? [...history.slice(0, -1), { ...latest, changedAt }]
+			: [...history.slice(-19), { site: previous, key: historyKey, changedAt }];
+		redoHistory = [];
 		siteDraft = next;
 		saveDraft(next);
 	}
 
 	function undoDraft() {
-		const previous = history.at(-1);
-		if (!previous) return;
+		const entry = history.at(-1);
+		if (!entry) return;
 		history = history.slice(0, -1);
-		siteDraft = cloneDemoSite(previous);
+		redoHistory = [...redoHistory.slice(-19), cloneDemoSite(siteDraft)];
+		siteDraft = cloneDemoSite(entry.site);
 		if (!siteDraft.pages.some((page) => page.id === selectedPageId)) {
 			selectedPageId = siteDraft.pages[0].id;
 		}
 		selectedSectionId =
 			siteDraft.pages.find((page) => page.id === selectedPageId)?.sections[0]?.id ?? '';
+		saveDraft(siteDraft);
+	}
+
+	function redoDraft() {
+		const next = redoHistory.at(-1);
+		if (!next) return;
+		redoHistory = redoHistory.slice(0, -1);
+		history = [
+			...history.slice(-19),
+			{ site: cloneDemoSite(siteDraft), key: 'redo', changedAt: Date.now() }
+		];
+		siteDraft = cloneDemoSite(next);
 		saveDraft(siteDraft);
 	}
 
@@ -1086,6 +1112,10 @@
 			{saveStatus}
 			{saveError}
 			{media}
+			canUndo={history.length > 0}
+			canRedo={redoHistory.length > 0}
+			onundo={undoDraft}
+			onredo={redoDraft}
 		/>
 	{:else if view === 'structure'}
 		<StructureWorkspace
