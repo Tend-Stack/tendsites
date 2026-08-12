@@ -72,6 +72,6 @@ separate from replaceable containers, build workspaces, caches, and artifacts.
 
 TEND Sites does not own GitHub, GitLab, Bitbucket, or Forgejo/Gitea secrets.
 It uses a versioned credential-free tend.host bridge and may start host-owned
-connection or repository-access flows in context. GitHub App access is reused
-by Sites and app deployments; future providers must plug into that shared seam
-instead of adding provider settings inside the extension.
+connection or repository-access flows in context. GitHub App and encrypted
+GitLab access are reused by Sites and app deployments; future providers must
+plug into that shared seam instead of adding provider settings inside the extension.

@@ -174,6 +174,7 @@
 	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
 	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
 	let sourceControlConnections = $state<SourceControlConnections | null>(null);
+	let selectedSourceProvider = $state<'github' | 'gitlab'>('github');
 	let sourceControlBusy = $state(false);
 	let sourceControlPrompt = $state('');
 	let selectedModules = $state<string[]>(['Home', 'About', 'Blog', 'Gallery', 'Contact']);
@@ -260,6 +261,12 @@
 	const sourceProjectId = 'connected-site';
 	const githubConnection = $derived(
 		sourceControlConnections?.providers.find((provider) => provider.id === 'github') ?? null
+	);
+	const gitlabConnection = $derived(
+		sourceControlConnections?.providers.find((provider) => provider.id === 'gitlab') ?? null
+	);
+	const activeSourceConnection = $derived(
+		selectedSourceProvider === 'github' ? githubConnection : gitlabConnection
 	);
 	const reportIsConnected = $derived(
 		Boolean(
@@ -943,7 +950,10 @@
 			sourceControlConnections = SourceControlConnectionsSchema.parse(
 				await sourceBridge.getSourceControlConnections()
 			);
-			if (githubConnection?.available) await loadSourceRepositories();
+			if (sourceConnection?.provider === 'gitlab' || (!githubConnection?.available && gitlabConnection?.available)) {
+				selectedSourceProvider = 'gitlab';
+			}
+			if (activeSourceConnection?.available) await loadSourceRepositories();
 		} catch (error) {
 			sourceError =
 				error instanceof Error ? error.message : 'Source connections could not be loaded.';
@@ -952,17 +962,20 @@
 		}
 	}
 
-	async function beginGithubConnection() {
+	async function beginSourceControlConnection(provider: 'github' | 'gitlab') {
 		if (!sourceBridge || sourceControlBusy) return;
 		sourceControlBusy = true;
 		sourceError = '';
 		try {
-			await sourceBridge.beginSourceControlConnection('github');
+			await sourceBridge.beginSourceControlConnection(provider);
 			sourceControlPrompt =
-				'Finish the GitHub steps in the new tab, then refresh repository access here.';
+				provider === 'github'
+					? 'Finish the GitHub steps in the new tab, then refresh repository access here.'
+					: 'GitLab connected. Repository access is refreshing…';
+			if (provider === 'gitlab') await loadSourceControlConnections();
 		} catch (error) {
 			sourceError =
-				error instanceof Error ? error.message : 'GitHub connection could not be started.';
+				error instanceof Error ? error.message : `${provider} connection could not be started.`;
 		} finally {
 			sourceControlBusy = false;
 		}
@@ -976,6 +989,21 @@
 		} catch (error) {
 			sourceError =
 				error instanceof Error ? error.message : 'GitHub repository access could not be opened.';
+		}
+	}
+
+	function chooseSourceProvider(provider: 'github' | 'gitlab') {
+		if (selectedSourceProvider === provider) return;
+		selectedSourceProvider = provider;
+		selectedSourceRepository = null;
+		selectedSourceRef = '';
+		sourceRepositories = [];
+		sourceBranches = [];
+		sourceReport = null;
+		sourceError = '';
+		sourceControlPrompt = '';
+		if ((provider === 'github' ? githubConnection : gitlabConnection)?.available) {
+			void loadSourceRepositories();
 		}
 	}
 
@@ -995,7 +1023,7 @@
 		sourceError = '';
 		try {
 			sourceRepositories = ConnectedRepositorySchema.array().parse(
-				await sourceBridge.listRepositories(sourceQuery.trim())
+				await sourceBridge.listRepositories(selectedSourceProvider, sourceQuery.trim())
 			);
 			sourceStatus = 'idle';
 		} catch (error) {
@@ -1014,7 +1042,12 @@
 		sourceError = '';
 		try {
 			sourceBranches = ConnectedRepositoryBranchSchema.array().parse(
-				await sourceBridge.listBranches(repository.owner, repository.name)
+				await sourceBridge.listBranches(
+					repository.provider,
+					repository.repositoryId,
+					repository.owner,
+					repository.name
+				)
 			);
 			sourceStatus = 'idle';
 		} catch (error) {
@@ -1035,6 +1068,8 @@
 		try {
 			sourceReport = ConnectedRepositoryReportSchema.parse(
 				await sourceBridge.inspectRepository({
+					provider: selectedSourceRepository.provider,
+					repositoryId: selectedSourceRepository.repositoryId,
 					owner: selectedSourceRepository.owner,
 					repository: selectedSourceRepository.name,
 					ref: selectedSourceRef,
@@ -1059,6 +1094,8 @@
 		try {
 			sourceConnection = ConnectedSourceEvidenceSchema.parse(
 				await sourceBridge.connectRepository({
+					provider: sourceReport.inspection.snapshot.provider,
+					repositoryId: sourceReport.inspection.snapshot.repositoryId,
 					owner: sourceReport.repository.owner,
 					repository: sourceReport.repository.name,
 					ref: sourceReport.repository.ref,
@@ -1531,48 +1568,78 @@
 							deployments, and future Git workflows.
 						</p>
 					</div>
-					<span class:available={githubConnection?.available === true} class="source-capability">
-						{githubConnection?.available ? 'Repository access ready' : 'Connection needed'}
+					<span class:available={activeSourceConnection?.available === true} class="source-capability">
+						{activeSourceConnection?.available ? 'Repository access ready' : 'Connection needed'}
 					</span>
 				</div>
 				{#if sourceBridge}
+					<div class="source-provider-switch" aria-label="Source-control provider">
+						<button
+							type="button"
+							class:active={selectedSourceProvider === 'github'}
+							onclick={() => chooseSourceProvider('github')}
+						>
+							<GitBranch size={17} /> GitHub
+							{#if githubConnection?.available}<Check size={15} />{/if}
+						</button>
+						<button
+							type="button"
+							class:active={selectedSourceProvider === 'gitlab'}
+							onclick={() => chooseSourceProvider('gitlab')}
+						>
+							<GitBranch size={17} /> GitLab
+							{#if gitlabConnection?.available}<Check size={15} />{/if}
+						</button>
+					</div>
 					<div class="source-provider-card" aria-live="polite">
 						<div class="source-provider-identity">
 							<span><GitBranch size={21} /></span>
 							<div>
-								<strong>GitHub</strong>
+								<strong>{activeSourceConnection?.name ?? (selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab')}</strong>
 								<p>
-									{#if githubConnection?.available}
+									{#if activeSourceConnection?.available}
 										Connected for repository imports and deployments.
-									{:else if githubConnection?.configured}
-										The shared App is connected. Choose which repositories it may access.
+									{:else if activeSourceConnection?.configured}
+										The shared connection is configured but repository access needs attention.
 									{:else}
-										Connect the shared GitHub App without leaving this Sites workflow.
+										Connect {selectedSourceProvider === 'github' ? 'the shared GitHub App' : 'GitLab'} without leaving this Sites workflow.
 									{/if}
 								</p>
 							</div>
 						</div>
-						{#if githubConnection?.installations.length}
-							<div class="source-installations" aria-label="Connected GitHub accounts">
-								{#each githubConnection.installations as installation (installation.owner)}
+						{#if activeSourceConnection?.installations.length}
+							<div class="source-installations" aria-label="Connected source-control accounts">
+								{#each activeSourceConnection.installations as installation (installation.owner)}
 									<span>
 										{installation.owner}
 										<small
 											>{installation.repositorySelection === 'all'
 												? 'All repositories'
-												: 'Selected repositories'}</small
+											: installation.repositorySelection === 'selected'
+												? 'Selected repositories'
+												: 'Accessible repositories'}</small
 										>
 									</span>
 								{/each}
 							</div>
 						{/if}
 						<div class="source-provider-actions">
-							{#if !githubConnection?.configured || githubConnection?.authMode === 'personal_access_token'}
+							{#if selectedSourceProvider === 'gitlab'}
 								<button
 									class="primary"
 									type="button"
 									disabled={sourceControlBusy}
-									onclick={() => void beginGithubConnection()}
+									onclick={() => void beginSourceControlConnection('gitlab')}
+								>
+									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Verifying…{:else}<GitBranch size={17} />
+										{gitlabConnection?.configured ? 'Reconnect GitLab' : 'Connect GitLab'}{/if}
+								</button>
+							{:else if !githubConnection?.configured || githubConnection?.authMode === 'personal_access_token'}
+								<button
+									class="primary"
+									type="button"
+									disabled={sourceControlBusy}
+									onclick={() => void beginSourceControlConnection('github')}
 								>
 									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Opening…{:else}<GitBranch
 											size={17}
@@ -1600,7 +1667,7 @@
 								{sourceControlPrompt}
 							</p>{/if}
 					</div>
-					{#if githubConnection?.available}
+					{#if activeSourceConnection?.available}
 						{#if sourceConnection}
 							<div class="source-connected" aria-live="polite">
 								<span><Check size={18} /></span>
@@ -1617,7 +1684,7 @@
 							</div>
 						{/if}
 						<div class="source-search">
-							<label for="source-search-input">Find a GitHub repository</label>
+							<label for="source-search-input">Find a {selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab'} repository</label>
 							<div>
 								<Search size={17} />
 								<input
@@ -1640,7 +1707,7 @@
 						</div>
 						{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
 						<div class:analyzed={sourceReport !== null} class="source-connect-grid">
-							<div class="source-repository-list" aria-label="Connected GitHub repositories">
+							<div class="source-repository-list" aria-label="Connected {selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab'} repositories">
 								{#each sourceRepositories as repository (repository.fullName)}
 									<button
 										type="button"
@@ -1736,9 +1803,9 @@
 									<div class="source-pages">
 										<GitBranch size={18} />
 										<div>
-											<strong>Published with GitHub Pages</strong>
+											<strong>Published with {sourceReport.pagesDeployment.method === 'gitlab-ci' ? 'GitLab Pages' : 'GitHub Pages'}</strong>
 											<p>
-												GitHub Actions builds
+												{sourceReport.pagesDeployment.method === 'gitlab-ci' ? 'GitLab CI' : 'GitHub Actions'} builds
 												{sourceReport.pagesDeployment.artifactPath
 													? ` ${sourceReport.pagesDeployment.artifactPath}/`
 													: ' a site artifact'}
@@ -4280,6 +4347,32 @@
 		color: #67e6b6;
 		border-color: #28634f;
 		background: #0d2a20;
+	}
+	.source-provider-switch {
+		display: inline-flex;
+		gap: 5px;
+		margin-bottom: 10px;
+		padding: 4px;
+		border: 1px solid #29483e;
+		border-radius: 12px;
+		background: #07110f;
+	}
+	.source-provider-switch button {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		min-height: 38px;
+		padding: 0 13px;
+		color: #87a098;
+		font-weight: 750;
+		border: 0;
+		border-radius: 9px;
+		background: transparent;
+	}
+	.source-provider-switch button.active {
+		color: #eaf6f1;
+		background: #14241f;
+		box-shadow: 0 0 0 1px #315448;
 	}
 	.source-provider-card {
 		display: grid;

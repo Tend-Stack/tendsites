@@ -9,9 +9,11 @@ import { RepositoryInspectionResultSchema } from '../contracts/repository-inspec
 
 export const ConnectedRepositorySchema = z
 	.object({
-		owner: z.string().min(1).max(100),
+		provider: z.enum(['github', 'gitlab']),
+		repositoryId: z.string().min(1).max(120),
+		owner: z.string().min(1).max(180),
 		name: z.string().min(1).max(100),
-		fullName: z.string().min(3).max(201),
+		fullName: z.string().min(3).max(281),
 		private: z.boolean(),
 		defaultBranch: z.string().min(1).max(255),
 		description: z.string().max(240),
@@ -32,9 +34,9 @@ export const ConnectedRepositoryReportSchema = z
 		inspection: RepositoryInspectionResultSchema,
 		repository: z
 			.object({
-				owner: z.string().min(1).max(100),
+				owner: z.string().min(1).max(180),
 				name: z.string().min(1).max(100),
-				fullName: z.string().min(3).max(201),
+				fullName: z.string().min(3).max(281),
 				ref: z.string().min(1).max(255)
 			})
 			.strict(),
@@ -50,7 +52,7 @@ export const ConnectedRepositoryReportSchema = z
 		contentPaths: z.array(z.string().min(1).max(240)).max(8),
 		pagesDeployment: z
 			.object({
-				method: z.literal('github-actions'),
+				method: z.enum(['github-actions', 'gitlab-ci']),
 				sourceBranch: z.string().min(1).max(255).nullable(),
 				sourcePath: z.string().min(1).max(240).nullable(),
 				artifactPath: z.string().min(1).max(240).nullable(),
@@ -71,12 +73,12 @@ export const ConnectedSourceEvidenceSchema = z
 		contract: z.literal('tend.host/sites-connected-source-evidence/v1'),
 		connectionId: z.uuid(),
 		projectId: z.string().min(1).max(96),
-		provider: z.literal('github'),
+		provider: z.enum(['github', 'gitlab']),
 		repository: z
 			.object({
-				owner: z.string().min(1).max(100),
+				owner: z.string().min(1).max(180),
 				name: z.string().min(1).max(100),
-				fullName: z.string().min(3).max(201),
+				fullName: z.string().min(3).max(281),
 				ref: z.string().min(1).max(255)
 			})
 			.strict(),
@@ -107,16 +109,19 @@ export const SourceControlConnectionsSchema = z
 					available: z.boolean(),
 					authMode: z.enum(['github_app', 'personal_access_token']).nullable(),
 					installUrl: z.url().nullable(),
+					instanceUrl: z.url().nullable().optional(),
 					installations: z.array(
 						z
 							.object({
 								owner: z.string().min(1).max(100),
 								ownerType: z.string().max(40),
-								repositorySelection: z.enum(['all', 'selected']),
+								repositorySelection: z.enum(['all', 'selected', 'accessible']),
 								manageUrl: z.url().nullable()
 							})
 							.strict()
 					),
+					tokenExpiresAt: z.string().max(32).nullable().optional(),
+					privateNetwork: z.boolean().optional(),
 					supports: z.array(z.enum(['repository-list', 'branches', 'read', 'deploy'])),
 					error: z.string().max(240).nullable()
 				})
@@ -131,9 +136,16 @@ export type HostSourceBridge = {
 	getSourceControlConnections(): Promise<SourceControlConnections>;
 	beginSourceControlConnection(provider: string): Promise<void>;
 	manageSourceControlAccess(provider: string): Promise<void>;
-	listRepositories(query?: string): Promise<ConnectedRepository[]>;
-	listBranches(owner: string, repository: string): Promise<ConnectedRepositoryBranch[]>;
+	listRepositories(provider: string, query?: string): Promise<ConnectedRepository[]>;
+	listBranches(
+		provider: string,
+		repositoryId: string,
+		owner: string,
+		repository: string
+	): Promise<ConnectedRepositoryBranch[]>;
 	inspectRepository(input: {
+		provider: string;
+		repositoryId: string;
 		owner: string;
 		repository: string;
 		ref: string;
@@ -141,6 +153,8 @@ export type HostSourceBridge = {
 	}): Promise<ConnectedRepositoryReport>;
 	getConnection(projectId: string): Promise<ConnectedSourceEvidence | null>;
 	connectRepository(input: {
+		provider: string;
+		repositoryId: string;
 		owner: string;
 		repository: string;
 		ref: string;
