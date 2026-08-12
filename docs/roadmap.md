@@ -79,7 +79,10 @@ Completion is measured only from the top-level product milestones below. Nested 
     reviewed plan with explicit connected-revision feedback. The editing mode and plan-review stage
     are now durable host-owned onboarding state. Both transitions remain bound to the saved source
     connection, survive reloads, make no provider call, and guide the user directly into isolated
-    preview requirements instead of ending on a passive plan.
+    preview requirements instead of ending on a passive plan. The dashboard continuation now waits
+    for that durable Sites record before rendering adoption, distinguishes the short loading state
+    from a missing provider connection, and keeps provider authorization explicitly limited to
+    refreshing or replacing the selected source.
 - [x] Framework adapter and declarative content-schema catalog.
   - **Complete:** Versioned custom-site profiles and structured field mappings are strict, bounded,
     path-confined, and framework-neutral. A pure bounded detector recognizes SvelteKit, Astro,

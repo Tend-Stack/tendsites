@@ -1339,6 +1339,11 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.getByRole('heading', { name: 'tendsites', exact: true })).toBeVisible();
 	await expect(page.getByText('Tend-Stack/tendsites', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Continue setup' })).toBeVisible();
+	await page.getByRole('button', { name: 'Continue setup' }).click();
+	await expect(page.getByText('Source connected', { exact: true })).toBeVisible();
+	await expect(page.getByText('Connection needed')).not.toBeVisible();
+	await expect(page.getByLabel('Connected site setup plan')).toBeInViewport();
+	await expect(page.getByRole('button', { name: 'Review preview requirements' })).toBeVisible();
 });
 
 test('selects, analyzes, and connects a GitLab repository through the shared host bridge', async ({

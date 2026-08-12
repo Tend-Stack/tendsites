@@ -205,6 +205,7 @@
 	let modeSetupElement = $state<HTMLElement | null>(null);
 	let adoptionPlanElement = $state<HTMLElement | null>(null);
 	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
+	let sourceConnectionStatus = $state<'checking' | 'connected' | 'missing' | 'error'>('checking');
 	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
 	let sourceSetupStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 	let sourceSetupMessage = $state('');
@@ -1133,7 +1134,13 @@
 
 	async function continueConnectedSource() {
 		connectedSourceJustAdded = false;
-		open('adopt');
+		view = 'adopt';
+		mobileMenu = false;
+		// This handoff is driven by the durable Sites source record, not by the
+		// provider's current authorization state. Resolve that record before the
+		// adoption view can describe the source as disconnected.
+		if (sourceBridge) await loadSourceConnection();
+		if (sourceBridge) void loadSourceControlConnections();
 		await tick();
 		adoptionPathsElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
@@ -1284,9 +1291,19 @@
 
 	async function loadSourceConnection() {
 		if (!sourceBridge) return;
+		sourceConnectionStatus = 'checking';
 		try {
 			const connection = await sourceBridge.getConnection(sourceProjectId);
-			if (connection) sourceConnection = ConnectedSourceEvidenceSchema.parse(connection);
+			if (connection) {
+				sourceConnection = ConnectedSourceEvidenceSchema.parse(connection);
+				sourceConnectionStatus = 'connected';
+			} else if (sourceConnection) {
+				// A source returned by connectRepository remains valid for this mounted
+				// session even if an immediately following read is temporarily stale.
+				sourceConnectionStatus = 'connected';
+			} else {
+				sourceConnectionStatus = 'missing';
+			}
 			sourceConnectionLoadError = '';
 			if (sourceConnection) {
 				selectedSourceProvider = sourceConnection.provider;
@@ -1305,6 +1322,7 @@
 			// needed to inspect a newer revision, not to choose an editing mode.
 			sourceConnectionLoadError =
 				error instanceof Error ? error.message : 'The saved source could not be refreshed.';
+			sourceConnectionStatus = sourceConnection ? 'connected' : 'error';
 		}
 	}
 
@@ -1397,6 +1415,7 @@
 					confirmation: sourceReport.repository.fullName
 				})
 			);
+			sourceConnectionStatus = 'connected';
 			sourceStatus = 'ready';
 			sourceConnectionNotice = `${sourceConnection.repository.fullName} is connected at commit ${sourceConnection.commit.slice(0, 10)}….`;
 			connectedSourceJustAdded = true;
@@ -2129,6 +2148,8 @@
 					>
 						{sourceConnection
 							? 'Source connected'
+							: sourceConnectionStatus === 'checking'
+								? 'Checking saved source…'
 							: activeSourceConnection?.available
 								? 'Repository access ready'
 								: 'Connection needed'}
@@ -2162,7 +2183,10 @@
 										(selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab')}</strong
 								>
 								<p>
-									{#if activeSourceConnection?.available}
+									{#if sourceConnection}
+										{sourceConnection.repository.fullName} remains connected to Sites. Provider access
+										is only needed when you refresh or choose a different repository.
+									{:else if activeSourceConnection?.available}
 										Connected for repository imports and deployments.
 									{:else if activeSourceConnection?.configured}
 										The shared connection is configured but repository access needs attention.
@@ -2254,6 +2278,15 @@
 								now, so Sites kept the last verified connection for setup.
 							</p>
 						{/if}
+					{/if}
+					{#if sourceConnectionStatus === 'checking' && !sourceConnection}
+						<div class="source-onboarding" aria-live="polite">
+							<LoaderCircle class="spin" size={22} />
+							<div>
+								<strong>Checking your saved site connection…</strong>
+								<p>Sites is reading its own durable source record before asking for provider access.</p>
+							</div>
+						</div>
 					{/if}
 					{#if activeSourceConnection?.available}
 						<div class="source-search">
@@ -2473,7 +2506,7 @@
 								</p>
 							</div>
 						</div>
-					{:else if !sourceControlBusy}
+					{:else if !sourceControlBusy && sourceConnectionStatus !== 'checking'}
 						<div class="source-onboarding">
 							<ShieldCheck size={22} />
 							<div>
