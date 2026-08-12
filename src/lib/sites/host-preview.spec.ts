@@ -24,12 +24,16 @@ describe('site preview host contract', () => {
 				files: 8,
 				bytes: 4096,
 				builderImage: 'node@example',
-				serverImage: 'nginx@example'
+				serverImage: 'nginx@example',
+				recipeSha256: 'd'.repeat(64),
+				sbomSha256: 'e'.repeat(64),
+				platform: 'linux/amd64'
 			},
 			errorCode: null
 		});
 
 		expect(preview.url).toBe('https://preview.example.com');
+		expect(preview.artifact?.platform).toBe('linux/amd64');
 		expect(JSON.stringify(preview)).not.toContain('server_uuid');
 		expect(JSON.stringify(preview)).not.toContain('/sources');
 	});

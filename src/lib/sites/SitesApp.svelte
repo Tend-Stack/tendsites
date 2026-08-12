@@ -259,6 +259,8 @@
 		archive: Uint8Array;
 		filename: string;
 	} | null>(null);
+	const publishTarget = $derived(sourceCommitTarget ?? createdSites[0] ?? null);
+	const publishPreview = $derived(publishTarget ? sitePreviews[publishTarget.projectId] : null);
 	let newPageName = $state('');
 	let deleteTarget = $state<
 		| { kind: 'page'; id: string; name: string }
@@ -4626,11 +4628,11 @@
 				><ArrowLeft size={17} /> Studio</button
 			>
 			<div class="wizard-heading">
-				<span class="eyebrow">Durable source update</span>
-				<h1>Save your changes to the site source.</h1>
+				<span class="eyebrow">Save, preview, publish</span>
+				<h1>Move one exact revision toward production.</h1>
 				<p>
-					Commit the current visual draft to its versioned repository, then review that exact
-					revision in an isolated preview. This does not deploy production traffic.
+					Save the visual draft, review that exact commit in an isolated preview, and keep the
+					production handoff bound to the same immutable artifact.
 				</p>
 			</div>
 			<div class="publish-grid">
@@ -4735,6 +4737,78 @@
 					{/if}
 				</section>
 				<aside>
+					<article
+						class="source-export-card production-handoff-card"
+						aria-labelledby="production-handoff-title"
+					>
+						<div class="source-export-heading">
+							<span><Rocket size={20} /></span>
+							<div>
+								<h2 id="production-handoff-title">Production handoff</h2>
+								<p>Only the artifact already reviewed in Preview can become the candidate.</p>
+							</div>
+						</div>
+						{#if publishPreview?.state === 'ready' && publishPreview.artifact}
+							<dl class="publish-artifact-evidence">
+								<div>
+									<dt>Commit</dt>
+									<dd>{publishPreview.gitCommit.slice(0, 10)}…</dd>
+								</div>
+								<div>
+									<dt>Artifact</dt>
+									<dd>{publishPreview.artifact.sha256.slice(0, 10)}…</dd>
+								</div>
+								<div>
+									<dt>Recipe</dt>
+									<dd>
+										{publishPreview.artifact.recipeSha256
+											? `${publishPreview.artifact.recipeSha256.slice(0, 10)}…`
+											: 'Host update needed'}
+									</dd>
+								</div>
+								<div>
+									<dt>SBOM</dt>
+									<dd>
+										{publishPreview.artifact.sbomSha256
+											? `${publishPreview.artifact.sbomSha256.slice(0, 10)}…`
+											: 'Host update needed'}
+									</dd>
+								</div>
+								<div>
+									<dt>Platform</dt>
+									<dd>{publishPreview.artifact.platform ?? 'Host update needed'}</dd>
+								</div>
+								<div>
+									<dt>Review</dt>
+									<dd>Ready preview</dd>
+								</div>
+							</dl>
+							<button class="primary source-export-button" type="button" disabled>
+								<Rocket size={18} /> Publish reviewed artifact
+							</button>
+							<p class="source-export-status">
+								Production publishing awaits the separately authorized host deployment capability.
+								No traffic or domain has changed.
+							</p>
+						{:else}
+							<div class="production-preview-required">
+								<MonitorPlay size={20} />
+								<div>
+									<strong>Review a preview first</strong>
+									<p>Production will reuse that exact build rather than building again.</p>
+								</div>
+							</div>
+							{#if publishTarget}
+								<button
+									class="secondary source-export-button"
+									type="button"
+									onclick={() => openPreviewLauncher(publishTarget!)}
+								>
+									<MonitorPlay size={18} /> Create isolated preview
+								</button>
+							{/if}
+						{/if}
+					</article>
 					<article class="source-export-card">
 						<div class="source-export-heading">
 							<span><Download size={20} /></span>
@@ -4771,9 +4845,11 @@
 						</div>
 					</article>
 					<article class="source-workflow-card" aria-label="Source update workflow">
-						{#each [['1', 'Draft ready', 'Your local edits are prepared into portable source.'], ['2', 'Commit source', 'The host verifies and records one exact repository revision.'], ['3', 'Preview next', 'Build the new commit in isolation before any later deployment.']] as item, index (item[0])}
+						{#each [['1', 'Draft ready', 'Your local edits are prepared into portable source.'], ['2', 'Commit source', 'The host verifies and records one exact repository revision.'], ['3', 'Review preview', 'Build and inspect the exact immutable artifact.'], ['4', 'Publish safely', 'Health-gate the candidate and retain the last healthy site.']] as item, index (item[0])}
 							<div
-								class:done={index === 0 || sourceCommitStatus === 'succeeded'}
+								class:done={index === 0 ||
+									(index === 1 && sourceCommitStatus === 'succeeded') ||
+									(index === 2 && publishPreview?.state === 'ready')}
 								class:current={index === 1 && sourceCommitStatus !== 'succeeded'}
 								class="progress-row"
 							>
@@ -8515,6 +8591,10 @@
 		border-radius: 12px;
 		background: rgba(86, 230, 173, 0.1);
 	}
+	.source-export-heading h2 {
+		margin: 0;
+		font-size: 15px;
+	}
 	.source-export-heading p,
 	.source-export-status {
 		margin: 5px 0 0;
@@ -8531,6 +8611,53 @@
 	}
 	.source-export-status.error {
 		color: #ffaaa5;
+	}
+	.production-handoff-card {
+		background: linear-gradient(145deg, rgba(86, 230, 173, 0.12), rgba(14, 20, 23, 0.96));
+	}
+	.publish-artifact-evidence {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		margin: 0;
+	}
+	.publish-artifact-evidence > div {
+		min-width: 0;
+		padding: 10px;
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		background: rgba(3, 13, 9, 0.6);
+	}
+	.publish-artifact-evidence dt {
+		color: var(--muted);
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.publish-artifact-evidence dd {
+		margin: 4px 0 0;
+		overflow: hidden;
+		font-size: 12px;
+		font-weight: 750;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.production-preview-required {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		padding: 12px;
+		border: 1px solid rgba(86, 230, 173, 0.2);
+		border-radius: 13px;
+		background: rgba(86, 230, 173, 0.04);
+		color: var(--accent);
+	}
+	.production-preview-required p {
+		margin: 3px 0 0;
+		color: var(--muted);
+		font-size: 12px;
+		line-height: 1.45;
 	}
 	.publish-grid .honesty-note {
 		margin: 0;

@@ -24,7 +24,13 @@ export const SitePreviewSchema = z
 				files: z.number().int().nonnegative(),
 				bytes: z.number().int().nonnegative(),
 				builderImage: z.string().min(1).max(300),
-				serverImage: z.string().min(1).max(300)
+				serverImage: z.string().min(1).max(300),
+				recipeSha256: Sha256HexSchema.optional(),
+				sbomSha256: Sha256HexSchema.optional(),
+				platform: z
+					.string()
+					.regex(/^linux\/(?:amd64|arm64)$/)
+					.optional()
 			})
 			.strict()
 			.nullable(),

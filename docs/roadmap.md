@@ -272,11 +272,22 @@ repository evidence now tolerates additive host presentation/onboarding fields
 across release skew while still strictly rejecting mutation or publishing
 authority. This fixes the production `unrecognized_keys: onboarding` failure.
 
+TEND Sites 0.32.0 adds the build-once foundation that binds the future production request to the
+exact artifact already reviewed in an isolated preview. Preview evidence now
+includes artifact, recipe, SBOM, and platform digests, and a route-free host
+lookup rejects actor, source, revision, commit, or artifact substitution. The
+Publish workspace shows that evidence and keeps the production action disabled
+until its separate permanent-app, traffic, and domain authority is explicitly
+approved. No production route or domain mutation is exposed by this checkpoint.
+
 - [x] Reviewable source commit plan and durable repository update operation.
   - **Complete integration:** Host-created sites use actor/project/source/revision-bound requests, bounded raster-only archives, a fixed renderer, deterministic replay recovery, exact Git commit evidence, and source-ledger advancement only after verified acknowledgement.
   - **Pending deployment integration:** Production publish remains a separate health-gated authority.
 - [ ] Build-once artifact identity and deployment handoff.
-  - Commit/recipe/platform/SBOM/provenance artifact identity is complete; handoff remains pending.
+  - **Complete immutable-artifact foundation:** Preview builds retain exact artifact, recipe, SBOM,
+    and platform digests, and the future request contract is bound to the reviewed preview identity.
+  - **Pending deployment integration:** Permanent artifact promotion and health-gated traffic remain
+    behind a separately approved host capability.
 - [ ] Health-gated traffic switch with retained last-good rollback.
   - The decision contract retains the prior artifact unless all checks pass; host routing remains pending.
 - [ ] Assigned-domain flow with TLS and DNS evidence.

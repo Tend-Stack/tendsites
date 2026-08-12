@@ -178,11 +178,12 @@ test('publishing distinguishes portable export from unavailable source and deplo
 	await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
 	await expect(
-		page.getByRole('heading', { name: 'Save your changes to the site source.' })
+		page.getByRole('heading', { name: 'Move one exact revision toward production.' })
 	).toBeVisible();
 	await expect(page.getByText('Create a site source first')).toBeVisible();
 	await expect(page.getByText('Original media stays untouched')).toBeVisible();
-	await expect(page.getByText('Production', { exact: true })).not.toBeVisible();
+	await expect(page.getByText('Review a preview first')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Publish reviewed artifact' })).toHaveCount(0);
 	await expect(page.getByText('Take your source with you')).toBeVisible();
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Download source archive' }).click();
@@ -1786,7 +1787,35 @@ test('commits a visual draft once, retries the exact request, and exposes the ne
 						return [latest];
 					},
 					async listPreviews() {
-						return [];
+						return [
+							{
+								contract: 'tend.host/sites-preview/v1',
+								previewId: 'preview-reviewed',
+								projectId: 'site.alpha',
+								sourceId: 'source.alpha',
+								sourceRevision: 'a'.repeat(64),
+								gitCommit: 'b'.repeat(40),
+								hostname: 'preview.example.com',
+								url: 'https://preview.example.com',
+								generation: 1,
+								state: 'ready',
+								requestedAt: '2026-08-12T00:00:00.000Z',
+								startedAt: '2026-08-12T00:00:01.000Z',
+								readyAt: '2026-08-12T00:00:20.000Z',
+								expiresAt: '2026-08-12T01:00:00.000Z',
+								artifact: {
+									sha256: 'c'.repeat(64),
+									files: 8,
+									bytes: 4096,
+									builderImage: 'node@example',
+									serverImage: 'nginx@example',
+									recipeSha256: 'e'.repeat(64),
+									sbomSha256: 'f'.repeat(64),
+									platform: 'linux/amd64'
+								},
+								errorCode: null
+							}
+						];
 					},
 					async commitCreatedSite(input: {
 						request: { operationId: string; baseRevision: string };
@@ -1830,8 +1859,12 @@ test('commits a visual draft once, retries the exact request, and exposes the ne
 
 	await page.getByRole('button', { name: 'Save changes' }).click();
 	await expect(
-		page.getByRole('heading', { name: 'Save your changes to the site source.' })
+		page.getByRole('heading', { name: 'Move one exact revision toward production.' })
 	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Production handoff' })).toBeVisible();
+	await expect(page.getByText('linux/amd64')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Publish reviewed artifact' })).toBeDisabled();
+	await expect(page.getByText('No traffic or domain has changed.')).toBeVisible();
 	await page.getByRole('button', { name: 'Save changes to source' }).click();
 	await expect(page.getByRole('alert')).toContainText('Temporary host interruption');
 	await page.getByRole('button', { name: 'Retry exact save' }).click();

@@ -8,6 +8,7 @@ import {
 import { RepositoryInspectionResultSchema } from '../contracts/repository-inspection';
 import type { HostCreationBridge } from './host-creation';
 import type { HostPreviewBridge } from './host-preview';
+import type { HostPublishingBridge } from './host-publishing';
 import type { HostSourceCommitBridge } from './host-source-commit';
 
 export const ConnectedRepositorySchema = z
@@ -180,7 +181,7 @@ export const SourceControlConnectionsSchema = z
 export type SourceControlConnections = z.infer<typeof SourceControlConnectionsSchema>;
 
 export type HostSourceBridge = Partial<
-	HostCreationBridge & HostPreviewBridge & HostSourceCommitBridge
+	HostCreationBridge & HostPreviewBridge & HostSourceCommitBridge & HostPublishingBridge
 > & {
 	getSourceControlConnections(): Promise<SourceControlConnections>;
 	beginSourceControlConnection(provider: string): Promise<void>;
