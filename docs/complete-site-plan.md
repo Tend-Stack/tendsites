@@ -41,6 +41,9 @@ blocks where an adapter proves safe round-tripping.
     images are persisted as compact internal references instead of multi-megabyte data URLs, keeping
     ordinary autosaves below the host storage boundary and making save failures actionable. Crop
     guides are opt-in and remain strictly contained inside the selected-image canvas.
+  - **Complete cover-summary containment:** Framed thumbnail transforms are clipped inside a fixed
+    preview viewport, while filename, alt text, and connection status own a separate shrink-safe
+    column so zoomed images can never overlap editorial metadata.
   - **Complete editorial-state slice:** Posts can be draft, scheduled, published, or archived. A
     scheduled timestamp is bounded and editable, but is explicitly a local plan until a host
     scheduler exists. Scheduled and archived entries never enter visitor collections or routes.

@@ -520,15 +520,17 @@
 							</div>
 							{#if selectedPost.coverImage}
 								<div class="cover-summary">
-									<img
-										src={selectedPost.coverImage}
-										alt=""
-										style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
-										style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
-										style:transform={`scale(${selectedPost.coverImagePresentation?.zoom ?? 1})`}
-										style:transform-origin={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
-									/>
-									<div>
+									<div class="cover-thumbnail" aria-hidden="true">
+										<img
+											src={selectedPost.coverImage}
+											alt=""
+											style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
+											style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
+											style:transform={`scale(${selectedPost.coverImagePresentation?.zoom ?? 1})`}
+											style:transform-origin={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
+										/>
+									</div>
+									<div class="cover-summary-copy">
 										<strong>{selectedPost.coverImageSource?.name ?? 'Starter image'}</strong><span
 											>{selectedPost.coverImageAlt || 'Missing image description'}</span
 										><em class:connected={Boolean(selectedPost.coverImageSource)}
@@ -1097,12 +1099,20 @@
 		align-items: center;
 		margin-top: 13px;
 	}
-	.cover-summary img {
+	.cover-thumbnail {
 		width: 92px;
 		height: 64px;
-		object-fit: cover;
+		overflow: hidden;
 		border-radius: 9px;
 		background: #14231f;
+	}
+	.cover-thumbnail img {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+	.cover-summary-copy {
+		min-width: 0;
 	}
 	.cover-summary strong,
 	.cover-summary span,

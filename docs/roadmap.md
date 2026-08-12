@@ -87,6 +87,8 @@ Completion is measured only from the top-level product milestones below. Nested 
   - **Complete read-only host slice:** With explicit `files.read` consent, the Content workspace can
     browse sanitized owner-scoped tend.host Files images, require alt text, and retain an opaque
     selected reference for the local draft preview.
+  - **Complete summary containment:** Zoomed cover thumbnails are clipped inside their preview
+    viewport and cannot overlap filename, alt-text, or connection-status copy.
   - **Pending integration:** Host-backed source read/write adapters plus reviewed copying of selected
     Files images into canonical repository source.
 - [x] Autosave drafts separated from committed source.

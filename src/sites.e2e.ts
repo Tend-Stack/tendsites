@@ -1045,6 +1045,14 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await page.getByRole('button', { name: 'Use image' }).click();
 	await expect(page.getByText('Connected preview · repository copy pending')).toBeVisible();
 	await expect(page.getByAltText('A quiet green lake at dawn')).toBeVisible();
+	await expect(page.locator('.cover-thumbnail')).toHaveCSS('overflow', 'hidden');
+	expect(
+		await page.evaluate(() => {
+			const thumbnail = document.querySelector('.cover-thumbnail')?.getBoundingClientRect();
+			const copy = document.querySelector('.cover-summary-copy')?.getBoundingClientRect();
+			return Boolean(thumbnail && copy && thumbnail.right <= copy.left);
+		})
+	).toBe(true);
 	await expect(page.getByText('Autosaved')).toBeVisible();
 	await expect
 		.poll(() =>
