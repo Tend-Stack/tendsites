@@ -73,7 +73,10 @@ Completion is measured only from the top-level product milestones below. Nested 
     reviewed versus unavailable community starters without pretending to clone or create them.
     A verified connection immediately becomes a durable card under **Your sites**, returns the user
     to that overview with a three-step setup handoff, and advances a chosen editing mode into a
-    source-specific setup-plan review instead of leaving a passive selected state.
+    source-specific setup-plan review instead of leaving a passive selected state. The saved source,
+    not the provider's current session, is authoritative during setup: temporary GitHub or GitLab
+    unavailability cannot force reauthentication, and choosing a mode now advances directly to its
+    reviewed plan with explicit connected-revision feedback.
 - [x] Framework adapter and declarative content-schema catalog.
   - **Complete:** Versioned custom-site profiles and structured field mappings are strict, bounded,
     path-confined, and framework-neutral. A pure bounded detector recognizes SvelteKit, Astro,

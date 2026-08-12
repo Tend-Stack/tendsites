@@ -1302,14 +1302,16 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.getByText('Continue setup without reconnecting.')).toBeVisible();
 	await expect(page.getByText('Connection needed')).not.toBeVisible();
 	await page.getByRole('button', { name: 'Choose this mode' }).nth(1).click();
-	const modeHandoff = page.locator('.mode-setup-handoff');
 	await expect(
-		modeHandoff.getByRole('heading', { name: 'Keep my custom design' })
+		page.getByLabel('Connected site setup plan')
 	).toBeInViewport();
-	await expect(modeHandoff.getByText('Editing mode selected')).toBeVisible();
-	await page.getByRole('button', { name: 'Review setup plan' }).click();
-	await expect(page.getByLabel('Connected site setup plan')).toBeInViewport();
 	await expect(page.getByLabel('Connected site setup plan')).toContainText('sveltekit');
+	const connectedAuthority = page.locator('.authority-note--connected');
+	await expect(connectedAuthority).toContainText('remains connected at commit');
+	await expect(connectedAuthority).toContainText(
+		'Choosing an editing mode does not require GitHub or GitLab again'
+	);
+	await expect(page.getByText(/Repository access remains unavailable/)).not.toBeVisible();
 	await page.getByRole('main').getByRole('button', { name: 'Your sites' }).click();
 	await expect(page.getByRole('heading', { name: 'tendsites', exact: true })).toBeVisible();
 	await expect(page.getByText('Tend-Stack/tendsites', { exact: true })).toBeVisible();

@@ -1070,8 +1070,11 @@
 			? `${sourceConnection.repository.fullName} remains connected. ${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} is ready to review.`
 			: '';
 		await tick();
-		modeSetupElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-		modeSetupElement?.focus({ preventScroll: true });
+		// Selecting a mode is the user's explicit continuation action. Advance to
+		// the resulting plan immediately so the onboarding never appears stuck on
+		// the choice cards or implies that provider authorization is required again.
+		adoptionPlanElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		adoptionPlanElement?.focus({ preventScroll: true });
 	}
 
 	async function reviewConnectedAdoptionPlan() {
@@ -2373,10 +2376,23 @@
 						{/each}
 					</div>
 				</div>
-				<p class="authority-note">
-					<ShieldCheck size={16} /> Repository access remains unavailable until tend.host supplies a reviewed,
-					short-lived capability.
-				</p>
+				{#if sourceConnection}
+					<p class="authority-note authority-note--connected">
+						<Check size={16} /> {sourceConnection.repository.fullName} remains connected at commit
+						{sourceConnection.commit.slice(0, 10)}…. Choosing an editing mode does not require GitHub or
+						GitLab again; reconnect only to inspect a newer revision.
+					</p>
+				{:else if activeSourceConnection?.available}
+					<p class="authority-note">
+						<ShieldCheck size={16} /> Repository access is ready for a read-only analysis. Sites will ask
+						you to confirm the exact source before saving it.
+					</p>
+				{:else}
+					<p class="authority-note">
+						<ShieldCheck size={16} /> Connect a source above before applying an editing mode to a real
+						repository. The example plan remains safe to explore.
+					</p>
+				{/if}
 			</section>
 
 			<section class="starter-repositories" aria-labelledby="starter-repositories-title">
