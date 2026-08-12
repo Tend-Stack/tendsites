@@ -217,6 +217,8 @@
 	let modeSetupElement = $state<HTMLElement | null>(null);
 	let adoptionPlanElement = $state<HTMLElement | null>(null);
 	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
+	let sourceConnections = $state<ConnectedSourceEvidence[]>([]);
+	let activeSiteProjectId = $state('demo-site');
 	let sourceConnectionStatus = $state<'checking' | 'connected' | 'missing' | 'error'>('checking');
 	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
 	let sourceSetupStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -307,7 +309,7 @@
 		startX: number;
 		startWidth: number;
 	} | null>(null);
-	const draftStorageKey = 'studio-draft-v1';
+	const draftStorageKey = (projectId: string) => `studio-draft-v1:${projectId}`;
 	let draftStore: DemoDraftStore | null = null;
 	let latestSaveRequest = 0;
 	const selectedPage = $derived(
@@ -324,7 +326,15 @@
 	const activeAdoptionReport = $derived(
 		sourceReport ? assessConnectedRepository(sourceReport) : demoAdoptionReport
 	);
-	const sourceProjectId = 'connected-site';
+	const sourceProjectId = $derived(
+		selectedSourceRepository
+			? `import-${selectedSourceRepository.provider}-${selectedSourceRepository.owner}-${selectedSourceRepository.name}`
+					.toLowerCase()
+					.replace(/[^a-z0-9._-]+/g, '-')
+					.replace(/^-+|-+$/g, '')
+					.slice(0, 96)
+			: 'connected-site'
+	);
 	const sourceConnectionStorageKey = 'connected-source-v1';
 	const githubConnection = $derived(
 		sourceControlConnections?.providers.find((provider) => provider.id === 'github') ?? null
@@ -425,10 +435,19 @@
 			saveStatus = 'local';
 			return () => window.removeEventListener('message', handleSourceConnection);
 		}
-		draftStore = new DemoDraftStore(storage, draftStorageKey);
+		draftStore = new DemoDraftStore(storage, draftStorageKey(activeSiteProjectId));
 		void draftStore
 			?.load()
-			.then((stored) => {
+			.then(async (stored) => {
+				if (!stored) {
+					const legacy = await new DemoDraftStore(storage, 'studio-draft-v1')
+						.load()
+						.catch(() => null);
+					if (legacy) {
+						stored = legacy;
+						await draftStore?.save(legacy.site);
+					}
+				}
 				if (stored && latestSaveRequest === 0) siteDraft = cloneDemoSite(stored.site);
 				saveStatus = 'saved';
 			})
@@ -1009,14 +1028,53 @@
 		}
 	}
 
-	function openCreatedSite(site: CreatedSiteSummary, destination: 'studio' | 'publish' = 'studio') {
+	async function activateSiteDraft(projectId: string, name: string) {
+		if (activeSiteProjectId === projectId && draftStore) return;
+		await draftStore?.flush().catch(() => undefined);
+		activeSiteProjectId = projectId;
+		history = [];
+		redoHistory = [];
+		selectedPageId = 'home';
+		selectedSectionId = 'hero-1';
+		if (!storage) {
+			const fresh = createDemoSite();
+			fresh.name = name;
+			siteDraft = fresh;
+			return;
+		}
+		draftStore = new DemoDraftStore(storage, draftStorageKey(projectId));
+		const stored = await draftStore.load().catch(() => null);
+		if (stored) siteDraft = cloneDemoSite(stored.site);
+		else {
+			const fresh = createDemoSite();
+			fresh.name = name;
+			siteDraft = fresh;
+			await draftStore.save(fresh);
+		}
+		saveStatus = 'saved';
+	}
+
+	async function openCreatedSite(
+		site: CreatedSiteSummary,
+		destination: 'studio' | 'publish' = 'studio'
+	) {
 		if (sourceCommitTarget?.projectId !== site.projectId) {
 			sourceCommitAttempt = null;
 			sourceCommitStatus = 'idle';
 			sourceCommitMessage = '';
 		}
 		sourceCommitTarget = site;
+		await activateSiteDraft(site.projectId, site.name);
 		open(destination);
+	}
+
+	async function openImportedSite(connection: ConnectedSourceEvidence) {
+		sourceConnection = connection;
+		selectedSourceProvider = connection.provider;
+		selectedAdoptionMode = connection.onboarding.editingMode;
+		sourceCommitTarget = null;
+		await persistSourceConnection(connection);
+		await openConnectedSiteWorkspace();
 	}
 
 	function chooseSourceCommitTarget(projectId: string) {
@@ -1043,7 +1101,12 @@
 			publishOperation = rows[0] ?? null;
 			if (publishOperation) {
 				publishHostname = publishOperation.hostname;
-				publishStatus = publishOperation.state === 'ready' ? 'ready' : publishOperation.state === 'failed' ? 'error' : 'watching';
+				publishStatus =
+					publishOperation.state === 'ready'
+						? 'ready'
+						: publishOperation.state === 'failed'
+							? 'error'
+							: 'watching';
 			}
 		} catch {
 			// Publishing remains opt-in even if status recovery is temporarily unavailable.
@@ -1052,9 +1115,13 @@
 
 	async function publishReviewedArtifact() {
 		if (
-			!publishTarget || !publishPreview?.artifact || !sourceBridge?.publishSite ||
-			publishStatus === 'requesting' || publishStatus === 'watching'
-		) return;
+			!publishTarget ||
+			!publishPreview?.artifact ||
+			!sourceBridge?.publishSite ||
+			publishStatus === 'requesting' ||
+			publishStatus === 'watching'
+		)
+			return;
 		publishStatus = 'requesting';
 		publishMessage = 'Submitting the exact reviewed artifact…';
 		try {
@@ -1076,11 +1143,18 @@
 			);
 			publishOperation = result;
 			publishStatus = 'watching';
-			publishMessage = 'Deploying privately, then checking DNS, TLS, and HTTPS before traffic switches…';
-			for (let attempt = 0; attempt < 180 && ['queued', 'running'].includes(result.state); attempt += 1) {
+			publishMessage =
+				'Deploying privately, then checking DNS, TLS, and HTTPS before traffic switches…';
+			for (
+				let attempt = 0;
+				attempt < 180 && ['queued', 'running'].includes(result.state);
+				attempt += 1
+			) {
 				await new Promise((resolve) => setTimeout(resolve, 2000));
 				if (!sourceBridge.getPublish) break;
-				const next = SitePublishResultSchema.parse(await sourceBridge.getPublish(request.operationId));
+				const next = SitePublishResultSchema.parse(
+					await sourceBridge.getPublish(request.operationId)
+				);
 				result = validateSitePublishResult(request, next, result);
 				publishOperation = result;
 			}
@@ -1095,7 +1169,8 @@
 			}
 		} catch (error) {
 			publishStatus = 'error';
-			publishMessage = error instanceof Error ? error.message : 'The reviewed artifact could not be published.';
+			publishMessage =
+				error instanceof Error ? error.message : 'The reviewed artifact could not be published.';
 		}
 	}
 
@@ -1262,6 +1337,10 @@
 	}
 
 	async function persistSourceConnection(connection: ConnectedSourceEvidence): Promise<void> {
+		sourceConnections = [
+			connection,
+			...sourceConnections.filter((item) => item.connectionId !== connection.connectionId)
+		];
 		if (!storage) return;
 		try {
 			await storage.set(sourceConnectionStorageKey, {
@@ -1276,6 +1355,10 @@
 
 	async function continueConnectedSource() {
 		connectedSourceJustAdded = false;
+		if (sourceConnection?.onboarding.stage === 'plan_reviewed') {
+			await openConnectedSiteWorkspace();
+			return;
+		}
 		view = 'adopt';
 		mobileMenu = false;
 		// This handoff is driven by the durable Sites source record, not by the
@@ -1289,6 +1372,43 @@
 			? adoptionPlanElement
 			: adoptionPathsElement
 		)?.scrollIntoView({ block: 'start' });
+	}
+
+	async function returnToImportSetup() {
+		connectedSourceJustAdded = false;
+		view = 'adopt';
+		mobileMenu = false;
+		adoptionStep = sourceConnection?.onboarding.editingMode ? 'plan' : 'mode';
+		await tick();
+		(sourceConnection?.onboarding.editingMode
+			? adoptionPlanElement
+			: adoptionPathsElement
+		)?.scrollIntoView({ block: 'start' });
+	}
+
+	async function openConnectedSiteWorkspace() {
+		connectedSourceJustAdded = false;
+		mobileMenu = false;
+		if (sourceConnection) {
+			await activateSiteDraft(sourceConnection.projectId, sourceConnection.repository.name);
+		}
+		open('studio');
+	}
+
+	async function selectConnectedSite(connection: ConnectedSourceEvidence) {
+		sourceConnection = connection;
+		selectedSourceProvider = connection.provider;
+		selectedAdoptionMode = connection.onboarding.editingMode;
+		await persistSourceConnection(connection);
+		if (connection.onboarding.stage === 'plan_reviewed') await openImportedSite(connection);
+		else await continueConnectedSource();
+	}
+
+	async function showConnectedSource() {
+		adoptionStep = 'source';
+		await tick();
+		document.getElementById('source-connect-title')?.scrollIntoView({ block: 'start' });
+		document.getElementById('source-connect-title')?.focus({ preventScroll: true });
 	}
 
 	async function showAdoptionChoices() {
@@ -1495,9 +1615,11 @@
 				const connections = ConnectedSourceEvidenceSchema.array().parse(
 					await sourceBridge.listConnections()
 				);
+				sourceConnections = connections;
 				connection =
-					connections.find((item) => item.projectId === sourceProjectId) ??
+					connections.find((item) => item.projectId === activeSiteProjectId) ??
 					connections.find((item) => item.projectId === cachedConnection?.projectId) ??
+					connections.find((item) => item.projectId === sourceProjectId) ??
 					connections[0] ??
 					null;
 			} else {
@@ -1509,6 +1631,11 @@
 					cachedConnection
 				);
 				sourceConnectionStatus = 'connected';
+				if (
+					!sourceConnections.some((item) => item.connectionId === sourceConnection?.connectionId)
+				) {
+					sourceConnections = [sourceConnection, ...sourceConnections];
+				}
 				await persistSourceConnection(sourceConnection);
 			} else if (sourceConnection) {
 				// A source returned by connectRepository remains valid for this mounted
@@ -1998,42 +2125,47 @@
 						</div>
 					</article>
 				{/each}
-				{#if sourceConnection}
+				{#each sourceConnections.length ? sourceConnections : sourceConnection ? [sourceConnection] : [] as connected (connected.connectionId)}
 					<article class="project-card connected-project-card">
 						<div class="connected-source-preview" aria-hidden="true">
 							<GitBranch size={30} />
 							<div>
 								<small>CONNECTED SOURCE</small>
-								<strong>{sourceConnection.repository.name}</strong>
+								<strong>{connected.repository.name}</strong>
 							</div>
 						</div>
 						<div class="project-heading">
 							<div>
-								<h2>{sourceConnection.repository.name}</h2>
-								<p>{sourceConnection.repository.fullName}</p>
+								<h2>{connected.repository.name}</h2>
+								<p>{connected.repository.fullName}</p>
 							</div>
 						</div>
 						<div class="project-meta">
 							<div>
-								<span>{sourceConnection.repository.ref}</span>
-								<span>Commit {sourceConnection.commit.slice(0, 7)}</span>
+								<span>{connected.repository.ref}</span>
+								<span>Commit {connected.commit.slice(0, 7)}</span>
 							</div>
 							<span
-								class:sites-badge--positive={sourceConnection.onboarding.stage === 'plan_reviewed'}
+								class:sites-badge--positive={connected.onboarding.stage === 'plan_reviewed'}
 								class="sites-badge"
 							>
-								{sourceConnection.onboarding.stage === 'plan_reviewed'
+								{connected.onboarding.stage === 'plan_reviewed'
 									? 'Plan reviewed'
-									: sourceConnection.onboarding.stage === 'mode_selected'
+									: connected.onboarding.stage === 'mode_selected'
 										? 'Mode saved'
 										: 'Setup needed'}
 							</span>
 						</div>
-						<button class="card-action" onclick={() => void continueConnectedSource()}>
-							Continue setup <ArrowRight size={16} />
+						<button class="card-action" onclick={() => void selectConnectedSite(connected)}>
+							{connected.onboarding.stage === 'plan_reviewed'
+								? 'Open site workspace'
+								: connected.onboarding.stage === 'mode_selected'
+									? 'Review setup plan'
+									: 'Choose editing mode'}
+							<ArrowRight size={16} />
 						</button>
 					</article>
-				{/if}
+				{/each}
 				{#each projects as project, projectIndex (project.id)}
 					<article class="project-card">
 						<div class="site-preview rich-preview" aria-hidden="true">
@@ -3038,9 +3170,18 @@
 								</p>
 							</div>
 							{#if sourceConnection.onboarding.stage === 'plan_reviewed'}
-								<button class="primary" type="button" onclick={continueToPreviewReadiness}>
-									Review preview requirements <ArrowRight size={16} />
-								</button>
+								<div class="source-plan-complete-actions">
+									<button
+										class="primary"
+										type="button"
+										onclick={() => void openConnectedSiteWorkspace()}
+									>
+										Open site workspace <ArrowRight size={16} />
+									</button>
+									<button class="secondary" type="button" onclick={continueToPreviewReadiness}>
+										View technical checks
+									</button>
+								</div>
 							{:else}
 								<button
 									class="primary"
@@ -3210,9 +3351,13 @@
 					<button
 						class="primary"
 						disabled={!sourceBridge}
-						onclick={() => document.getElementById('source-connect-title')?.scrollIntoView()}
+						onclick={() => void showConnectedSource()}
 						><GitBranch size={17} />
-						{sourceBridge ? 'Choose connected source' : 'Connect through tend.host'}</button
+						{sourceConnection
+							? 'Show connected source'
+							: sourceBridge
+								? 'Choose connected source'
+								: 'Connect through tend.host'}</button
 					>
 				</aside>
 			</div>
@@ -4578,6 +4723,33 @@
 					{/if}
 				</section>
 			{/if}
+			{#if sourceConnection}
+				<section class="readiness-next-step" aria-label="Continue site setup">
+					<div>
+						<span class="eyebrow">Your next step</span>
+						<strong>
+							{sourceConnection.onboarding.stage === 'plan_reviewed'
+								? `${sourceConnection.repository.name} is ready for its workspace.`
+								: 'Return to your import setup.'}
+						</strong>
+						<p>Technical checks are reference material. You do not need to stay on this screen.</p>
+					</div>
+					<div>
+						<button class="secondary" type="button" onclick={() => void returnToImportSetup()}>
+							<ArrowLeft size={16} /> Import setup
+						</button>
+						{#if sourceConnection.onboarding.stage === 'plan_reviewed'}
+							<button
+								class="primary"
+								type="button"
+								onclick={() => void openConnectedSiteWorkspace()}
+							>
+								Open site workspace <ArrowRight size={16} />
+							</button>
+						{/if}
+					</div>
+				</section>
+			{/if}
 		</main>
 	{:else if view === 'library'}
 		<main class="page library-page">
@@ -4870,7 +5042,13 @@
 							<button
 								class="primary source-export-button"
 								type="button"
-								disabled={!sourceBridge?.publishSite || !publishHostname.trim() || !publishPreview.artifact.recipeSha256 || !publishPreview.artifact.sbomSha256 || !publishPreview.artifact.platform || publishStatus === 'requesting' || publishStatus === 'watching'}
+								disabled={!sourceBridge?.publishSite ||
+									!publishHostname.trim() ||
+									!publishPreview.artifact.recipeSha256 ||
+									!publishPreview.artifact.sbomSha256 ||
+									!publishPreview.artifact.platform ||
+									publishStatus === 'requesting' ||
+									publishStatus === 'watching'}
 								onclick={publishReviewedArtifact}
 							>
 								{#if publishStatus === 'requesting' || publishStatus === 'watching'}
@@ -4881,13 +5059,24 @@
 									<Rocket size={18} /> Publish reviewed artifact
 								{/if}
 							</button>
-							<p class:error={publishStatus === 'error'} class:success={publishStatus === 'ready'} class="source-export-status" role={publishStatus === 'error' ? 'alert' : 'status'}>
-								{publishMessage || (sourceBridge?.publishSite
-									? 'Ready. Traffic changes only after the candidate passes every health check.'
-									: 'Update tend.host and approve Production publishing to enable this action.')}
+							<p
+								class:error={publishStatus === 'error'}
+								class:success={publishStatus === 'ready'}
+								class="source-export-status"
+								role={publishStatus === 'error' ? 'alert' : 'status'}
+							>
+								{publishMessage ||
+									(sourceBridge?.publishSite
+										? 'Ready. Traffic changes only after the candidate passes every health check.'
+										: 'Update tend.host and approve Production publishing to enable this action.')}
 							</p>
 							{#if publishOperation?.state === 'ready' && publishOperation.url}
-								<a class="secondary source-export-button" href={publishOperation.url} target="_blank" rel="noreferrer">Open production site <ArrowRight size={17} /></a>
+								<a
+									class="secondary source-export-button"
+									href={publishOperation.url}
+									target="_blank"
+									rel="noreferrer">Open production site <ArrowRight size={17} /></a
+								>
 							{/if}
 						{:else}
 							<div class="production-preview-required">
@@ -5176,6 +5365,35 @@
 		margin: 0;
 		font-weight: 700;
 		text-align: right;
+	}
+	.readiness-next-step {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 24px;
+		margin-top: 18px;
+		padding: 20px 22px;
+		border: 1px solid color-mix(in srgb, var(--green) 35%, var(--border));
+		border-radius: 18px;
+		background: color-mix(in srgb, var(--green) 7%, var(--surface));
+	}
+	.readiness-next-step > div:first-child {
+		display: grid;
+		gap: 5px;
+	}
+	.readiness-next-step strong {
+		font-size: 18px;
+	}
+	.readiness-next-step p {
+		margin: 0;
+		color: var(--muted);
+	}
+	.readiness-next-step > div:last-child,
+	.source-plan-complete-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
 	}
 	.conflict-actions {
 		display: flex;
@@ -8786,6 +9004,13 @@
 	}
 
 	@media (max-width: 900px) {
+		.readiness-next-step {
+			align-items: stretch;
+			flex-direction: column;
+		}
+		.readiness-next-step > div:last-child > button {
+			flex: 1 1 220px;
+		}
 		.created-site-actions,
 		.source-target-evidence {
 			grid-template-columns: 1fr;

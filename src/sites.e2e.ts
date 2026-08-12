@@ -1319,7 +1319,10 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.getByRole('list', { name: 'Connected site setup progress' })).toContainText(
 		'Choose editing mode'
 	);
-	await page.getByRole('button', { name: 'Choose editing mode' }).click();
+	await page
+		.getByLabel('tendsites is connected')
+		.getByRole('button', { name: 'Choose editing mode' })
+		.click();
 	await expect(
 		page.getByRole('heading', { name: 'Your website does not have to look or work like ours.' })
 	).toBeInViewport();
@@ -1345,18 +1348,124 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.getByText(/Repository access remains unavailable/)).not.toBeVisible();
 	await page.getByRole('button', { name: 'Confirm plan and continue' }).click();
 	await expect(page.getByText('Setup plan reviewed', { exact: true })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Review preview requirements' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Open site workspace' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'View technical checks' })).toBeVisible();
+	await page.getByRole('button', { name: 'View technical checks' }).click();
+	await expect(page.getByLabel('Continue site setup')).toBeVisible();
+	await expect(page.getByLabel('Continue site setup')).toContainText(
+		'Technical checks are reference material'
+	);
+	await page
+		.getByLabel('Continue site setup')
+		.getByRole('button', { name: 'Import setup' })
+		.click();
 	await page.getByRole('main').getByRole('button', { name: 'Your sites' }).click();
 	await expect(page.getByRole('heading', { name: 'tendsites', exact: true })).toBeVisible();
 	await expect(page.getByText('Tend-Stack/tendsites', { exact: true })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Continue setup' })).toBeVisible();
-	await page.getByRole('button', { name: 'Continue setup' }).click();
-	await expect(page.getByRole('navigation', { name: 'Site import setup' })).toContainText(
-		'Source connected'
-	);
-	await expect(page.getByText('Connection needed')).not.toBeVisible();
-	await expect(page.getByLabel('Connected site setup plan')).toBeInViewport();
-	await expect(page.getByRole('button', { name: 'Review preview requirements' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Open site workspace' })).toBeVisible();
+	await page.getByRole('button', { name: 'Open site workspace' }).click();
+	await expect(page.getByText('tendsites', { exact: true }).first()).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Studio' })).toHaveClass(/active/);
+});
+
+test('switches the active workspace when a different connected site is opened', async ({
+	page
+}) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	await page.evaluate(async () => {
+		const stored = new Map<string, unknown>();
+		const connection = (projectId: string, name: string, marker: string) => ({
+			contract: 'tend.host/sites-connected-source-evidence/v1',
+			connectionId: `${marker.repeat(8)}-${marker.repeat(4)}-4${marker.repeat(3)}-8${marker.repeat(3)}-${marker.repeat(12)}`,
+			projectId,
+			provider: 'github',
+			repository: { owner: 'example', name, fullName: `example/${name}`, ref: 'main' },
+			commit: marker.repeat(40),
+			treeSha256: marker.repeat(64),
+			archiveSha256: marker.repeat(64),
+			framework: 'astro',
+			contentPaths: ['src/content'],
+			pagesDeployment: {
+				method: 'github-actions',
+				sourceBranch: null,
+				sourcePath: null,
+				artifactPath: 'dist',
+				customDomain: null
+			},
+			connectedAt: '2026-08-12T12:00:00Z',
+			verifiedAt: '2026-08-12T12:00:00Z',
+			onboarding: {
+				editingMode: 'visual',
+				stage: 'plan_reviewed',
+				updatedAt: '2026-08-12T12:01:00Z'
+			},
+			repositoryMutationAvailable: false,
+			publishingAvailable: false
+		});
+		const connections = [
+			connection('import-example-alpha', 'alpha-site', 'a'),
+			connection('import-example-beta', 'beta-site', 'b')
+		];
+		const extensionUrl = '/test-extension/index.js?v=multi-site';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension
+			.default({
+				id: 'host.tend.sites',
+				onUnmount() {},
+				storage: {
+					async get(key: string) {
+						return stored.get(key) ?? null;
+					},
+					async set(key: string, value: unknown) {
+						stored.set(key, value);
+					},
+					async delete(key: string) {
+						stored.delete(key);
+					}
+				},
+				sites: {
+					async listConnections() {
+						return connections;
+					},
+					async getConnection(projectId: string) {
+						return connections.find((item) => item.projectId === projectId) ?? null;
+					}
+				}
+			})
+			.mount(container);
+	});
+
+	const alphaCard = page
+		.locator('.connected-project-card')
+		.filter({ hasText: 'example/alpha-site' });
+	const betaCard = page.locator('.connected-project-card').filter({ hasText: 'example/beta-site' });
+	await expect(alphaCard).toBeVisible();
+	await expect(betaCard).toBeVisible();
+	await alphaCard.getByRole('button', { name: 'Open site workspace' }).click();
+	await expect(page.getByLabel('Site outline').locator('.eyebrow')).toHaveText('alpha-site');
+
+	await page.getByRole('button', { name: 'Your sites' }).click();
+	await betaCard.getByRole('button', { name: 'Open site workspace' }).click();
+	await expect(page.getByLabel('Site outline').locator('.eyebrow')).toHaveText('beta-site');
+
+	await page.getByRole('button', { name: 'Your sites' }).click();
+	await alphaCard.getByRole('button', { name: 'Open site workspace' }).click();
+	await expect(page.getByLabel('Site outline').locator('.eyebrow')).toHaveText('alpha-site');
 });
 
 test('selects, analyzes, and connects a GitLab repository through the shared host bridge', async ({
@@ -1918,8 +2027,13 @@ test('commits a visual draft once, retries the exact request, and exposes the ne
 	await expect(page.getByText('linux/amd64')).toBeVisible();
 	await page.getByLabel('Production hostname').fill('www.example.com');
 	await page.getByRole('button', { name: 'Publish reviewed artifact' }).click();
-	await expect(page.getByText(/DNS, trusted TLS, and the public HTTPS response are verified/)).toBeVisible({ timeout: 5_000 });
-	await expect(page.getByRole('link', { name: 'Open production site' })).toHaveAttribute('href', 'https://www.example.com');
+	await expect(
+		page.getByText(/DNS, trusted TLS, and the public HTTPS response are verified/)
+	).toBeVisible({ timeout: 5_000 });
+	await expect(page.getByRole('link', { name: 'Open production site' })).toHaveAttribute(
+		'href',
+		'https://www.example.com'
+	);
 	await page.getByRole('button', { name: 'Save changes to source' }).click();
 	await expect(page.getByRole('alert')).toContainText('Temporary host interruption');
 	await page.getByRole('button', { name: 'Retry exact save' }).click();
