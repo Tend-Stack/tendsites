@@ -254,6 +254,14 @@ choosing an editing mode first recovers the actor's durable Sites source record,
 continues without GitHub or GitLab authorization, and gives a focused recovery
 message instead of sending the user through a provider reinstall loop.
 
+TEND Sites 0.30.4 closes the desktop-shell compatibility gap in that flow. The
+credential-free connected-source evidence and onboarding stage are cached inside
+the extension's private host storage, reconciled only with the same connection
+and commit, and used to advance through Editing and Plan when an older tend.host
+shell does not yet expose setup-stage persistence. The source remains connected,
+the user receives an immediate next step, and provider reinstallation is never
+presented as the repair.
+
 - [ ] Reviewable commit plan and durable publish operation.
   - **Complete:** The immutable non-committing plan plus an assigned-deployment execution intent bound to explicit review and health-gated prior-artifact retention.
   - **Pending:** Durable host execution and evidence persistence.

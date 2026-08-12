@@ -1114,6 +1114,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await page.evaluate(async () => {
 		let providerAccessAvailable = true;
 		let savedConnection: Record<string, any> | null = null;
+		const stored = new Map<string, unknown>();
 		const extensionUrl = '/test-extension/index.js?v=source';
 		const extension = await import(/* @vite-ignore */ extensionUrl);
 		const container = document.createElement('div');
@@ -1122,6 +1123,17 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 			.default({
 				id: 'host.tend.sites',
 				onUnmount() {},
+				storage: {
+					async get(key: string) {
+						return stored.get(key) ?? null;
+					},
+					async set(key: string, value: unknown) {
+						stored.set(key, value);
+					},
+					async delete(key: string) {
+						stored.delete(key);
+					}
+				},
 				sites: {
 					async getSourceControlConnections() {
 						return {
@@ -1268,18 +1280,6 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 							publishingAvailable: false
 						};
 						return savedConnection;
-					},
-					async updateConnectionSetup(input: { editingMode: string; stage: string }) {
-						if (!savedConnection) throw new Error('Connected source is missing.');
-						savedConnection = {
-							...savedConnection,
-							onboarding: {
-								editingMode: input.editingMode,
-								stage: input.stage,
-								updatedAt: '2026-08-11T20:01:00Z'
-							}
-						};
-						return savedConnection;
 					}
 				}
 			})
@@ -1324,6 +1324,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	);
 	await expect(page.getByText('Connection needed')).not.toBeVisible();
 	await page.getByRole('button', { name: 'Choose this mode' }).nth(1).click();
+	await expect(page.getByText(/update tend.host to sync this setup step across devices/)).toBeVisible();
 	await expect(page.getByRole('navigation', { name: 'Site import setup' })).toContainText(
 		'Keep my custom design'
 	);

@@ -79,9 +79,11 @@
 		ConnectedRepositoryBranchSchema,
 		ConnectedRepositoryReportSchema,
 		ConnectedRepositorySchema,
+		ConnectedSourceCacheSchema,
 		ConnectedSourceEvidenceSchema,
 		SourceControlConnectionsSchema,
 		assessConnectedRepository,
+		reconcileConnectedSourceCache,
 		type ConnectedRepository,
 		type ConnectedRepositoryBranch,
 		type ConnectedRepositoryReport,
@@ -296,6 +298,7 @@
 		sourceReport ? assessConnectedRepository(sourceReport) : demoAdoptionReport
 	);
 	const sourceProjectId = 'connected-site';
+	const sourceConnectionStorageKey = 'connected-source-v1';
 	const githubConnection = $derived(
 		sourceControlConnections?.providers.find((provider) => provider.id === 'github') ?? null
 	);
@@ -1133,6 +1136,31 @@
 		await loadSourceControlConnections();
 	}
 
+	async function readCachedSourceConnection(): Promise<ConnectedSourceEvidence | null> {
+		if (!storage) return null;
+		try {
+			const cached = ConnectedSourceCacheSchema.safeParse(
+				await storage.get(sourceConnectionStorageKey)
+			);
+			return cached.success ? cached.data.evidence : null;
+		} catch {
+			return null;
+		}
+	}
+
+	async function persistSourceConnection(connection: ConnectedSourceEvidence): Promise<void> {
+		if (!storage) return;
+		try {
+			await storage.set(sourceConnectionStorageKey, {
+				contract: 'tend.host/sites-connected-source-cache/v1',
+				evidence: connection
+			});
+		} catch {
+			// Host persistence remains authoritative. This cache only keeps older
+			// shell builds from losing a safe onboarding handoff during a remount.
+		}
+	}
+
 	async function continueConnectedSource() {
 		connectedSourceJustAdded = false;
 		view = 'adopt';
@@ -1180,7 +1208,7 @@
 		selectedAdoptionMode = mode;
 		sourceSetupStatus = sourceConnection && sourceBridge ? 'saving' : 'saved';
 		sourceSetupMessage = sourceConnection ? 'Saving editing mode…' : 'Example mode selected.';
-		if (sourceConnection && sourceBridge) {
+		if (sourceConnection && sourceBridge?.updateConnectionSetup) {
 			try {
 				sourceConnection = ConnectedSourceEvidenceSchema.parse(
 					await sourceBridge.updateConnectionSetup({
@@ -1190,6 +1218,7 @@
 						stage: 'mode_selected'
 					})
 				);
+				await persistSourceConnection(sourceConnection);
 				sourceSetupStatus = 'saved';
 				sourceSetupMessage = `${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} saved. Review the source-specific setup plan next.`;
 			} catch (error) {
@@ -1198,6 +1227,18 @@
 					error instanceof Error ? error.message : 'The editing mode could not be saved.';
 				return;
 			}
+		} else if (sourceConnection) {
+			sourceConnection = ConnectedSourceEvidenceSchema.parse({
+				...sourceConnection,
+				onboarding: {
+					editingMode: mode,
+					stage: 'mode_selected',
+					updatedAt: new Date().toISOString()
+				}
+			});
+			await persistSourceConnection(sourceConnection);
+			sourceSetupStatus = 'saved';
+			sourceSetupMessage = `${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} selected. Your source remains connected; update tend.host to sync this setup step across devices.`;
 		}
 		adoptionStep = 'plan';
 		sourceConnectionNotice = sourceConnection
@@ -1212,7 +1253,11 @@
 	}
 
 	async function reviewConnectedAdoptionPlan() {
-		if (sourceConnection && selectedAdoptionMode && sourceBridge) {
+		if (
+			sourceConnection &&
+			selectedAdoptionMode &&
+			sourceBridge?.updateConnectionSetup
+		) {
 			sourceSetupStatus = 'saving';
 			sourceSetupMessage = 'Saving plan review…';
 			try {
@@ -1224,6 +1269,7 @@
 						stage: 'plan_reviewed'
 					})
 				);
+				await persistSourceConnection(sourceConnection);
 				sourceSetupStatus = 'saved';
 				sourceSetupMessage = 'Setup plan reviewed. Continue to isolated preview requirements.';
 			} catch (error) {
@@ -1232,6 +1278,19 @@
 					error instanceof Error ? error.message : 'The plan review could not be saved.';
 				return;
 			}
+		} else if (sourceConnection && selectedAdoptionMode) {
+			sourceConnection = ConnectedSourceEvidenceSchema.parse({
+				...sourceConnection,
+				onboarding: {
+					editingMode: selectedAdoptionMode,
+					stage: 'plan_reviewed',
+					updatedAt: new Date().toISOString()
+				}
+			});
+			await persistSourceConnection(sourceConnection);
+			sourceSetupStatus = 'saved';
+			sourceSetupMessage =
+				'Setup plan reviewed. Continue to preview requirements; update tend.host to sync this step across devices.';
 		}
 		await tick();
 		adoptionPlanElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1319,18 +1378,26 @@
 	async function loadSourceConnection() {
 		if (!sourceBridge) return;
 		sourceConnectionStatus = 'checking';
+		const cachedConnection = await readCachedSourceConnection();
+		if (!sourceConnection && cachedConnection) sourceConnection = cachedConnection;
 		try {
 			const connection = sourceBridge.listConnections
 				? (ConnectedSourceEvidenceSchema.array().parse(await sourceBridge.listConnections())[0] ?? null)
 				: await sourceBridge.getConnection(sourceProjectId);
 			if (connection) {
-				sourceConnection = ConnectedSourceEvidenceSchema.parse(connection);
+				sourceConnection = reconcileConnectedSourceCache(
+					ConnectedSourceEvidenceSchema.parse(connection),
+					cachedConnection
+				);
 				sourceConnectionStatus = 'connected';
+				await persistSourceConnection(sourceConnection);
 			} else if (sourceConnection) {
 				// A source returned by connectRepository remains valid for this mounted
 				// session even if an immediately following read is temporarily stale.
 				sourceConnectionStatus = 'connected';
 			} else {
+				if (storage) await storage.delete(sourceConnectionStorageKey).catch(() => undefined);
+				sourceConnection = null;
 				sourceConnectionStatus = 'missing';
 			}
 			sourceConnectionLoadError = '';
@@ -1353,6 +1420,10 @@
 			sourceConnectionLoadError =
 				error instanceof Error ? error.message : 'The saved source could not be refreshed.';
 			sourceConnectionStatus = sourceConnection ? 'connected' : 'error';
+			if (sourceConnection) {
+				sourceConnectionLoadError =
+					'The host could not refresh this source, so Sites recovered the last verified selection. Reinstalling GitHub is not required.';
+			}
 		}
 	}
 
@@ -1445,6 +1516,7 @@
 					confirmation: sourceReport.repository.fullName
 				})
 			);
+			await persistSourceConnection(sourceConnection);
 			sourceConnectionStatus = 'connected';
 			adoptionStep = 'mode';
 			sourceStatus = 'ready';
@@ -2684,8 +2756,15 @@
 								repository changes happen during this review.
 							</p>
 						{/if}
+						{#if sourceSetupMessage}
+							<p class:error={sourceSetupStatus === 'error'} class="source-action-status" role="status">
+								{sourceSetupMessage}
+							</p>
+						{/if}
 					</div>
-					<span class="sites-badge sites-badge--positive"><Check size={15} /> Saved</span>
+					<span class="sites-badge sites-badge--positive"
+						><Check size={15} /> {sourceBridge?.updateConnectionSetup ? 'Saved' : 'Selected'}</span
+					>
 				</section>
 			{/if}
 

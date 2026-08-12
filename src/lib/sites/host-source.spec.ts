@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { assessConnectedRepository, ConnectedRepositoryReportSchema } from './host-source';
+import {
+	assessConnectedRepository,
+	ConnectedRepositoryReportSchema,
+	ConnectedSourceCacheSchema,
+	ConnectedSourceEvidenceSchema,
+	reconcileConnectedSourceCache
+} from './host-source';
 
 const report = {
 	contract: 'tend.host/sites-connected-repository-report/v1',
@@ -68,5 +74,47 @@ describe('connected repository boundary', () => {
 				inspection: { ...report.inspection, checkoutRemoved: false }
 			})
 		).toThrow();
+	});
+
+	it('keeps locally completed onboarding when an older host returns the same source', () => {
+		const authoritative = ConnectedSourceEvidenceSchema.parse({
+			contract: 'tend.host/sites-connected-source-evidence/v1',
+			connectionId: '33333333-3333-4333-8333-333333333333',
+			projectId: 'connected-site',
+			provider: 'github',
+			repository: report.repository,
+			commit: 'a'.repeat(40),
+			treeSha256: 'b'.repeat(64),
+			archiveSha256: 'c'.repeat(64),
+			framework: 'sveltekit',
+			contentPaths: ['src/routes'],
+			pagesDeployment: report.pagesDeployment,
+			connectedAt: '2026-08-11T20:00:00Z',
+			verifiedAt: '2026-08-11T20:00:00Z',
+			onboarding: { editingMode: null, stage: 'source_connected', updatedAt: null },
+			repositoryMutationAvailable: false,
+			publishingAvailable: false
+		});
+		const cached = ConnectedSourceCacheSchema.parse({
+			contract: 'tend.host/sites-connected-source-cache/v1',
+			evidence: {
+				...authoritative,
+				onboarding: {
+					editingMode: 'visual',
+					stage: 'plan_reviewed',
+					updatedAt: '2026-08-11T20:02:00Z'
+				}
+			}
+		}).evidence;
+
+		expect(reconcileConnectedSourceCache(authoritative, cached).onboarding).toEqual(
+			cached.onboarding
+		);
+		expect(
+			reconcileConnectedSourceCache(
+				authoritative,
+				{ ...cached, commit: 'd'.repeat(40) }
+			).onboarding.stage
+		).toBe('source_connected');
 	});
 });

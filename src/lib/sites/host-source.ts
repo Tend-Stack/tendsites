@@ -108,6 +108,38 @@ export const ConnectedSourceEvidenceSchema = z
 
 export type ConnectedSourceEvidence = z.infer<typeof ConnectedSourceEvidenceSchema>;
 
+export const ConnectedSourceCacheSchema = z
+	.object({
+		contract: z.literal('tend.host/sites-connected-source-cache/v1'),
+		evidence: ConnectedSourceEvidenceSchema
+	})
+	.strict();
+
+const onboardingStageRank = {
+	source_connected: 0,
+	mode_selected: 1,
+	plan_reviewed: 2
+} as const;
+
+export function reconcileConnectedSourceCache(
+	authoritative: ConnectedSourceEvidence,
+	cached: ConnectedSourceEvidence | null
+): ConnectedSourceEvidence {
+	if (
+		!cached ||
+		cached.connectionId !== authoritative.connectionId ||
+		cached.commit !== authoritative.commit ||
+		onboardingStageRank[cached.onboarding.stage] <=
+			onboardingStageRank[authoritative.onboarding.stage]
+	) {
+		return authoritative;
+	}
+	return ConnectedSourceEvidenceSchema.parse({
+		...authoritative,
+		onboarding: cached.onboarding
+	});
+}
+
 export const SourceControlConnectionsSchema = z
 	.object({
 		contract: z.literal('tend.host/source-control-connections/v1'),
@@ -164,7 +196,7 @@ export type HostSourceBridge = Partial<HostCreationBridge & HostPreviewBridge> &
 	}): Promise<ConnectedRepositoryReport>;
 	getConnection(projectId: string): Promise<ConnectedSourceEvidence | null>;
 	listConnections?(): Promise<ConnectedSourceEvidence[]>;
-	updateConnectionSetup(input: {
+	updateConnectionSetup?(input: {
 		projectId: string;
 		connectionId: string;
 		editingMode: 'visual' | 'headless' | 'hybrid';
