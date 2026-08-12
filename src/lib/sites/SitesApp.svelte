@@ -47,7 +47,10 @@
 	import { onMount, tick } from 'svelte';
 
 	import type { SiteGoal, SiteModule } from '../contracts/catalog';
+	import { createSiteCreationExecutionIntent } from '../contracts/creation-operation';
+	import { createHostOperationRequest } from '../contracts/host-operations';
 	import { planSiteCreation } from '../planning/site-creation';
+	import { starterArchives, verifyStarterArchive } from '../starters/archives';
 
 	import {
 		customSiteModes,
@@ -62,6 +65,15 @@
 	} from './foundation-data';
 	import ContentWorkspace from './ContentWorkspace.svelte';
 	import type { HostMediaBridge } from './host-media';
+	import {
+		CreatedSiteSummarySchema,
+		CreationAssignmentSchema,
+		CreationServerSchema,
+		SiteCreationResultSchema,
+		type CreatedSiteSummary,
+		type CreationServer,
+		type SiteCreationResult
+	} from './host-creation';
 	import {
 		ConnectedRepositoryBranchSchema,
 		ConnectedRepositoryReportSchema,
@@ -157,6 +169,16 @@
 	let wizardStep = $state(1);
 	let selectedGoal = $state<SiteGoal>('blog');
 	let selectedTheme = $state('editorial');
+	let creationProjectId = $state<string | null>(null);
+	let creationPlanId = $state<string | null>(null);
+	let creationRequestedAt = $state<string | null>(null);
+	let creationServers = $state<CreationServer[]>([]);
+	let selectedCreationServerId = $state('');
+	let creationStatus = $state<'idle' | 'loading' | 'creating' | 'succeeded' | 'error'>('idle');
+	let creationProgress = $state('');
+	let creationError = $state('');
+	let creationResult = $state<SiteCreationResult | null>(null);
+	let createdSites = $state<CreatedSiteSummary[]>([]);
 	let selectedRepositoryStarter = $state<string | null>(null);
 	let sourceRepositories = $state<ConnectedRepository[]>([]);
 	let sourceBranches = $state<ConnectedRepositoryBranch[]>([]);
@@ -308,8 +330,8 @@
 		planSiteCreation(
 			{
 				contract: 'tend.host/sites-creation-selection/v1',
-				planId: '55555555-5555-4555-8555-555555555555',
-				projectId: 'planned-site',
+				planId: creationPlanId ?? '55555555-5555-4555-8555-555555555555',
+				projectId: creationProjectId ?? 'planned-site',
 				name: siteName.trim() || 'Untitled site',
 				goal: selectedGoal,
 				templateId: selectedTemplate.id,
@@ -317,7 +339,7 @@
 				modules: selectedModules.map((module) => moduleIds[module]),
 				accent,
 				defaultLocale: 'en',
-				requestedAt: '2026-08-09T20:00:00Z'
+				requestedAt: creationRequestedAt ?? '2026-08-09T20:00:00Z'
 			},
 			selectedTemplate
 		)
@@ -355,6 +377,7 @@
 		};
 		window.addEventListener('message', handleSourceConnection);
 		if (sourceBridge) void loadSourceConnection();
+		if (sourceBridge?.listCreatedSites) void loadCreatedSites();
 		if (!storage) {
 			saveStatus = 'local';
 			return () => window.removeEventListener('message', handleSourceConnection);
@@ -929,11 +952,98 @@
 			: [...selectedModules, module];
 	}
 
+	async function loadCreatedSites() {
+		if (!sourceBridge?.listCreatedSites) return;
+		try {
+			createdSites = CreatedSiteSummarySchema.array().parse(await sourceBridge.listCreatedSites());
+		} catch {
+			createdSites = [];
+		}
+	}
+
+	async function loadCreationServers() {
+		if (!sourceBridge?.listCreationServers) return;
+		creationStatus = 'loading';
+		creationError = '';
+		try {
+			creationServers = CreationServerSchema.array().parse(await sourceBridge.listCreationServers());
+			if (!creationServers.some((server) => server.id === selectedCreationServerId && server.ready)) {
+				selectedCreationServerId = creationServers.find((server) => server.ready)?.id ?? '';
+			}
+			creationStatus = 'idle';
+		} catch (error) {
+			creationStatus = 'error';
+			creationError = error instanceof Error ? error.message : 'Managed servers could not be loaded.';
+		}
+	}
+
+	async function advanceWizard() {
+		wizardStep += 1;
+		if (wizardStep === 5) await loadCreationServers();
+	}
+
+	async function createSiteSource() {
+		if (
+			!sourceBridge?.assignSiteCreation ||
+			!sourceBridge.executeSiteCreation ||
+			!selectedCreationServerId ||
+			creationStatus === 'creating'
+		) return;
+		creationStatus = 'creating';
+		creationError = '';
+		creationResult = null;
+		try {
+			creationProjectId ??= `site-${crypto.randomUUID()}`;
+			creationPlanId ??= crypto.randomUUID();
+			creationRequestedAt ??= new Date().toISOString();
+			await tick();
+			const archive = await verifyStarterArchive(
+				starterArchives[selectedTemplate.id as keyof typeof starterArchives]
+			);
+			creationProgress = 'Reserving a protected repository on the selected server…';
+			const assignment = CreationAssignmentSchema.parse(
+				await sourceBridge.assignSiteCreation({
+					projectId: reviewPlan.projectId,
+					serverId: selectedCreationServerId
+				})
+			);
+			const requestedAt = new Date().toISOString();
+			const intent = createSiteCreationExecutionIntent(reviewPlan);
+			const request = await createHostOperationRequest({
+				requestId: crypto.randomUUID(),
+				context: assignment.context,
+				capability: 'site.create',
+				projectId: reviewPlan.projectId,
+				intent,
+				expectedRevision: null,
+				requestedAt
+			});
+			creationProgress = 'Verifying every source file and creating version history…';
+			creationResult = SiteCreationResultSchema.parse(
+				await sourceBridge.executeSiteCreation({
+					serverId: selectedCreationServerId,
+					request,
+					archive
+				})
+			);
+			creationStatus = 'succeeded';
+			creationProgress = 'Source repository ready.';
+			await loadCreatedSites();
+		} catch (error) {
+			creationStatus = 'error';
+			creationProgress = '';
+			creationError = error instanceof Error ? error.message : 'The source repository could not be created.';
+		}
+	}
+
 	function open(next: View) {
 		view = next;
 		mobileMenu = false;
 		if (next === 'adopt' && sourceBridge && sourceStatus === 'idle') {
 			void hydrateSourceAdoption();
+		}
+		if (next === 'create' && sourceBridge?.listCreationServers && creationServers.length === 0) {
+			void loadCreationServers();
 		}
 	}
 
@@ -1384,6 +1494,24 @@
 			{/if}
 
 			<section class="project-grid" aria-label="Your sites">
+				{#each createdSites as created (created.projectId)}
+					<article class="project-card created-project-card">
+						<div class="connected-source-preview" aria-hidden="true">
+							<DatabaseZap size={30} />
+							<div><small>SOURCE READY</small><strong>{created.name}</strong></div>
+						</div>
+						<div class="project-heading">
+							<div><h2>{created.name}</h2><p>Stored on {created.serverName}</p></div>
+						</div>
+						<div class="project-meta">
+							<div><span>Main branch</span><span>Commit {created.gitCommit.slice(0, 7)}</span></div>
+							<span class="sites-badge sites-badge--positive">Versioned</span>
+						</div>
+						<button class="card-action" onclick={() => open('studio')}>
+							Open Studio <ArrowRight size={16} />
+						</button>
+					</article>
+				{/each}
 				{#if sourceConnection}
 					<article class="project-card connected-project-card">
 						<div class="connected-source-preview" aria-hidden="true">
@@ -1580,7 +1708,8 @@
 				{:else}
 					<h2>Your starter plan</h2>
 					<p class="section-copy">
-						Reviewing is safe. No source or repository will be created in this foundation preview.
+						Choose where your source lives. TEND Sites will create ordinary Git history on that
+						server and will not run the starter's code.
 					</p>
 					<div class="review-grid">
 						<div><span>Site</span><strong>{siteName || 'Untitled site'}</strong></div>
@@ -1600,16 +1729,58 @@
 							>
 						</div>
 					</div>
-					<div class="honesty-note">
-						<Cloud size={20} />
-						<div>
-							<strong>Source creation is intentionally disabled.</strong>
-							<p>
-								The next host-capability slice will turn this reviewed plan into ordinary SvelteKit
-								source through a durable job.
-							</p>
+					{#if sourceBridge?.listCreationServers}
+						<div class="creation-destination">
+							<div>
+								<span class="eyebrow">Source location</span>
+								<h3>Keep the repository on your server</h3>
+								<p>The panel stores only identity, revision, and recovery evidence.</p>
+							</div>
+							{#if creationStatus === 'loading'}
+								<p class="creation-state"><LoaderCircle class="spin" size={18} /> Loading managed servers…</p>
+							{:else}
+								<div class="creation-server-grid" role="radiogroup" aria-label="Source server">
+									{#each creationServers as server (server.id)}
+										<button
+											type="button"
+											role="radio"
+											aria-checked={selectedCreationServerId === server.id}
+											class:selected={selectedCreationServerId === server.id}
+											disabled={!server.ready || creationStatus === 'creating'}
+											onclick={() => (selectedCreationServerId = server.id)}
+										>
+											<span><DatabaseZap size={19} /></span>
+											<strong>{server.name}</strong>
+											<small>{server.ready ? (server.local ? 'This host · ready' : 'Managed server · ready') : server.reason}</small>
+										</button>
+									{/each}
+								</div>
+								{#if creationServers.length === 0}
+									<p class="creation-state">Add a managed server in tend.host before creating source.</p>
+								{/if}
+							{/if}
 						</div>
-					</div>
+						{#if creationStatus === 'creating'}
+							<div class="creation-progress" role="status">
+								<LoaderCircle class="spin" size={21} />
+								<div><strong>Creating {siteName || 'your site'}</strong><p>{creationProgress}</p></div>
+							</div>
+						{:else if creationStatus === 'succeeded' && creationResult}
+							<div class="creation-success" role="status">
+								<Check size={22} />
+								<div>
+									<strong>Source repository ready</strong>
+									<p>{creationResult.name} now has a main branch and verified first commit on {creationResult.server.name}.</p>
+								</div>
+							</div>
+						{:else if creationError}
+							<p class="source-error" role="alert">{creationError}</p>
+						{/if}
+					{:else}
+						<div class="honesty-note">
+							<Cloud size={20} /><div><strong>Open this extension inside tend.host to create source.</strong><p>The standalone preview cannot select or write to a managed server.</p></div>
+						</div>
+					{/if}
 				{/if}
 			</section>
 			<div class="wizard-actions">
@@ -1617,9 +1788,21 @@
 					><ArrowLeft size={17} /> Back</button
 				>
 				{#if wizardStep < 5}
-					<button class="primary" onclick={() => (wizardStep += 1)}
+					<button class="primary" onclick={() => void advanceWizard()}
 						>Next: {stepLabels[wizardStep]} <ArrowRight size={17} /></button
 					>
+				{:else if creationStatus === 'succeeded'}
+					<button class="primary" onclick={() => open('home')}
+						>View in Your sites <ArrowRight size={17} /></button
+					>
+				{:else if sourceBridge?.executeSiteCreation}
+					<button
+						class="primary"
+						disabled={!selectedCreationServerId || creationStatus === 'creating'}
+						onclick={() => void createSiteSource()}
+					>
+						{#if creationStatus === 'creating'}<LoaderCircle class="spin" size={17} /> Creating source…{:else}<DatabaseZap size={17} /> Create site source{/if}
+					</button>
 				{:else}
 					<button class="primary" onclick={() => open('studio')}
 						>Open Studio preview <ArrowRight size={17} /></button
@@ -4274,6 +4457,12 @@
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 16px;
 	}
+	.created-project-card {
+		border-color: #34785f;
+		background:
+			radial-gradient(circle at 88% 10%, #1c624a3d 0, transparent 34%),
+			var(--surface);
+	}
 	.connected-source-handoff {
 		display: grid;
 		grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.35fr) auto;
@@ -5633,6 +5822,93 @@
 	.details span {
 		color: var(--muted);
 		font-size: 11px;
+	}
+	.creation-destination {
+		display: grid;
+		gap: 15px;
+		margin-top: 18px;
+		padding: 18px;
+		border: 1px solid #285845;
+		border-radius: 14px;
+		background: linear-gradient(135deg, #0c2119, #0a1513);
+	}
+	.creation-destination h3,
+	.creation-destination p,
+	.creation-progress p,
+	.creation-success p {
+		margin: 0;
+	}
+	.creation-destination h3 {
+		margin-top: 4px;
+		font-size: 17px;
+	}
+	.creation-destination > div:first-child p,
+	.creation-progress p,
+	.creation-success p {
+		margin-top: 4px;
+		color: var(--muted);
+		font-size: 12px;
+		line-height: 1.5;
+	}
+	.creation-server-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px;
+	}
+	.creation-server-grid button {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 2px 10px;
+		align-items: center;
+		padding: 13px;
+		color: #dcebe5;
+		text-align: left;
+		border: 1px solid var(--border);
+		border-radius: 11px;
+		background: #091512;
+	}
+	.creation-server-grid button > span {
+		display: grid;
+		grid-row: 1 / 3;
+		width: 36px;
+		height: 36px;
+		place-items: center;
+		color: var(--green);
+		border-radius: 10px;
+		background: #103226;
+	}
+	.creation-server-grid button small {
+		overflow: hidden;
+		color: var(--muted);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.creation-server-grid button.selected {
+		border-color: var(--green);
+		box-shadow: inset 0 0 0 1px #56e6ad35;
+		background: #10271f;
+	}
+	.creation-state,
+	.creation-progress,
+	.creation-success {
+		display: flex;
+		align-items: center;
+		gap: 11px;
+		margin: 0;
+		padding: 13px 14px;
+		border: 1px solid var(--border);
+		border-radius: 11px;
+		background: #091512;
+	}
+	.creation-progress {
+		margin-top: 12px;
+		border-color: #356b57;
+	}
+	.creation-success {
+		margin-top: 12px;
+		color: var(--green);
+		border-color: #367d62;
+		background: #0d251c;
 	}
 	.honesty-note {
 		display: flex;
@@ -7478,7 +7754,8 @@
 		.theme-library-grid,
 		.toggle-grid,
 		.identity-grid,
-		.review-grid {
+		.review-grid,
+		.creation-server-grid {
 			grid-template-columns: 1fr;
 		}
 		.filter-row {

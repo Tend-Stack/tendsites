@@ -16,7 +16,7 @@ Target repositories, site templates, themes, community components, user content,
 6. AI output is data, never authority. Show an understandable change set before committing source changes.
 7. Build and preview secrets use explicit purpose-bound delivery and never appear in logs, layers, cache keys, diffs, or AI prompts.
 8. Fork and pull-request snapshots are untrusted by default and receive neither protected secrets nor production destination authority.
-9. Starter, creation, adoption, content-index, change-preview, draft, media, localization, library, and preview-policy contracts are evidence only; none can apply repository or deployment mutations.
+9. Starter, adoption, content-index, change-preview, draft, media, localization, library, and preview-policy contracts are evidence only. Creation can cross only the separately granted `sites.create` bridge, where the host revalidates the exact plan and archive before its fixed worker initializes source; it grants no generic repository or deployment mutation.
 10. Passing compatibility or preview checks never grants installation, publishing, or deployment authority.
 
 11. Custom-site content mappings never grant ownership of repository templates or renderer code.
@@ -55,6 +55,14 @@ Block definitions forbid panel scripts and reject unknown inspector fields. Prev
 Starter files are content-addressed individually and as one canonical revision before use. Markdown frontmatter accepts canonical JSON values rather than executing a general YAML language, rejects duplicate or unsafe keys, and remains bounded. Local content assistance sends nothing and cannot apply suggestions.
 
 Future privileged work must cross the typed host-operation bridge. The extension never receives a raw provider credential, repository URL override, filesystem path, server coordinate, shell command, deployment key, or generic capability bearer. Assigned contexts are short-lived and exact-project/capability/revision bound; canonical intent and idempotency digests bind retries, while monotonic evidence rejects stale or substituted results.
+
+Bundled-starter creation is the first narrow implementation of that bridge. The host constructs the
+tar stream itself after enforcing path, count, per-file, total-byte, UTF-8, file-digest, and canonical
+revision limits. A digest-pinned Git worker runs with no network, no Linux capabilities,
+`no-new-privileges`, bounded memory/processes/time, and a fixed script; it never executes starter
+source. Per-project locks, staging directories, server-side checksum verification, Git fsck, and
+durable idempotency evidence make retries safe. The browser receives only opaque repository/source
+identity, a commit hash, and a sanitized server display name.
 
 ## Component and theme trust
 

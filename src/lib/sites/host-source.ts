@@ -6,6 +6,7 @@ import {
 	assessSourceSnapshot
 } from '../contracts/adoption';
 import { RepositoryInspectionResultSchema } from '../contracts/repository-inspection';
+import type { HostCreationBridge } from './host-creation';
 
 export const ConnectedRepositorySchema = z
 	.object({
@@ -132,7 +133,7 @@ export const SourceControlConnectionsSchema = z
 
 export type SourceControlConnections = z.infer<typeof SourceControlConnectionsSchema>;
 
-export type HostSourceBridge = {
+export type HostSourceBridge = Partial<HostCreationBridge> & {
 	getSourceControlConnections(): Promise<SourceControlConnections>;
 	beginSourceControlConnection(provider: string): Promise<void>;
 	manageSourceControlAccess(provider: string): Promise<void>;

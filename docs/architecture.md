@@ -29,9 +29,13 @@ Generated site = ordinary files + assets + Git history
 - `src/lib/contracts/source-storage.ts` names one canonical source adapter, keeps resumable drafts
   structurally noncanonical, and derives honest durability states only from exact revision-bound
   source, history, backup, and restore evidence.
-  The companion tend.host service now persists this source binding behind an accepted creation
-  operation and retains one encrypted, bounded current draft snapshot. That seam is route-free and
-  does not clone, write, publish, build, or deploy source.
+  The companion tend.host service persists this source binding behind an accepted creation
+  operation and retains one encrypted, bounded current draft snapshot. Its narrow `sites.create`
+  capability can materialize a digest-verified bundled starter into an owned customer-server volume
+  and initialize Git through a fixed worker; it cannot execute starter code, publish, or deploy it.
+- `src/lib/sites/host-creation.ts` validates the only creation bridge responses the browser accepts:
+  eligible server summaries, short-lived assignments, durable creation evidence, and persisted
+  Your-sites summaries. Server coordinates and filesystem paths never cross this boundary.
 - `src/lib/planning/` produces deterministic creation and change-review plans that are structurally unable to apply themselves.
 - `src/lib/content/index.ts` validates collection, locale, path, and navigation relationships without reading a repository.
 - `src/lib/contracts/drafts.ts` separates draft revisions from committed source and detects stale-base conflicts.

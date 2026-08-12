@@ -44,7 +44,7 @@ test('shows source adoption evidence without granting mutation authority', async
 	await expect(page.getByRole('button', { name: 'Connect through tend.host' })).toBeDisabled();
 });
 
-test('guides creation without pretending to create source', async ({ page }) => {
+test('guides creation and explains when host source authority is unavailable', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'New site' }).click();
 
@@ -53,7 +53,9 @@ test('guides creation without pretending to create source', async ({ page }) => 
 		await page.getByRole('button', { name: next }).click();
 	}
 
-	await expect(page.getByText('Source creation is intentionally disabled.')).toBeVisible();
+	await expect(
+		page.getByText('Open this extension inside tend.host to create source.')
+	).toBeVisible();
 	await expect(page.getByText('3 reviewed files')).toBeVisible();
 	await page.getByRole('button', { name: 'Open Studio preview' }).click();
 	await expect(page.getByText('Local demo session')).toBeVisible();

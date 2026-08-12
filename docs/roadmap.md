@@ -39,7 +39,7 @@ Completion is measured only from the top-level product milestones below. Nested 
 
 - [x] Reviewed starter catalog and immutable template revisions.
   - **Complete:** Strict catalog/revision/file manifests and four digest-certified source bundles.
-- [ ] Friendly five-step creation workflow backed by a durable host operation.
+- [x] Friendly five-step creation workflow backed by a durable host operation.
   - **Complete:** Deterministic review plan shown in the five-step workflow.
   - **Complete:** Exact-plan creation intent and shared canonical/idempotent host-operation request/evidence contracts.
   - **Complete integration seam:** tend.host packages the exact reviewed 0.1.0
@@ -47,9 +47,12 @@ Completion is measured only from the top-level product milestones below. Nested 
     user/project/version-bound `site.create` contexts. Canonical requests are
     accepted idempotently; drift, expiry, and modified extension bytes fail
     closed.
-  - **Pending:** Deliver the assigned context to the mounted extension and
-    execute an accepted plan through a separately reviewed host worker. No
-    source creation is currently enabled.
+  - **Complete:** The mounted extension selects an eligible managed server, receives a short-lived
+    assigned context, and submits the exact reviewed starter archive. The host independently
+    validates every UTF-8 byte and digest, creates a labeled customer-server source volume, and
+    initializes ordinary Git history through a pinned, no-network, capability-free, resource-bounded
+    worker. Durable, idempotent results survive restart and appear in Your sites without exposing
+    server coordinates or source paths to the browser.
 - [x] Existing-repository analyzer with bounded checkout and compatibility report.
   - **Complete:** Pure snapshot classification and compatibility report.
   - **Complete:** Opaque repository selector, bounded disposable-checkout intent, host-only credential policy, and strict cleanup result.
