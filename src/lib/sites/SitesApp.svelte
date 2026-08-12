@@ -168,9 +168,12 @@
 	);
 	let sourceError = $state('');
 	let sourceConnectionNotice = $state('');
+	let connectedSourceJustAdded = $state(false);
 	let sourceReport = $state<ConnectedRepositoryReport | null>(null);
 	let sourceResultElement = $state<HTMLElement | null>(null);
 	let adoptionPathsElement = $state<HTMLElement | null>(null);
+	let modeSetupElement = $state<HTMLElement | null>(null);
+	let adoptionPlanElement = $state<HTMLElement | null>(null);
 	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
 	let selectedAdoptionMode = $state<(typeof customSiteModes)[number]['id'] | null>(null);
 	let sourceControlConnections = $state<SourceControlConnections | null>(null);
@@ -276,6 +279,9 @@
 			sourceConnection.repository.ref === sourceReport.repository.ref &&
 			sourceConnection.commit === sourceReport.inspection.snapshot.commit
 		)
+	);
+	const selectedAdoptionModeDetails = $derived(
+		customSiteModes.find((mode) => mode.id === selectedAdoptionMode) ?? null
 	);
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
@@ -932,6 +938,7 @@
 	}
 
 	async function continueConnectedSource() {
+		connectedSourceJustAdded = false;
 		open('adopt');
 		await tick();
 		adoptionPathsElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -942,6 +949,19 @@
 		adoptionPathsElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
+	async function selectAdoptionMode(mode: (typeof customSiteModes)[number]['id']) {
+		selectedAdoptionMode = mode;
+		await tick();
+		modeSetupElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		modeSetupElement?.focus({ preventScroll: true });
+	}
+
+	async function reviewConnectedAdoptionPlan() {
+		await tick();
+		adoptionPlanElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		adoptionPlanElement?.focus({ preventScroll: true });
+	}
+
 	async function loadSourceControlConnections() {
 		if (!sourceBridge) return;
 		sourceControlBusy = true;
@@ -950,7 +970,10 @@
 			sourceControlConnections = SourceControlConnectionsSchema.parse(
 				await sourceBridge.getSourceControlConnections()
 			);
-			if (sourceConnection?.provider === 'gitlab' || (!githubConnection?.available && gitlabConnection?.available)) {
+			if (
+				sourceConnection?.provider === 'gitlab' ||
+				(!githubConnection?.available && gitlabConnection?.available)
+			) {
 				selectedSourceProvider = 'gitlab';
 			}
 			if (activeSourceConnection?.available) await loadSourceRepositories();
@@ -1012,6 +1035,7 @@
 		try {
 			const connection = await sourceBridge.getConnection(sourceProjectId);
 			sourceConnection = connection ? ConnectedSourceEvidenceSchema.parse(connection) : null;
+			if (sourceConnection) selectedSourceProvider = sourceConnection.provider;
 		} catch {
 			sourceConnection = null;
 		}
@@ -1108,8 +1132,10 @@
 			);
 			sourceStatus = 'ready';
 			sourceConnectionNotice = `${sourceConnection.repository.fullName} is connected at commit ${sourceConnection.commit.slice(0, 10)}….`;
+			connectedSourceJustAdded = true;
+			open('home');
 			await tick();
-			sourceResultElement?.scrollIntoView({ block: 'nearest' });
+			document.querySelector<HTMLElement>('.connected-source-handoff')?.focus();
 		} catch (error) {
 			sourceStatus = 'error';
 			sourceError = error instanceof Error ? error.message : 'The source could not be connected.';
@@ -1301,6 +1327,41 @@
 				>
 			</section>
 
+			{#if connectedSourceJustAdded && sourceConnection}
+				<section
+					class="connected-source-handoff"
+					tabindex="-1"
+					aria-labelledby="connected-source-title"
+					aria-live="polite"
+				>
+					<div class="connected-source-handoff__heading">
+						<span><Check size={19} /></span>
+						<div>
+							<small>Site added to Your sites</small>
+							<h2 id="connected-source-title">{sourceConnection.repository.name} is connected</h2>
+							<p>
+								Sites saved {sourceConnection.repository.fullName} at commit {sourceConnection.commit.slice(
+									0,
+									10
+								)}…. Choose how you want to edit it next.
+							</p>
+						</div>
+					</div>
+					<ol class="connected-source-steps" aria-label="Connected site setup progress">
+						<li class="complete">
+							<span><Check size={14} /></span><small>1</small><strong>Connect source</strong>
+						</li>
+						<li class="current">
+							<span>2</span><small>Next</small><strong>Choose editing mode</strong>
+						</li>
+						<li><span>3</span><small>Later</small><strong>Review publish plan</strong></li>
+					</ol>
+					<button class="primary" type="button" onclick={() => void continueConnectedSource()}>
+						Choose editing mode <ArrowRight size={16} />
+					</button>
+				</section>
+			{/if}
+
 			<section class="project-grid" aria-label="Your sites">
 				{#if sourceConnection}
 					<article class="project-card connected-project-card">
@@ -1322,7 +1383,7 @@
 								<span>{sourceConnection.repository.ref}</span>
 								<span>Commit {sourceConnection.commit.slice(0, 7)}</span>
 							</div>
-							<span class="sites-badge sites-badge--positive">Connected</span>
+							<span class="sites-badge">Setup needed</span>
 						</div>
 						<button class="card-action" onclick={() => void continueConnectedSource()}>
 							Continue setup <ArrowRight size={16} />
@@ -1568,8 +1629,16 @@
 							deployments, and future Git workflows.
 						</p>
 					</div>
-					<span class:available={activeSourceConnection?.available === true} class="source-capability">
-						{activeSourceConnection?.available ? 'Repository access ready' : 'Connection needed'}
+					<span
+						class:available={Boolean(sourceConnection) ||
+							activeSourceConnection?.available === true}
+						class="source-capability"
+					>
+						{sourceConnection
+							? 'Source connected'
+							: activeSourceConnection?.available
+								? 'Repository access ready'
+								: 'Connection needed'}
 					</span>
 				</div>
 				{#if sourceBridge}
@@ -1595,14 +1664,19 @@
 						<div class="source-provider-identity">
 							<span><GitBranch size={21} /></span>
 							<div>
-								<strong>{activeSourceConnection?.name ?? (selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab')}</strong>
+								<strong
+									>{activeSourceConnection?.name ??
+										(selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab')}</strong
+								>
 								<p>
 									{#if activeSourceConnection?.available}
 										Connected for repository imports and deployments.
 									{:else if activeSourceConnection?.configured}
 										The shared connection is configured but repository access needs attention.
 									{:else}
-										Connect {selectedSourceProvider === 'github' ? 'the shared GitHub App' : 'GitLab'} without leaving this Sites workflow.
+										Connect {selectedSourceProvider === 'github'
+											? 'the shared GitHub App'
+											: 'GitLab'} without leaving this Sites workflow.
 									{/if}
 								</p>
 							</div>
@@ -1615,9 +1689,9 @@
 										<small
 											>{installation.repositorySelection === 'all'
 												? 'All repositories'
-											: installation.repositorySelection === 'selected'
-												? 'Selected repositories'
-												: 'Accessible repositories'}</small
+												: installation.repositorySelection === 'selected'
+													? 'Selected repositories'
+													: 'Accessible repositories'}</small
 										>
 									</span>
 								{/each}
@@ -1631,7 +1705,9 @@
 									disabled={sourceControlBusy}
 									onclick={() => void beginSourceControlConnection('gitlab')}
 								>
-									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Verifying…{:else}<GitBranch size={17} />
+									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Verifying…{:else}<GitBranch
+											size={17}
+										/>
 										{gitlabConnection?.configured ? 'Reconnect GitLab' : 'Connect GitLab'}{/if}
 								</button>
 							{:else if !githubConnection?.configured || githubConnection?.authMode === 'personal_access_token'}
@@ -1667,24 +1743,24 @@
 								{sourceControlPrompt}
 							</p>{/if}
 					</div>
-					{#if activeSourceConnection?.available}
-						{#if sourceConnection}
-							<div class="source-connected" aria-live="polite">
-								<span><Check size={18} /></span>
-								<div>
-									<strong>{sourceConnection.repository.fullName} is connected</strong>
-									<p>
-										{sourceConnection.repository.ref} · commit {sourceConnection.commit.slice(
-											0,
-											10
-										)}… This records the selected source for reviewed work; repository writes and
-										publishing remain unavailable.
-									</p>
-								</div>
+					{#if sourceConnection}
+						<div class="source-connected" aria-live="polite">
+							<span><Check size={18} /></span>
+							<div>
+								<strong>{sourceConnection.repository.fullName} is connected</strong>
+								<p>
+									{sourceConnection.repository.ref} · commit {sourceConnection.commit.slice(0, 10)}…
+									This saved source remains available for setup even when provider access needs a
+									refresh. GitHub or GitLab access is only required to analyze a newer revision.
+								</p>
 							</div>
-						{/if}
+						</div>
+					{/if}
+					{#if activeSourceConnection?.available}
 						<div class="source-search">
-							<label for="source-search-input">Find a {selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab'} repository</label>
+							<label for="source-search-input"
+								>Find a {selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab'} repository</label
+							>
 							<div>
 								<Search size={17} />
 								<input
@@ -1707,7 +1783,12 @@
 						</div>
 						{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
 						<div class:analyzed={sourceReport !== null} class="source-connect-grid">
-							<div class="source-repository-list" aria-label="Connected {selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab'} repositories">
+							<div
+								class="source-repository-list"
+								aria-label="Connected {selectedSourceProvider === 'github'
+									? 'GitHub'
+									: 'GitLab'} repositories"
+							>
 								{#each sourceRepositories as repository (repository.fullName)}
 									<button
 										type="button"
@@ -1803,9 +1884,15 @@
 									<div class="source-pages">
 										<GitBranch size={18} />
 										<div>
-											<strong>Published with {sourceReport.pagesDeployment.method === 'gitlab-ci' ? 'GitLab Pages' : 'GitHub Pages'}</strong>
+											<strong
+												>Published with {sourceReport.pagesDeployment.method === 'gitlab-ci'
+													? 'GitLab Pages'
+													: 'GitHub Pages'}</strong
+											>
 											<p>
-												{sourceReport.pagesDeployment.method === 'gitlab-ci' ? 'GitLab CI' : 'GitHub Actions'} builds
+												{sourceReport.pagesDeployment.method === 'gitlab-ci'
+													? 'GitLab CI'
+													: 'GitHub Actions'} builds
 												{sourceReport.pagesDeployment.artifactPath
 													? ` ${sourceReport.pagesDeployment.artifactPath}/`
 													: ' a site artifact'}
@@ -1819,7 +1906,8 @@
 								{/if}
 								<div class="source-connect-action">
 									<div>
-										<strong>{reportIsConnected ? 'Source connected' : 'Keep this selection'}</strong>
+										<strong>{reportIsConnected ? 'Source connected' : 'Keep this selection'}</strong
+										>
 										<p>
 											The host re-verifies the exact commit before saving this repository selection.
 											It does not grant Git write or deployment access.
@@ -1860,13 +1948,32 @@
 												choice still makes no repository changes.
 											</p>
 										</div>
-										<button class="primary" type="button" onclick={() => void showAdoptionChoices()}>
+										<button
+											class="primary"
+											type="button"
+											onclick={() => void showAdoptionChoices()}
+										>
 											Choose editing mode <ArrowRight size={16} />
 										</button>
 									</div>
 								{/if}
 							</div>
 						{/if}
+					{:else if !sourceControlBusy && sourceConnection}
+						<div class="source-onboarding source-onboarding--connected">
+							<Check size={22} />
+							<div>
+								<strong>Continue setup without reconnecting.</strong>
+								<p>
+									Your verified source is still connected. Choose an editing mode below. Reconnect
+									{sourceConnection.provider === 'github' ? 'GitHub' : 'GitLab'} only when you want to
+									inspect repository changes made after commit {sourceConnection.commit.slice(
+										0,
+										7
+									)}.
+								</p>
+							</div>
+						</div>
 					{:else if !sourceControlBusy}
 						<div class="source-onboarding">
 							<ShieldCheck size={22} />
@@ -1923,33 +2030,85 @@
 							<button
 								class="secondary"
 								type="button"
-								onclick={() => (selectedAdoptionMode = mode.id)}
+								onclick={() => void selectAdoptionMode(mode.id)}
 							>
-								{selectedAdoptionMode === mode.id ? 'Selected' : 'Choose this mode'}
-								{#if selectedAdoptionMode === mode.id}<Check size={16} />{:else}<ArrowRight size={16} />{/if}
+								{selectedAdoptionMode === mode.id ? 'Mode selected' : 'Choose this mode'}
+								{#if selectedAdoptionMode === mode.id}<Check size={16} />{:else}<ArrowRight
+										size={16}
+									/>{/if}
 							</button>
 						</article>
 					{/each}
 				</div>
 			</section>
 
-			<section class="custom-site-proof" aria-label="Custom site adoption example">
+			{#if selectedAdoptionModeDetails}
+				<section
+					class="mode-setup-handoff"
+					tabindex="-1"
+					bind:this={modeSetupElement}
+					aria-labelledby="mode-setup-title"
+					aria-live="polite"
+				>
+					<div class="mode-setup-handoff__status"><Check size={20} /></div>
+					<div>
+						<span class="eyebrow">Editing mode selected</span>
+						<h2 id="mode-setup-title">{selectedAdoptionModeDetails.name}</h2>
+						{#if selectedAdoptionMode === 'visual'}
+							<p>
+								Next, review how the connected site can move into visual pages without replacing its
+								repository or publishing anything.
+							</p>
+						{:else if selectedAdoptionMode === 'headless'}
+							<p>
+								Next, review the detected content folders Sites can map while your framework,
+								routes, and design stay in the repository.
+							</p>
+						{:else}
+							<p>
+								Next, review the content map and the visual areas that can be adopted gradually. No
+								repository changes happen during this review.
+							</p>
+						{/if}
+					</div>
+					<button class="primary" type="button" onclick={() => void reviewConnectedAdoptionPlan()}>
+						Review setup plan <ArrowRight size={16} />
+					</button>
+				</section>
+			{/if}
+
+			<section
+				class="custom-site-proof"
+				aria-label="Connected site setup plan"
+				tabindex="-1"
+				bind:this={adoptionPlanElement}
+			>
 				<div>
-					<span class="eyebrow">Example custom-site plan</span>
-					<h2>Keep the renderer. Map only the content.</h2>
+					<span class="eyebrow"
+						>{sourceConnection ? 'Connected site plan' : 'Example custom-site plan'}</span
+					>
+					<h2>
+						{selectedAdoptionMode === 'visual'
+							? 'Prepare visual pages. Preserve the source.'
+							: selectedAdoptionMode === 'hybrid'
+								? 'Map the content. Add visual areas gradually.'
+								: 'Keep the renderer. Map only the content.'}
+					</h2>
 					<p>
-						A detected {demoCustomSitePlan.framework} site keeps every component, route, style, and build
-						decision in its repository.
+						A detected {sourceConnection?.framework ?? demoCustomSitePlan.framework} site keeps every
+						component, route, style, and build decision in its repository during review.
 					</p>
 				</div>
 				<dl>
 					<div>
 						<dt>Editing mode</dt>
-						<dd>Content only</dd>
+						<dd>{selectedAdoptionModeDetails?.name ?? 'Not selected'}</dd>
 					</div>
 					<div>
-						<dt>Mapped collections</dt>
-						<dd>{demoCustomSitePlan.collectionIds.length}</dd>
+						<dt>Detected content paths</dt>
+						<dd>
+							{sourceConnection?.contentPaths.length ?? demoCustomSitePlan.collectionIds.length}
+						</dd>
 					</div>
 					<div>
 						<dt>Renderer</dt>
@@ -4088,6 +4247,120 @@
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 16px;
 	}
+	.connected-source-handoff {
+		display: grid;
+		grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.35fr) auto;
+		gap: 24px;
+		align-items: center;
+		margin-bottom: 18px;
+		padding: 18px;
+		border: 1px solid #39876a;
+		border-radius: 16px;
+		outline: none;
+		background:
+			radial-gradient(circle at 92% 12%, #1d624b55 0, transparent 30%),
+			linear-gradient(125deg, #0d291f, #0c1816);
+	}
+	.connected-source-handoff:focus-visible {
+		box-shadow: 0 0 0 3px #56e6ad45;
+	}
+	.connected-source-handoff__heading {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 12px;
+		align-items: start;
+		min-width: 0;
+	}
+	.connected-source-handoff__heading > span {
+		display: grid;
+		width: 38px;
+		height: 38px;
+		place-items: center;
+		color: #07130f;
+		border-radius: 11px;
+		background: var(--green);
+	}
+	.connected-source-handoff__heading small {
+		color: var(--green);
+		font-size: 10px;
+		font-weight: 850;
+		letter-spacing: 0.11em;
+		text-transform: uppercase;
+	}
+	.connected-source-handoff__heading h2 {
+		margin: 3px 0 4px;
+		font-size: 18px;
+	}
+	.connected-source-handoff__heading p {
+		margin: 0;
+		color: #90a79e;
+		font-size: 12px;
+		line-height: 1.5;
+	}
+	.connected-source-steps {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.connected-source-steps li {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0 8px;
+		align-items: center;
+		min-width: 0;
+		padding: 10px;
+		color: #71847d;
+		border: 1px solid #203a32;
+		border-radius: 11px;
+		background: #081510;
+	}
+	.connected-source-steps li > span {
+		display: grid;
+		grid-row: 1 / 3;
+		width: 27px;
+		height: 27px;
+		place-items: center;
+		font-size: 11px;
+		font-weight: 850;
+		border: 1px solid #314b42;
+		border-radius: 9px;
+	}
+	.connected-source-steps small,
+	.connected-source-steps strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.connected-source-steps small {
+		font-size: 9px;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.connected-source-steps strong {
+		color: #a9bbb4;
+		font-size: 11px;
+	}
+	.connected-source-steps li.complete,
+	.connected-source-steps li.current {
+		border-color: #2e7059;
+	}
+	.connected-source-steps li.complete > span {
+		color: #07130f;
+		border-color: var(--green);
+		background: var(--green);
+	}
+	.connected-source-steps li.current {
+		background: #10281f;
+	}
+	.connected-source-steps li.current > span,
+	.connected-source-steps li.current small,
+	.connected-source-steps li.current strong {
+		color: var(--green);
+	}
 	.project-card,
 	.component-grid article,
 	.resume-card,
@@ -4849,6 +5122,43 @@
 		color: var(--green);
 		border-radius: 12px;
 		background: #103127;
+	}
+	.mode-setup-handoff {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		gap: 15px;
+		align-items: center;
+		margin: -2px 0 18px;
+		padding: 18px;
+		border: 1px solid #3b8d6f;
+		border-radius: 16px;
+		outline: none;
+		background: linear-gradient(115deg, #0e2d22, #0b1715);
+		box-shadow: 0 14px 36px #0003;
+	}
+	.mode-setup-handoff:focus-visible {
+		box-shadow:
+			0 0 0 3px #56e6ad45,
+			0 14px 36px #0003;
+	}
+	.mode-setup-handoff__status {
+		display: grid;
+		width: 42px;
+		height: 42px;
+		place-items: center;
+		color: #07130f;
+		border-radius: 12px;
+		background: var(--green);
+	}
+	.mode-setup-handoff h2 {
+		margin: 4px 0;
+		font-size: 19px;
+	}
+	.mode-setup-handoff p {
+		max-width: 760px;
+		margin: 0;
+		color: #9db2aa;
+		line-height: 1.5;
 	}
 	.custom-site-proof {
 		display: grid;
@@ -6910,6 +7220,19 @@
 	}
 
 	@media (max-width: 900px) {
+		.connected-source-handoff {
+			grid-template-columns: 1fr;
+		}
+		.mode-setup-handoff {
+			grid-template-columns: auto minmax(0, 1fr);
+		}
+		.mode-setup-handoff .primary {
+			grid-column: 1 / -1;
+			width: 100%;
+		}
+		.connected-source-handoff .primary {
+			width: 100%;
+		}
 		.site-preview-modal > header {
 			align-items: flex-start;
 			flex-direction: column;
@@ -7041,6 +7364,9 @@
 		}
 	}
 	@media (max-width: 640px) {
+		.connected-source-steps {
+			grid-template-columns: 1fr;
+		}
 		.sites-shell.embedded .page {
 			width: min(100% - 20px, 1680px);
 			padding-block: 24px 44px;

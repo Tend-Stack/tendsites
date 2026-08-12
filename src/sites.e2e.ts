@@ -1110,6 +1110,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 
 	await page.goto('/');
 	await page.evaluate(async () => {
+		let providerAccessAvailable = true;
 		const extensionUrl = '/test-extension/index.js?v=source';
 		const extension = await import(/* @vite-ignore */ extensionUrl);
 		const container = document.createElement('div');
@@ -1127,7 +1128,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 									id: 'github',
 									name: 'GitHub',
 									configured: true,
-									available: true,
+									available: providerAccessAvailable,
 									authMode: 'github_app',
 									installUrl: 'https://github.com/apps/tend-test/installations/new',
 									installations: [
@@ -1226,6 +1227,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 						return null;
 					},
 					async connectRepository() {
+						providerAccessAvailable = false;
 						return {
 							contract: 'tend.host/sites-connected-source-evidence/v1',
 							connectionId: '33333333-3333-4333-8333-333333333333',
@@ -1276,18 +1278,36 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 			resultWidth: Math.round(bounds.width),
 			actionWidth: Math.round(action?.width ?? 0),
 			pageWidth: document.documentElement.clientWidth,
-			horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+			horizontalOverflow:
+				document.documentElement.scrollWidth > document.documentElement.clientWidth
 		};
 	});
 	expect(reviewLayout.resultWidth).toBeGreaterThan(reviewLayout.pageWidth * 0.65);
 	expect(reviewLayout.actionWidth).toBeGreaterThan(reviewLayout.resultWidth * 0.9);
 	expect(reviewLayout.horizontalOverflow).toBe(false);
 	await page.getByRole('button', { name: 'Connect source' }).click();
-	await expect(page.getByRole('button', { name: 'Connected', exact: true })).toBeVisible();
-	await expect(page.getByText(/Tend-Stack\/tendsites is connected at commit aaaaaaaaaa/)).toBeVisible();
-	await expect(page.getByText('Choose how Sites should work with this repository')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'tendsites is connected' })).toBeVisible();
+	await expect(page.getByText('Site added to Your sites')).toBeVisible();
+	await expect(page.getByRole('list', { name: 'Connected site setup progress' })).toContainText(
+		'Choose editing mode'
+	);
 	await page.getByRole('button', { name: 'Choose editing mode' }).click();
-	await expect(page.getByRole('heading', { name: 'Your website does not have to look or work like ours.' })).toBeInViewport();
+	await expect(
+		page.getByRole('heading', { name: 'Your website does not have to look or work like ours.' })
+	).toBeInViewport();
+	await page.getByRole('button', { name: 'Refresh access' }).click();
+	await expect(page.getByText('Source connected', { exact: true })).toBeVisible();
+	await expect(page.getByText('Continue setup without reconnecting.')).toBeVisible();
+	await expect(page.getByText('Connection needed')).not.toBeVisible();
+	await page.getByRole('button', { name: 'Choose this mode' }).nth(1).click();
+	const modeHandoff = page.locator('.mode-setup-handoff');
+	await expect(
+		modeHandoff.getByRole('heading', { name: 'Keep my custom design' })
+	).toBeInViewport();
+	await expect(modeHandoff.getByText('Editing mode selected')).toBeVisible();
+	await page.getByRole('button', { name: 'Review setup plan' }).click();
+	await expect(page.getByLabel('Connected site setup plan')).toBeInViewport();
+	await expect(page.getByLabel('Connected site setup plan')).toContainText('sveltekit');
 	await page.getByRole('main').getByRole('button', { name: 'Your sites' }).click();
 	await expect(page.getByRole('heading', { name: 'tendsites', exact: true })).toBeVisible();
 	await expect(page.getByText('Tend-Stack/tendsites', { exact: true })).toBeVisible();
@@ -1326,19 +1346,45 @@ test('selects, analyzes, and connects a GitLab repository through the shared hos
 							contract: 'tend.host/source-control-connections/v1',
 							providers: [
 								{
-									id: 'github', name: 'GitHub', configured: false, available: false,
-									authMode: null, installUrl: null, installations: [], supports: [], error: null
+									id: 'github',
+									name: 'GitHub',
+									configured: false,
+									available: false,
+									authMode: null,
+									installUrl: null,
+									installations: [],
+									supports: [],
+									error: null
 								},
 								{
-									id: 'gitlab', name: 'GitLab', configured: true, available: true,
-									authMode: 'personal_access_token', installUrl: null,
+									id: 'gitlab',
+									name: 'GitLab',
+									configured: true,
+									available: true,
+									authMode: 'personal_access_token',
+									installUrl: null,
 									instanceUrl: 'https://gitlab.example.com',
-									installations: [{ owner: 'casey', ownerType: 'User', repositorySelection: 'accessible', manageUrl: null }],
-									supports: ['repository-list', 'branches', 'read', 'deploy'], error: null
+									installations: [
+										{
+											owner: 'casey',
+											ownerType: 'User',
+											repositorySelection: 'accessible',
+											manageUrl: null
+										}
+									],
+									supports: ['repository-list', 'branches', 'read', 'deploy'],
+									error: null
 								},
 								...['forgejo', 'bitbucket'].map((id) => ({
-									id, name: id, configured: false, available: false, authMode: null,
-									installUrl: null, installations: [], supports: [], error: null
+									id,
+									name: id,
+									configured: false,
+									available: false,
+									authMode: null,
+									installUrl: null,
+									installations: [],
+									supports: [],
+									error: null
 								}))
 							]
 						};
@@ -1347,48 +1393,105 @@ test('selects, analyzes, and connects a GitLab repository through the shared hos
 					async manageSourceControlAccess() {},
 					async listRepositories(provider: string) {
 						if (provider !== 'gitlab') return [];
-						return [{
-							provider: 'gitlab', repositoryId: '42', owner: 'group/platform', name: 'site',
-							fullName: 'group/platform/site', private: true, defaultBranch: 'main',
-							description: 'Existing GitLab site', pushedAt: '2026-08-11T20:00:00Z'
-						}];
+						return [
+							{
+								provider: 'gitlab',
+								repositoryId: '42',
+								owner: 'group/platform',
+								name: 'site',
+								fullName: 'group/platform/site',
+								private: true,
+								defaultBranch: 'main',
+								description: 'Existing GitLab site',
+								pushedAt: '2026-08-11T20:00:00Z'
+							}
+						];
 					},
-					async listBranches() { return [{ name: 'main', protected: true }]; },
+					async listBranches() {
+						return [{ name: 'main', protected: true }];
+					},
 					async inspectRepository(input: { provider: string; repositoryId: string }) {
-						if (input.provider !== 'gitlab' || input.repositoryId !== '42') throw new Error('wrong selector');
+						if (input.provider !== 'gitlab' || input.repositoryId !== '42')
+							throw new Error('wrong selector');
 						return {
 							contract: 'tend.host/sites-connected-repository-report/v1',
 							inspection: {
 								contract: 'tend.host/sites-repository-inspection-result/v1',
-								requestId: '11111111-1111-4111-8111-111111111111', projectId: 'connected-site',
+								requestId: '11111111-1111-4111-8111-111111111111',
+								projectId: 'connected-site',
 								snapshot: {
 									contract: 'tend.host/sites-source-snapshot/v1',
-									snapshotId: '22222222-2222-4222-8222-222222222222', provider: 'gitlab',
-									providerInstallationId: 'host-gitlab-connection', repositoryId: '42',
-									commit: 'd'.repeat(40), treeSha256: 'e'.repeat(64), archiveSha256: 'f'.repeat(64),
-									actorId: 'user-one', trustClass: 'protected', fileCount: 52, archiveBytes: 300000,
-									hasSubmodules: false, hasLfsPointers: false, hasPrivateDependencies: false,
-									createdAt: '2026-08-11T20:00:00Z', expiresAt: '2099-08-11T20:05:00Z'
-								}, checkoutRemoved: true, secretCount: 0
+									snapshotId: '22222222-2222-4222-8222-222222222222',
+									provider: 'gitlab',
+									providerInstallationId: 'host-gitlab-connection',
+									repositoryId: '42',
+									commit: 'd'.repeat(40),
+									treeSha256: 'e'.repeat(64),
+									archiveSha256: 'f'.repeat(64),
+									actorId: 'user-one',
+									trustClass: 'protected',
+									fileCount: 52,
+									archiveBytes: 300000,
+									hasSubmodules: false,
+									hasLfsPointers: false,
+									hasPrivateDependencies: false,
+									createdAt: '2026-08-11T20:00:00Z',
+									expiresAt: '2099-08-11T20:05:00Z'
+								},
+								checkoutRemoved: true,
+								secretCount: 0
 							},
-							repository: { owner: 'group/platform', name: 'site', fullName: 'group/platform/site', ref: 'main' },
-							framework: 'sveltekit', contentPaths: ['src/content'],
-							pagesDeployment: { method: 'gitlab-ci', sourceBranch: null, sourcePath: null, artifactPath: 'public', customDomain: null },
+							repository: {
+								owner: 'group/platform',
+								name: 'site',
+								fullName: 'group/platform/site',
+								ref: 'main'
+							},
+							framework: 'sveltekit',
+							contentPaths: ['src/content'],
+							pagesDeployment: {
+								method: 'gitlab-ci',
+								sourceBranch: null,
+								sourcePath: null,
+								artifactPath: 'public',
+								customDomain: null
+							},
 							productionDestinationAvailable: false
 						};
 					},
-					async getConnection() { return null; },
+					async getConnection() {
+						return null;
+					},
 					async connectRepository(input: { provider: string; repositoryId: string }) {
-						if (input.provider !== 'gitlab' || input.repositoryId !== '42') throw new Error('wrong selector');
+						if (input.provider !== 'gitlab' || input.repositoryId !== '42')
+							throw new Error('wrong selector');
 						return {
 							contract: 'tend.host/sites-connected-source-evidence/v1',
-							connectionId: '33333333-3333-4333-8333-333333333333', projectId: 'connected-site', provider: 'gitlab',
-							repository: { owner: 'group/platform', name: 'site', fullName: 'group/platform/site', ref: 'main' },
-							commit: 'd'.repeat(40), treeSha256: 'e'.repeat(64), archiveSha256: 'f'.repeat(64),
-							framework: 'sveltekit', contentPaths: ['src/content'],
-							pagesDeployment: { method: 'gitlab-ci', sourceBranch: null, sourcePath: null, artifactPath: 'public', customDomain: null },
-							connectedAt: '2026-08-11T20:00:00Z', verifiedAt: '2026-08-11T20:00:00Z',
-							repositoryMutationAvailable: false, publishingAvailable: false
+							connectionId: '33333333-3333-4333-8333-333333333333',
+							projectId: 'connected-site',
+							provider: 'gitlab',
+							repository: {
+								owner: 'group/platform',
+								name: 'site',
+								fullName: 'group/platform/site',
+								ref: 'main'
+							},
+							commit: 'd'.repeat(40),
+							treeSha256: 'e'.repeat(64),
+							archiveSha256: 'f'.repeat(64),
+							framework: 'sveltekit',
+							contentPaths: ['src/content'],
+							pagesDeployment: {
+								method: 'gitlab-ci',
+								sourceBranch: null,
+								sourcePath: null,
+								artifactPath: 'public',
+								customDomain: null
+							},
+							connectedAt: '2026-08-11T20:00:00Z',
+							verifiedAt: '2026-08-11T20:00:00Z',
+							repositoryMutationAvailable: false,
+							publishingAvailable: false
 						};
 					}
 				}
@@ -1403,7 +1506,8 @@ test('selects, analyzes, and connects a GitLab repository through the shared hos
 	await page.getByRole('button', { name: 'Analyze repository' }).click();
 	await expect(page.getByText('Published with GitLab Pages')).toBeVisible();
 	await page.getByRole('button', { name: 'Connect source' }).click();
-	await expect(page.getByText(/group\/platform\/site is connected at commit dddddddddd/)).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'site is connected' })).toBeVisible();
+	await expect(page.getByText('group/platform/site', { exact: true })).toBeVisible();
 });
 
 test('starts the shared GitHub connection without sending users to a second settings area', async ({
