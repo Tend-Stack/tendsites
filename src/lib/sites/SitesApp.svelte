@@ -365,6 +365,17 @@
 	const activeImportedConnection = $derived(
 		sourceConnections.find((connection) => connection.projectId === activeSiteProjectId) ?? null
 	);
+	const activeCustomDesign = $derived(
+		activeImportedConnection?.onboarding.editingMode === 'headless'
+	);
+	const customRendererUrl = $derived(
+		resolveCustomRendererUrl(
+			activeImportedConnection?.pagesDeployment?.customDomain
+				? `https://${activeImportedConnection.pagesDeployment.customDomain}`
+				: '',
+			selectedPage?.slug ?? '/'
+		)
+	);
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -1218,6 +1229,25 @@
 
 	function openSitePreview(url: string | null) {
 		if (url) window.open(url, '_blank', 'noopener,noreferrer');
+	}
+
+	function resolveCustomRendererUrl(baseUrl: string, pagePath: string): string | null {
+		try {
+			const base = new URL(baseUrl);
+			const requestedHost = baseUrl.slice('https://'.length).toLowerCase();
+			if (
+				base.protocol !== 'https:' ||
+				base.hostname.toLowerCase() !== requestedHost ||
+				base.port ||
+				base.username ||
+				base.password
+			)
+				return null;
+			const route = pagePath.startsWith('/') ? pagePath : `/${pagePath}`;
+			return new URL(route, `${base.origin}/`).toString();
+		} catch {
+			return null;
+		}
 	}
 
 	async function requestSitePreview() {
@@ -3610,8 +3640,48 @@
 						>
 					</div>
 				</div>
-				<div class="browser-frame">
-					<div class="browser-top"><i></i><i></i><i></i><span>weekend-notes.example</span></div>
+				{#if activeCustomDesign}
+					<div class="browser-frame custom-renderer-frame">
+						<div class="browser-top">
+							<i></i><i></i><i></i><span>{customRendererUrl ?? 'Rendered preview unavailable'}</span
+							>
+						</div>
+						{#if customRendererUrl}
+							<iframe
+								class="custom-renderer-iframe"
+								src={customRendererUrl}
+								title="Live custom design for {siteDraft.name}"
+								loading="eager"
+								referrerpolicy="no-referrer"
+								sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+							></iframe>
+							<div class="custom-renderer-note">
+								<div>
+									<strong>Repository-owned design</strong>
+									<span>This is the connected site's renderer—not a TEND Sites theme.</span>
+								</div>
+								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- exact validated HTTPS renderer URL. -->
+								<a href={customRendererUrl} target="_blank" rel="noopener noreferrer"
+									>Open full site</a
+								>
+							</div>
+						{:else}
+							<div class="custom-renderer-empty" role="status">
+								<Code2 size={34} />
+								<strong>Your custom design is still preserved</strong>
+								<p>
+									This repository has no verified HTTPS site address to display yet. Sites will not
+									replace it with a visual template.
+								</p>
+							</div>
+						{/if}
+					</div>
+				{/if}
+				<div class="browser-frame" class:custom-design-hidden={activeCustomDesign}>
+					<div class="browser-top">
+						<i></i><i></i><i></i><span>{siteDraft.seo.canonicalUrl || 'weekend-notes.example'}</span
+						>
+					</div>
 					<div
 						class="site-canvas complete-demo"
 						style:--accent={siteDraft.accent}
@@ -4264,11 +4334,18 @@
 					class="site-preview-modal {previewViewport}"
 					role="dialog"
 					aria-modal="true"
-					aria-label="Full example website preview"
+					aria-label={activeCustomDesign
+						? 'Custom website preview'
+						: 'Full example website preview'}
 				>
 					<header>
 						<div>
-							<strong>Interactive preview</strong><span>Panel-local draft · not published</span>
+							<strong>{activeCustomDesign ? 'Custom design preview' : 'Interactive preview'}</strong
+							><span
+								>{activeCustomDesign
+									? 'Connected HTTPS renderer · may reflect the currently deployed version'
+									: 'Panel-local draft · not published'}</span
+							>
 						</div>
 						<div class="preview-controls" role="group" aria-label="Preview controls">
 							{#each ['desktop', 'tablet', 'phone'] as width (width)}
@@ -4279,14 +4356,17 @@
 									>{width}</button
 								>
 							{/each}
-							<select aria-label="Preview experience" bind:value={previewExperience}>
-								<option value="site">Site page</option>
-								<option value="not-found">404 page</option>
-								<option value="loading">Loading page</option>
-								<option value="offline">Offline page</option>
-								<option value="maintenance">Maintenance page</option>
-								<option value="error">Error page</option>
-							</select>
+							{#if !activeCustomDesign}<select
+									aria-label="Preview experience"
+									bind:value={previewExperience}
+								>
+									<option value="site">Site page</option>
+									<option value="not-found">404 page</option>
+									<option value="loading">Loading page</option>
+									<option value="offline">Offline page</option>
+									<option value="maintenance">Maintenance page</option>
+									<option value="error">Error page</option>
+								</select>{/if}
 						</div>
 						<button
 							class="modal-close"
@@ -4294,8 +4374,37 @@
 							onclick={() => (showPreview = false)}><X size={20} /></button
 						>
 					</header>
+					{#if activeCustomDesign}
+						<div class="custom-renderer-preview">
+							{#if customRendererUrl}
+								<iframe
+									src={customRendererUrl}
+									title="Custom design preview for {siteDraft.name}"
+									referrerpolicy="no-referrer"
+									sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+								></iframe>
+								<div class="custom-renderer-preview-bar">
+									<span><Code2 size={16} /> Repository-owned renderer</span>
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- exact validated HTTPS renderer URL. -->
+									<a href={customRendererUrl} target="_blank" rel="noopener noreferrer"
+										>Open full site</a
+									>
+								</div>
+							{:else}
+								<div class="custom-renderer-empty" role="status">
+									<Code2 size={40} />
+									<strong>No rendered site address is connected</strong>
+									<p>
+										Your framework, templates, and styles remain untouched. Connect an HTTPS preview
+										or published address before reviewing the rendered design.
+									</p>
+								</div>
+							{/if}
+						</div>
+					{/if}
 					<div
 						class="full-demo-site"
+						class:custom-design-hidden={activeCustomDesign}
 						style:--accent={siteDraft.accent}
 						style:--site-paper={activeTheme.paper}
 						style:--site-ink={activeTheme.ink}
@@ -7514,6 +7623,77 @@
 	.browser-top span {
 		margin-left: 10px;
 		font-size: 9px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.custom-renderer-frame {
+		position: relative;
+		width: min(1120px, 100%);
+		background: #07100d;
+	}
+	.custom-design-hidden {
+		display: none;
+	}
+	.custom-renderer-iframe {
+		display: block;
+		width: 100%;
+		height: clamp(620px, 72vh, 920px);
+		border: 0;
+		background: #fff;
+	}
+	.custom-renderer-note,
+	.custom-renderer-preview-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 12px 14px;
+		color: #b9cbc4;
+		background: #0d1815;
+		border-top: 1px solid #21352e;
+	}
+	.custom-renderer-note div {
+		display: grid;
+		gap: 2px;
+	}
+	.custom-renderer-note strong,
+	.custom-renderer-note span {
+		font-size: 11px;
+	}
+	.custom-renderer-note span {
+		color: #789087;
+	}
+	.custom-renderer-note a,
+	.custom-renderer-preview-bar a {
+		flex: none;
+		color: var(--green);
+		font-size: 11px;
+		font-weight: 800;
+		text-decoration: none;
+	}
+	.custom-renderer-empty {
+		min-height: 620px;
+		display: grid;
+		place-content: center;
+		justify-items: center;
+		gap: 10px;
+		padding: 40px;
+		color: #9bb0a8;
+		text-align: center;
+		background: radial-gradient(circle at 50% 35%, #123026 0, #07100d 62%);
+	}
+	.custom-renderer-empty :global(svg) {
+		color: var(--green);
+	}
+	.custom-renderer-empty strong {
+		color: #eef7f3;
+		font-size: 18px;
+	}
+	.custom-renderer-empty p {
+		max-width: 520px;
+		margin: 0;
+		line-height: 1.6;
 	}
 	.site-canvas {
 		min-height: 620px;
@@ -8196,6 +8376,37 @@
 		border-radius: 20px;
 		background: #0d1517;
 		box-shadow: 0 35px 100px #000;
+	}
+	.custom-renderer-preview {
+		position: relative;
+		min-height: 0;
+		flex: 1;
+		overflow: hidden;
+		background: #07100d;
+	}
+	.custom-renderer-preview iframe {
+		display: block;
+		width: 100%;
+		height: 100%;
+		min-height: 620px;
+		border: 0;
+		background: #fff;
+	}
+	.custom-renderer-preview-bar {
+		position: absolute;
+		right: 14px;
+		bottom: 14px;
+		left: 14px;
+		border: 1px solid #29433a;
+		border-radius: 12px;
+		box-shadow: 0 14px 34px #0008;
+	}
+	.custom-renderer-preview-bar span {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		font-size: 11px;
+		font-weight: 750;
 	}
 	.site-preview-modal.tablet {
 		width: min(820px, 100%);

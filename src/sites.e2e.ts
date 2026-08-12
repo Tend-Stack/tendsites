@@ -1387,6 +1387,22 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await page.getByRole('button', { name: 'Open site workspace' }).click();
 	await expect(page.getByText('tendsites', { exact: true }).first()).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Studio' })).toHaveClass(/active/);
+	await expect(page.locator('.site-canvas.complete-demo')).not.toBeVisible();
+	await expect(page.getByTitle('Live custom design for tendsites')).toHaveAttribute(
+		'src',
+		'https://example.com/'
+	);
+	await expect(
+		page.getByText("This is the connected site's renderer—not a TEND Sites theme.")
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Preview site' }).click();
+	const customPreview = page.getByRole('dialog', { name: 'Custom website preview' });
+	await expect(customPreview).toBeVisible();
+	await expect(customPreview.getByTitle('Custom design preview for tendsites')).toHaveAttribute(
+		'src',
+		'https://example.com/'
+	);
+	await expect(customPreview.locator('.full-demo-site')).not.toBeVisible();
 });
 
 test('switches the active workspace when a different connected site is opened', async ({
