@@ -40,7 +40,6 @@ const supportedMimeTypes = new Map([
 	['image/gif', 'gif'],
 	['image/jpeg', 'jpg'],
 	['image/png', 'png'],
-	['image/svg+xml', 'svg'],
 	['image/webp', 'webp']
 ]);
 
@@ -60,7 +59,7 @@ function yamlString(value: string): string {
 }
 
 function markdownImage(image: string | undefined, alt: string | undefined): string {
-	return image ? `\n\n![${(alt ?? '').replace(/[\[\]]/g, '')}](${image})` : '';
+	return image ? `\n\n![${(alt ?? '').replace(/[[\]]/g, '')}](${image})` : '';
 }
 
 function pageMarkdown(site: DemoSite, pageIndex: number): string {
@@ -166,16 +165,17 @@ export async function createPortableSource(
 	let totalAssetBytes = 0;
 	for (let index = 0; index < groups.length; index += 1) {
 		const group = groups[index];
-		let asset: PortableAsset | null = null;
-		try {
-			asset = await resolveAsset({
-				reference: group.reference,
-				label: group.label,
-				source: group.source
-			});
-		} catch {
-			asset = null;
-		}
+		const asset = await (async (): Promise<PortableAsset | null> => {
+			try {
+				return await resolveAsset({
+					reference: group.reference,
+					label: group.label,
+					source: group.source
+				});
+			} catch {
+				return null;
+			}
+		})();
 		const extension = asset ? supportedMimeTypes.get(asset.mimeType.toLowerCase()) : undefined;
 		if (!asset || !extension || asset.bytes.byteLength === 0) {
 			group.apply.forEach((apply) => apply(undefined));

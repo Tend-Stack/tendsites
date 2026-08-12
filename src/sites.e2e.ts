@@ -167,7 +167,9 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 	await expect(page.locator('.post-editor > header h2')).toHaveText('Untitled post');
 });
 
-test('publishing clearly remains non-authoritative', async ({ page }) => {
+test('publishing distinguishes portable export from unavailable source and deployment authority', async ({
+	page
+}) => {
 	await page.goto('/');
 	await page
 		.getByLabel('Sites navigation')
@@ -175,11 +177,12 @@ test('publishing clearly remains non-authoritative', async ({ page }) => {
 		.click();
 	await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
-	await expect(page.getByText('No deployment has been requested.')).toBeVisible();
-	await expect(page.getByText('Operation')).toBeVisible();
-	await expect(page.getByText('Not created')).toBeVisible();
-	await expect(page.getByText('Proposed files')).toBeVisible();
-	await expect(page.getByText('Deletes')).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Save your changes to the site source.' })
+	).toBeVisible();
+	await expect(page.getByText('Create a site source first')).toBeVisible();
+	await expect(page.getByText('Original media stays untouched')).toBeVisible();
+	await expect(page.getByText('Production', { exact: true })).not.toBeVisible();
 	await expect(page.getByText('Take your source with you')).toBeVisible();
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Download source archive' }).click();
@@ -1113,7 +1116,7 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await page.goto('/');
 	await page.evaluate(async () => {
 		let providerAccessAvailable = true;
-		let savedConnection: Record<string, any> | null = null;
+		let savedConnection: Record<string, unknown> | null = null;
 		const stored = new Map<string, unknown>();
 		const extensionUrl = '/test-extension/index.js?v=source';
 		const extension = await import(/* @vite-ignore */ extensionUrl);
@@ -1324,7 +1327,9 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	);
 	await expect(page.getByText('Connection needed')).not.toBeVisible();
 	await page.getByRole('button', { name: 'Choose this mode' }).nth(1).click();
-	await expect(page.getByText(/update tend.host to sync this setup step across devices/)).toBeVisible();
+	await expect(
+		page.getByText(/update tend.host to sync this setup step across devices/)
+	).toBeVisible();
 	await expect(page.getByRole('navigation', { name: 'Site import setup' })).toContainText(
 		'Keep my custom design'
 	);
@@ -1731,6 +1736,113 @@ test('launches an isolated created-site preview and advances from build progress
 	await expect(
 		page.getByLabel('Preview Alpha Site').getByRole('button', { name: 'Open preview' })
 	).toBeVisible();
+});
+
+test('commits a visual draft once, retries the exact request, and exposes the new preview step', async ({
+	page
+}) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	await page.evaluate(async () => {
+		let attempts = 0;
+		let latest = {
+			projectId: 'site.alpha',
+			name: 'Alpha Site',
+			sourceId: 'source.alpha',
+			sourceRevision: 'a'.repeat(64),
+			gitCommit: 'b'.repeat(40),
+			serverName: 'Home server',
+			durability: 'versioned_only' as const,
+			createdAt: '2026-08-12T00:00:00.000Z',
+			updatedAt: '2026-08-12T00:00:00.000Z'
+		};
+		let firstRequest = '';
+		(window as unknown as { sourceCommitAttempts: number }).sourceCommitAttempts = 0;
+		const extensionUrl = '/test-extension/index.js?v=source-commit';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension
+			.default({
+				id: 'host.tend.sites',
+				onUnmount() {},
+				sites: {
+					async getConnection() {
+						return null;
+					},
+					async listCreatedSites() {
+						return [latest];
+					},
+					async listPreviews() {
+						return [];
+					},
+					async commitCreatedSite(input: {
+						request: { operationId: string; baseRevision: string };
+						archive: Uint8Array;
+					}) {
+						attempts += 1;
+						(window as unknown as { sourceCommitAttempts: number }).sourceCommitAttempts = attempts;
+						const serialized = JSON.stringify(input.request);
+						if (attempts === 1) {
+							firstRequest = serialized;
+							throw new Error('Temporary host interruption. Retry the exact save.');
+						}
+						if (
+							serialized !== firstRequest ||
+							input.request.baseRevision !== 'a'.repeat(64) ||
+							input.archive.byteLength === 0
+						)
+							throw new Error('retry identity changed');
+						latest = {
+							...latest,
+							sourceRevision: 'c'.repeat(64),
+							gitCommit: 'd'.repeat(40),
+							updatedAt: '2026-08-12T01:00:00.000Z'
+						};
+						return {
+							contract: 'tend.host/sites-source-commit-result/v1',
+							operationId: input.request.operationId,
+							projectId: 'site.alpha',
+							sourceId: 'source.alpha',
+							parentRevision: 'a'.repeat(64),
+							sourceRevision: 'c'.repeat(64),
+							gitCommit: 'd'.repeat(40),
+							created: true,
+							committedAt: '2026-08-12T01:00:00.000Z'
+						};
+					}
+				}
+			})
+			.mount(container);
+	});
+
+	await page.getByRole('button', { name: 'Save changes' }).click();
+	await expect(
+		page.getByRole('heading', { name: 'Save your changes to the site source.' })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Save changes to source' }).click();
+	await expect(page.getByRole('alert')).toContainText('Temporary host interruption');
+	await page.getByRole('button', { name: 'Retry exact save' }).click();
+	await expect(page.getByText(/Saved as commit ddddddd/)).toBeVisible();
+	await expect(page.getByText('Source updated')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Create new preview' })).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => (window as unknown as { sourceCommitAttempts: number }).sourceCommitAttempts
+		)
+	).toBe(2);
 });
 
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({

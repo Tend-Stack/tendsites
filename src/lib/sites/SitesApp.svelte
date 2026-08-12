@@ -55,7 +55,6 @@
 	import {
 		customSiteModes,
 		demoAdoptionReport,
-		demoChangePreview,
 		demoCustomSitePlan,
 		demoImportedContentSchema,
 		starterCatalog,
@@ -135,6 +134,11 @@
 		type PortableAsset,
 		type PortableAssetRequest
 	} from './source-export';
+	import {
+		createSourceCommitRequest,
+		SourceCommitResultSchema,
+		type SourceCommitRequest
+	} from './host-source-commit';
 	import {
 		navigationChildren,
 		navigationRoots,
@@ -244,6 +248,17 @@
 	let recoveryBusy = $state(false);
 	let exportStatus = $state<'idle' | 'working' | 'done' | 'error'>('idle');
 	let exportMessage = $state('');
+	let sourceCommitTarget = $state<CreatedSiteSummary | null>(null);
+	let sourceCommitStatus = $state<'idle' | 'preparing' | 'committing' | 'succeeded' | 'error'>(
+		'idle'
+	);
+	let sourceCommitMessage = $state('');
+	let sourceCommitAttempt = $state<{
+		targetRevision: string;
+		request: SourceCommitRequest;
+		archive: Uint8Array;
+		filename: string;
+	} | null>(null);
 	let newPageName = $state('');
 	let deleteTarget = $state<
 		| { kind: 'page'; id: string; name: string }
@@ -972,9 +987,28 @@
 		if (!sourceBridge?.listCreatedSites) return;
 		try {
 			createdSites = CreatedSiteSummarySchema.array().parse(await sourceBridge.listCreatedSites());
+			if (sourceCommitTarget) {
+				sourceCommitTarget =
+					createdSites.find((site) => site.projectId === sourceCommitTarget?.projectId) ?? null;
+			}
 		} catch {
 			createdSites = [];
 		}
+	}
+
+	function openCreatedSite(site: CreatedSiteSummary, destination: 'studio' | 'publish' = 'studio') {
+		if (sourceCommitTarget?.projectId !== site.projectId) {
+			sourceCommitAttempt = null;
+			sourceCommitStatus = 'idle';
+			sourceCommitMessage = '';
+		}
+		sourceCommitTarget = site;
+		open(destination);
+	}
+
+	function chooseSourceCommitTarget(projectId: string) {
+		const target = createdSites.find((site) => site.projectId === projectId);
+		if (target) openCreatedSite(target, 'publish');
 	}
 
 	async function loadSitePreviews() {
@@ -1121,6 +1155,9 @@
 	}
 
 	function open(next: View) {
+		if (next === 'publish' && !sourceCommitTarget && createdSites.length) {
+			sourceCommitTarget = createdSites[0];
+		}
 		view = next;
 		mobileMenu = false;
 		if (next === 'adopt' && sourceBridge && sourceStatus === 'idle') {
@@ -1253,11 +1290,7 @@
 	}
 
 	async function reviewConnectedAdoptionPlan() {
-		if (
-			sourceConnection &&
-			selectedAdoptionMode &&
-			sourceBridge?.updateConnectionSetup
-		) {
+		if (sourceConnection && selectedAdoptionMode && sourceBridge?.updateConnectionSetup) {
 			sourceSetupStatus = 'saving';
 			sourceSetupMessage = 'Saving plan review…';
 			try {
@@ -1381,9 +1414,19 @@
 		const cachedConnection = await readCachedSourceConnection();
 		if (!sourceConnection && cachedConnection) sourceConnection = cachedConnection;
 		try {
-			const connection = sourceBridge.listConnections
-				? (ConnectedSourceEvidenceSchema.array().parse(await sourceBridge.listConnections())[0] ?? null)
-				: await sourceBridge.getConnection(sourceProjectId);
+			let connection: ConnectedSourceEvidence | null;
+			if (sourceBridge.listConnections) {
+				const connections = ConnectedSourceEvidenceSchema.array().parse(
+					await sourceBridge.listConnections()
+				);
+				connection =
+					connections.find((item) => item.projectId === sourceProjectId) ??
+					connections.find((item) => item.projectId === cachedConnection?.projectId) ??
+					connections[0] ??
+					null;
+			} else {
+				connection = await sourceBridge.getConnection(sourceProjectId);
+			}
 			if (connection) {
 				sourceConnection = reconcileConnectedSourceCache(
 					ConnectedSourceEvidenceSchema.parse(connection),
@@ -1587,6 +1630,77 @@
 		}
 	}
 
+	async function sha256Hex(bytes: Uint8Array): Promise<string> {
+		const digest = await crypto.subtle.digest('SHA-256', bytes.slice().buffer);
+		return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join(
+			''
+		);
+	}
+
+	async function commitDraftToSource() {
+		const target = sourceCommitTarget ?? createdSites[0] ?? null;
+		if (
+			!target ||
+			!sourceBridge?.commitCreatedSite ||
+			sourceCommitStatus === 'preparing' ||
+			sourceCommitStatus === 'committing'
+		)
+			return;
+		sourceCommitTarget = target;
+		sourceCommitMessage = '';
+		try {
+			let attempt = sourceCommitAttempt;
+			if (!attempt || attempt.targetRevision !== target.sourceRevision) {
+				sourceCommitStatus = 'preparing';
+				sourceCommitMessage = 'Preparing a bounded source archive and copying safe media…';
+				const portable = await createPortableSource(siteDraft, resolvePortableAsset);
+				const request = createSourceCommitRequest({
+					operationId: crypto.randomUUID(),
+					projectId: target.projectId,
+					sourceId: target.sourceId,
+					baseRevision: target.sourceRevision,
+					baseGitCommit: target.gitCommit,
+					archiveSha256: await sha256Hex(portable.archive),
+					archiveBytes: portable.archive.byteLength,
+					requestedAt: new Date().toISOString()
+				});
+				attempt = {
+					targetRevision: target.sourceRevision,
+					request,
+					archive: portable.archive,
+					filename: portable.filename
+				};
+				sourceCommitAttempt = attempt;
+				if (portable.warnings.length) {
+					sourceCommitMessage = `${portable.warnings.length} unresolved media item${portable.warnings.length === 1 ? '' : 's'} will be omitted safely. Saving the remaining source…`;
+				}
+			}
+			sourceCommitStatus = 'committing';
+			if (!sourceCommitMessage) sourceCommitMessage = 'Verifying and committing the exact archive…';
+			const result = SourceCommitResultSchema.parse(
+				await sourceBridge.commitCreatedSite({
+					request: attempt.request,
+					archive: attempt.archive,
+					filename: attempt.filename
+				})
+			);
+			sourceCommitStatus = 'succeeded';
+			sourceCommitMessage = `Saved as commit ${result.gitCommit.slice(0, 7)}. Create a new preview to review this exact revision.`;
+			sourceCommitAttempt = null;
+			sourceCommitTarget = {
+				...target,
+				sourceRevision: result.sourceRevision,
+				gitCommit: result.gitCommit,
+				updatedAt: result.committedAt
+			};
+			await loadCreatedSites();
+		} catch (reason) {
+			sourceCommitStatus = 'error';
+			sourceCommitMessage =
+				reason instanceof Error ? reason.message.slice(0, 220) : 'The source could not be saved.';
+		}
+	}
+
 	function openPreviewPage(pageId: string) {
 		previewPostId = null;
 		previewExperience = 'site';
@@ -1778,7 +1892,15 @@
 							</span>
 						</div>
 						<div class="created-site-actions">
-							<button class="card-action" onclick={() => open('studio')}>Open Studio</button>
+							<button class="card-action" onclick={() => openCreatedSite(created)}
+								>Open Studio</button
+							>
+							<button
+								class="card-action save-source-action"
+								onclick={() => openCreatedSite(created, 'publish')}
+							>
+								<GitBranch size={16} /> Save changes
+							</button>
 							{#if sitePreviews[created.projectId]?.state === 'ready' && sitePreviews[created.projectId]?.url}
 								<button
 									class="card-action preview-action"
@@ -2271,461 +2393,471 @@
 				</nav>
 			{/if}
 			{#if adoptionStep === 'source' || !sourceBridge}
-			<section class="source-connect" aria-labelledby="source-connect-title">
-				<div class="source-connect-heading">
-					<div>
-						<span class="eyebrow">Shared source control</span>
-						<h2 id="source-connect-title">Bring in the site you already own.</h2>
-						<p>
-							Connect an account once in tend.host, then reuse its repository access for Sites, app
-							deployments, and future Git workflows.
-						</p>
-					</div>
-					<span
-						class:available={Boolean(sourceConnection) ||
-							activeSourceConnection?.available === true}
-						class="source-capability"
-					>
-						{sourceConnection
-							? 'Source connected'
-							: sourceConnectionStatus === 'checking'
-								? 'Checking saved source…'
-							: activeSourceConnection?.available
-								? 'Repository access ready'
-								: 'Connection needed'}
-					</span>
-				</div>
-				{#if sourceBridge}
-					<div class="source-provider-switch" aria-label="Source-control provider">
-						<button
-							type="button"
-							class:active={selectedSourceProvider === 'github'}
-							onclick={() => chooseSourceProvider('github')}
-						>
-							<GitBranch size={17} /> GitHub
-							{#if githubConnection?.available}<Check size={15} />{/if}
-						</button>
-						<button
-							type="button"
-							class:active={selectedSourceProvider === 'gitlab'}
-							onclick={() => chooseSourceProvider('gitlab')}
-						>
-							<GitBranch size={17} /> GitLab
-							{#if gitlabConnection?.available}<Check size={15} />{/if}
-						</button>
-					</div>
-					<div class="source-provider-card" aria-live="polite">
-						<div class="source-provider-identity">
-							<span><GitBranch size={21} /></span>
-							<div>
-								<strong
-									>{activeSourceConnection?.name ??
-										(selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab')}</strong
-								>
-								<p>
-									{#if sourceConnection}
-										{sourceConnection.repository.fullName} remains connected to Sites. Provider access
-										is only needed when you refresh or choose a different repository.
-									{:else if activeSourceConnection?.available}
-										Connected for repository imports and deployments.
-									{:else if activeSourceConnection?.configured}
-										The shared connection is configured but repository access needs attention.
-									{:else}
-										Connect {selectedSourceProvider === 'github'
-											? 'the shared GitHub App'
-											: 'GitLab'} without leaving this Sites workflow.
-									{/if}
-								</p>
-							</div>
+				<section class="source-connect" aria-labelledby="source-connect-title">
+					<div class="source-connect-heading">
+						<div>
+							<span class="eyebrow">Shared source control</span>
+							<h2 id="source-connect-title">Bring in the site you already own.</h2>
+							<p>
+								Connect an account once in tend.host, then reuse its repository access for Sites,
+								app deployments, and future Git workflows.
+							</p>
 						</div>
-						{#if activeSourceConnection?.installations.length}
-							<div class="source-installations" aria-label="Connected source-control accounts">
-								{#each activeSourceConnection.installations as installation (installation.owner)}
-									<span>
-										{installation.owner}
-										<small
-											>{installation.repositorySelection === 'all'
-												? 'All repositories'
-												: installation.repositorySelection === 'selected'
-													? 'Selected repositories'
-													: 'Accessible repositories'}</small
-										>
-									</span>
-								{/each}
-							</div>
-						{/if}
-						<div class="source-provider-actions">
-							{#if selectedSourceProvider === 'gitlab'}
-								<button
-									class="primary"
-									type="button"
-									disabled={sourceControlBusy}
-									onclick={() => void beginSourceControlConnection('gitlab')}
-								>
-									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Verifying…{:else}<GitBranch
-											size={17}
-										/>
-										{gitlabConnection?.configured ? 'Reconnect GitLab' : 'Connect GitLab'}{/if}
-								</button>
-							{:else if !githubConnection?.configured || githubConnection?.authMode === 'personal_access_token'}
-								<button
-									class="primary"
-									type="button"
-									disabled={sourceControlBusy}
-									onclick={() => void beginSourceControlConnection('github')}
-								>
-									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Opening…{:else}<GitBranch
-											size={17}
-										/>
-										{githubConnection?.authMode === 'personal_access_token'
-											? 'Upgrade connection'
-											: 'Connect GitHub'}{/if}
-								</button>
-							{:else}
-								<button type="button" onclick={() => void manageGithubAccess()}>
-									<Settings2 size={17} /> Add or change repository access
-								</button>
-							{/if}
+						<span
+							class:available={Boolean(sourceConnection) ||
+								activeSourceConnection?.available === true}
+							class="source-capability"
+						>
+							{sourceConnection
+								? 'Source connected'
+								: sourceConnectionStatus === 'checking'
+									? 'Checking saved source…'
+									: activeSourceConnection?.available
+										? 'Repository access ready'
+										: 'Connection needed'}
+						</span>
+					</div>
+					{#if sourceBridge}
+						<div class="source-provider-switch" aria-label="Source-control provider">
 							<button
 								type="button"
-								disabled={sourceControlBusy}
-								onclick={() => void loadSourceControlConnections()}
+								class:active={selectedSourceProvider === 'github'}
+								onclick={() => chooseSourceProvider('github')}
 							>
-								{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Checking…{:else}<Search
-										size={17}
-									/> Refresh access{/if}
+								<GitBranch size={17} /> GitHub
+								{#if githubConnection?.available}<Check size={15} />{/if}
+							</button>
+							<button
+								type="button"
+								class:active={selectedSourceProvider === 'gitlab'}
+								onclick={() => chooseSourceProvider('gitlab')}
+							>
+								<GitBranch size={17} /> GitLab
+								{#if gitlabConnection?.available}<Check size={15} />{/if}
 							</button>
 						</div>
-						{#if sourceControlPrompt}<p class="source-provider-prompt">
-								{sourceControlPrompt}
-							</p>{/if}
-					</div>
-					{#if sourceConnection}
-						<div class="source-connected" aria-live="polite">
-							<span><Check size={18} /></span>
-							<div>
-								<strong>{sourceConnection.repository.fullName} is connected</strong>
-								<p>
-									{sourceConnection.repository.ref} · commit {sourceConnection.commit.slice(0, 10)}…
-									This saved source remains available for setup even when provider access needs a
-									refresh. GitHub or GitLab access is only required to analyze a newer revision.
-								</p>
-							</div>
-						</div>
-						{#if sourceConnectionLoadError}
-							<p class="source-provider-prompt" role="status">
-								The saved source is still available. Its host record could not be refreshed just
-								now, so Sites kept the last verified connection for setup.
-							</p>
-						{/if}
-					{/if}
-					{#if sourceConnectionStatus === 'checking' && !sourceConnection}
-						<div class="source-onboarding" aria-live="polite">
-							<LoaderCircle class="spin" size={22} />
-							<div>
-								<strong>Checking your saved site connection…</strong>
-								<p>Sites is reading its own durable source record before asking for provider access.</p>
-							</div>
-						</div>
-					{/if}
-					{#if activeSourceConnection?.available}
-						<div class="source-search">
-							<label for="source-search-input"
-								>Find a {selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab'} repository</label
-							>
-							<div>
-								<Search size={17} />
-								<input
-									id="source-search-input"
-									bind:value={sourceQuery}
-									placeholder="Repository name"
-									onkeydown={(event) => {
-										if (event.key === 'Enter') void loadSourceRepositories();
-									}}
-								/>
-								<button
-									type="button"
-									disabled={sourceStatus === 'loading' ||
-										sourceStatus === 'inspecting' ||
-										sourceStatus === 'connecting'}
-									onclick={() => void loadSourceRepositories()}
-									>{sourceStatus === 'loading' ? 'Loading…' : 'Search'}</button
-								>
-							</div>
-						</div>
-						{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
-						<div class:analyzed={sourceReport !== null} class="source-connect-grid">
-							<div
-								class="source-repository-list"
-								aria-label="Connected {selectedSourceProvider === 'github'
-									? 'GitHub'
-									: 'GitLab'} repositories"
-							>
-								{#each sourceRepositories as repository (repository.fullName)}
-									<button
-										type="button"
-										class:selected={selectedSourceRepository?.fullName === repository.fullName}
-										onclick={() => void selectSourceRepository(repository)}
-									>
-										<GitBranch size={17} />
-										<span
-											><strong>{repository.fullName}</strong><small
-												>{repository.description || 'No repository description'}</small
-											></span
-										>
-										<em>{repository.private ? 'Private' : 'Public'}</em>
-									</button>
-								{:else}
-									{#if sourceStatus !== 'loading'}
-										<p>No connected repositories matched this search.</p>
-									{/if}
-								{/each}
-							</div>
-							<div class="source-review">
-								{#if selectedSourceRepository}
-									<span class="eyebrow">Selected source</span>
-									<h3>{selectedSourceRepository.fullName}</h3>
-									<label>
-										Branch
-										<select bind:value={selectedSourceRef}>
-											{#each sourceBranches as branch (branch.name)}
-												<option value={branch.name}
-													>{branch.name}{branch.protected ? ' · protected' : ''}</option
-												>
-											{/each}
-										</select>
-									</label>
-									<div class="source-safety">
-										<ShieldCheck size={18} />
-										<span
-											><strong>Analysis only</strong><small
-												>No scripts, builds, writes, secrets, or deployment destination.</small
-											></span
-										>
-									</div>
-									<button
-										class="primary"
-										type="button"
-										disabled={!selectedSourceRef || sourceStatus === 'inspecting'}
-										onclick={() => void inspectSourceRepository()}
-									>
-										{#if sourceStatus === 'inspecting'}<LoaderCircle class="spin" size={17} />
-											Analyzing safely…{:else}<FileSearch size={17} /> Analyze repository{/if}
-									</button>
-								{:else}
-									<FileSearch size={28} />
-									<h3>Select a repository</h3>
-									<p>Then choose its branch and request a disposable analysis.</p>
-								{/if}
-							</div>
-						</div>
-						{#if sourceReport}
-							<div class="source-result" aria-live="polite" bind:this={sourceResultElement}>
+						<div class="source-provider-card" aria-live="polite">
+							<div class="source-provider-identity">
+								<span><GitBranch size={21} /></span>
 								<div>
-									<span class="eyebrow">Live compatibility evidence</span>
-									<h3>{sourceReport.framework} site · {activeAdoptionReport.status}</h3>
+									<strong
+										>{activeSourceConnection?.name ??
+											(selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab')}</strong
+									>
 									<p>
-										Commit {sourceReport.inspection.snapshot.commit.slice(0, 10)}… was inspected and
-										the checkout was removed.
+										{#if sourceConnection}
+											{sourceConnection.repository.fullName} remains connected to Sites. Provider access
+											is only needed when you refresh or choose a different repository.
+										{:else if activeSourceConnection?.available}
+											Connected for repository imports and deployments.
+										{:else if activeSourceConnection?.configured}
+											The shared connection is configured but repository access needs attention.
+										{:else}
+											Connect {selectedSourceProvider === 'github'
+												? 'the shared GitHub App'
+												: 'GitLab'} without leaving this Sites workflow.
+										{/if}
 									</p>
 								</div>
-								<dl>
-									<div>
-										<dt>Files</dt>
-										<dd>{sourceReport.inspection.snapshot.fileCount}</dd>
-									</div>
-									<div>
-										<dt>Source size</dt>
-										<dd>
-											{Math.max(
-												1,
-												Math.round(sourceReport.inspection.snapshot.archiveBytes / 1024)
-											)} KB
-										</dd>
-									</div>
-									<div>
-										<dt>Secrets</dt>
-										<dd>0 delivered</dd>
-									</div>
-									<div>
-										<dt>Checkout</dt>
-										<dd>Removed</dd>
-									</div>
-								</dl>
-								{#if sourceReport.pagesDeployment}
-									<div class="source-pages">
-										<GitBranch size={18} />
-										<div>
-											<strong
-												>Published with {sourceReport.pagesDeployment.method === 'gitlab-ci'
-													? 'GitLab Pages'
-													: 'GitHub Pages'}</strong
+							</div>
+							{#if activeSourceConnection?.installations.length}
+								<div class="source-installations" aria-label="Connected source-control accounts">
+									{#each activeSourceConnection.installations as installation (installation.owner)}
+										<span>
+											{installation.owner}
+											<small
+												>{installation.repositorySelection === 'all'
+													? 'All repositories'
+													: installation.repositorySelection === 'selected'
+														? 'Selected repositories'
+														: 'Accessible repositories'}</small
 											>
-											<p>
-												{sourceReport.pagesDeployment.method === 'gitlab-ci'
-													? 'GitLab CI'
-													: 'GitHub Actions'} builds
-												{sourceReport.pagesDeployment.artifactPath
-													? ` ${sourceReport.pagesDeployment.artifactPath}/`
-													: ' a site artifact'}
-												from {sourceReport.repository.ref}.
-												{#if sourceReport.pagesDeployment.customDomain}
-													It is mapped to {sourceReport.pagesDeployment.customDomain}.
-												{/if}
-											</p>
-										</div>
-									</div>
-								{/if}
-								<div class="source-connect-action">
-									<div>
-										<strong>{reportIsConnected ? 'Source connected' : 'Keep this selection'}</strong
-										>
-										<p>
-											The host re-verifies the exact commit before saving this repository selection.
-											It does not grant Git write or deployment access.
-										</p>
-									</div>
+										</span>
+									{/each}
+								</div>
+							{/if}
+							<div class="source-provider-actions">
+								{#if selectedSourceProvider === 'gitlab'}
 									<button
 										class="primary"
 										type="button"
-										disabled={reportIsConnected || sourceStatus === 'connecting'}
-										onclick={() => void connectSourceRepository()}
+										disabled={sourceControlBusy}
+										onclick={() => void beginSourceControlConnection('gitlab')}
 									>
-										{#if sourceStatus === 'connecting'}
-											<LoaderCircle class="spin" size={17} /> Re-verifying…
-										{:else if reportIsConnected}
-											<Check size={17} /> Connected
-										{:else}
-											<GitBranch size={17} /> Connect source
-										{/if}
+										{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Verifying…{:else}<GitBranch
+												size={17}
+											/>
+											{gitlabConnection?.configured ? 'Reconnect GitLab' : 'Connect GitLab'}{/if}
 									</button>
-									{#if sourceConnectionNotice}
-										<p
-											class:error={sourceStatus === 'error'}
-											class="source-action-status"
-											role={sourceStatus === 'error' ? 'alert' : 'status'}
+								{:else if !githubConnection?.configured || githubConnection?.authMode === 'personal_access_token'}
+									<button
+										class="primary"
+										type="button"
+										disabled={sourceControlBusy}
+										onclick={() => void beginSourceControlConnection('github')}
+									>
+										{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Opening…{:else}<GitBranch
+												size={17}
+											/>
+											{githubConnection?.authMode === 'personal_access_token'
+												? 'Upgrade connection'
+												: 'Connect GitHub'}{/if}
+									</button>
+								{:else}
+									<button type="button" onclick={() => void manageGithubAccess()}>
+										<Settings2 size={17} /> Add or change repository access
+									</button>
+								{/if}
+								<button
+									type="button"
+									disabled={sourceControlBusy}
+									onclick={() => void loadSourceControlConnections()}
+								>
+									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Checking…{:else}<Search
+											size={17}
+										/> Refresh access{/if}
+								</button>
+							</div>
+							{#if sourceControlPrompt}<p class="source-provider-prompt">
+									{sourceControlPrompt}
+								</p>{/if}
+						</div>
+						{#if sourceConnection}
+							<div class="source-connected" aria-live="polite">
+								<span><Check size={18} /></span>
+								<div>
+									<strong>{sourceConnection.repository.fullName} is connected</strong>
+									<p>
+										{sourceConnection.repository.ref} · commit {sourceConnection.commit.slice(
+											0,
+											10
+										)}… This saved source remains available for setup even when provider access
+										needs a refresh. GitHub or GitLab access is only required to analyze a newer
+										revision.
+									</p>
+								</div>
+							</div>
+							{#if sourceConnectionLoadError}
+								<p class="source-provider-prompt" role="status">
+									The saved source is still available. Its host record could not be refreshed just
+									now, so Sites kept the last verified connection for setup.
+								</p>
+							{/if}
+						{/if}
+						{#if sourceConnectionStatus === 'checking' && !sourceConnection}
+							<div class="source-onboarding" aria-live="polite">
+								<LoaderCircle class="spin" size={22} />
+								<div>
+									<strong>Checking your saved site connection…</strong>
+									<p>
+										Sites is reading its own durable source record before asking for provider
+										access.
+									</p>
+								</div>
+							</div>
+						{/if}
+						{#if activeSourceConnection?.available}
+							<div class="source-search">
+								<label for="source-search-input"
+									>Find a {selectedSourceProvider === 'github' ? 'GitHub' : 'GitLab'} repository</label
+								>
+								<div>
+									<Search size={17} />
+									<input
+										id="source-search-input"
+										bind:value={sourceQuery}
+										placeholder="Repository name"
+										onkeydown={(event) => {
+											if (event.key === 'Enter') void loadSourceRepositories();
+										}}
+									/>
+									<button
+										type="button"
+										disabled={sourceStatus === 'loading' ||
+											sourceStatus === 'inspecting' ||
+											sourceStatus === 'connecting'}
+										onclick={() => void loadSourceRepositories()}
+										>{sourceStatus === 'loading' ? 'Loading…' : 'Search'}</button
+									>
+								</div>
+							</div>
+							{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
+							<div class:analyzed={sourceReport !== null} class="source-connect-grid">
+								<div
+									class="source-repository-list"
+									aria-label="Connected {selectedSourceProvider === 'github'
+										? 'GitHub'
+										: 'GitLab'} repositories"
+								>
+									{#each sourceRepositories as repository (repository.fullName)}
+										<button
+											type="button"
+											class:selected={selectedSourceRepository?.fullName === repository.fullName}
+											onclick={() => void selectSourceRepository(repository)}
 										>
-											{sourceConnectionNotice}
-										</p>
+											<GitBranch size={17} />
+											<span
+												><strong>{repository.fullName}</strong><small
+													>{repository.description || 'No repository description'}</small
+												></span
+											>
+											<em>{repository.private ? 'Private' : 'Public'}</em>
+										</button>
+									{:else}
+										{#if sourceStatus !== 'loading'}
+											<p>No connected repositories matched this search.</p>
+										{/if}
+									{/each}
+								</div>
+								<div class="source-review">
+									{#if selectedSourceRepository}
+										<span class="eyebrow">Selected source</span>
+										<h3>{selectedSourceRepository.fullName}</h3>
+										<label>
+											Branch
+											<select bind:value={selectedSourceRef}>
+												{#each sourceBranches as branch (branch.name)}
+													<option value={branch.name}
+														>{branch.name}{branch.protected ? ' · protected' : ''}</option
+													>
+												{/each}
+											</select>
+										</label>
+										<div class="source-safety">
+											<ShieldCheck size={18} />
+											<span
+												><strong>Analysis only</strong><small
+													>No scripts, builds, writes, secrets, or deployment destination.</small
+												></span
+											>
+										</div>
+										<button
+											class="primary"
+											type="button"
+											disabled={!selectedSourceRef || sourceStatus === 'inspecting'}
+											onclick={() => void inspectSourceRepository()}
+										>
+											{#if sourceStatus === 'inspecting'}<LoaderCircle class="spin" size={17} />
+												Analyzing safely…{:else}<FileSearch size={17} /> Analyze repository{/if}
+										</button>
+									{:else}
+										<FileSearch size={28} />
+										<h3>Select a repository</h3>
+										<p>Then choose its branch and request a disposable analysis.</p>
 									{/if}
 								</div>
-								{#if reportIsConnected}
-									<div class="source-next-step">
-										<span><ArrowRight size={18} /></span>
+							</div>
+							{#if sourceReport}
+								<div class="source-result" aria-live="polite" bind:this={sourceResultElement}>
+									<div>
+										<span class="eyebrow">Live compatibility evidence</span>
+										<h3>{sourceReport.framework} site · {activeAdoptionReport.status}</h3>
+										<p>
+											Commit {sourceReport.inspection.snapshot.commit.slice(0, 10)}… was inspected
+											and the checkout was removed.
+										</p>
+									</div>
+									<dl>
 										<div>
-											<small>Next step</small>
-											<strong>Choose how Sites should work with this repository</strong>
+											<dt>Files</dt>
+											<dd>{sourceReport.inspection.snapshot.fileCount}</dd>
+										</div>
+										<div>
+											<dt>Source size</dt>
+											<dd>
+												{Math.max(
+													1,
+													Math.round(sourceReport.inspection.snapshot.archiveBytes / 1024)
+												)} KB
+											</dd>
+										</div>
+										<div>
+											<dt>Secrets</dt>
+											<dd>0 delivered</dd>
+										</div>
+										<div>
+											<dt>Checkout</dt>
+											<dd>Removed</dd>
+										</div>
+									</dl>
+									{#if sourceReport.pagesDeployment}
+										<div class="source-pages">
+											<GitBranch size={18} />
+											<div>
+												<strong
+													>Published with {sourceReport.pagesDeployment.method === 'gitlab-ci'
+														? 'GitLab Pages'
+														: 'GitHub Pages'}</strong
+												>
+												<p>
+													{sourceReport.pagesDeployment.method === 'gitlab-ci'
+														? 'GitLab CI'
+														: 'GitHub Actions'} builds
+													{sourceReport.pagesDeployment.artifactPath
+														? ` ${sourceReport.pagesDeployment.artifactPath}/`
+														: ' a site artifact'}
+													from {sourceReport.repository.ref}.
+													{#if sourceReport.pagesDeployment.customDomain}
+														It is mapped to {sourceReport.pagesDeployment.customDomain}.
+													{/if}
+												</p>
+											</div>
+										</div>
+									{/if}
+									<div class="source-connect-action">
+										<div>
+											<strong
+												>{reportIsConnected ? 'Source connected' : 'Keep this selection'}</strong
+											>
 											<p>
-												Keep its custom renderer, move into visual building, or combine both. This
-												choice still makes no repository changes.
+												The host re-verifies the exact commit before saving this repository
+												selection. It does not grant Git write or deployment access.
 											</p>
 										</div>
 										<button
 											class="primary"
 											type="button"
-											onclick={() => void showAdoptionChoices()}
+											disabled={reportIsConnected || sourceStatus === 'connecting'}
+											onclick={() => void connectSourceRepository()}
 										>
-											Choose editing mode <ArrowRight size={16} />
+											{#if sourceStatus === 'connecting'}
+												<LoaderCircle class="spin" size={17} /> Re-verifying…
+											{:else if reportIsConnected}
+												<Check size={17} /> Connected
+											{:else}
+												<GitBranch size={17} /> Connect source
+											{/if}
 										</button>
+										{#if sourceConnectionNotice}
+											<p
+												class:error={sourceStatus === 'error'}
+												class="source-action-status"
+												role={sourceStatus === 'error' ? 'alert' : 'status'}
+											>
+												{sourceConnectionNotice}
+											</p>
+										{/if}
 									</div>
-								{/if}
+									{#if reportIsConnected}
+										<div class="source-next-step">
+											<span><ArrowRight size={18} /></span>
+											<div>
+												<small>Next step</small>
+												<strong>Choose how Sites should work with this repository</strong>
+												<p>
+													Keep its custom renderer, move into visual building, or combine both. This
+													choice still makes no repository changes.
+												</p>
+											</div>
+											<button
+												class="primary"
+												type="button"
+												onclick={() => void showAdoptionChoices()}
+											>
+												Choose editing mode <ArrowRight size={16} />
+											</button>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{:else if !sourceControlBusy && sourceConnection}
+							<div class="source-onboarding source-onboarding--connected">
+								<Check size={22} />
+								<div>
+									<strong>Continue setup without reconnecting.</strong>
+									<p>
+										Your verified source is still connected. Choose an editing mode below. Reconnect
+										{sourceConnection.provider === 'github' ? 'GitHub' : 'GitLab'} only when you want
+										to inspect repository changes made after commit {sourceConnection.commit.slice(
+											0,
+											7
+										)}.
+									</p>
+								</div>
+							</div>
+						{:else if !sourceControlBusy && sourceConnectionStatus !== 'checking'}
+							<div class="source-onboarding">
+								<ShieldCheck size={22} />
+								<div>
+									<strong>Repository credentials stay in tend.host.</strong>
+									<p>
+										Sites only receives repository choices and short-lived, read-only evidence.
+										Connect GitHub above, select repository access on GitHub, then refresh this
+										panel.
+									</p>
+								</div>
 							</div>
 						{/if}
-					{:else if !sourceControlBusy && sourceConnection}
-						<div class="source-onboarding source-onboarding--connected">
-							<Check size={22} />
+					{:else}
+						<div class="source-unavailable">
+							<GitBranch size={22} />
 							<div>
-								<strong>Continue setup without reconnecting.</strong>
+								<strong>Connect once, use it everywhere.</strong>
 								<p>
-									Your verified source is still connected. Choose an editing mode below. Reconnect
-									{sourceConnection.provider === 'github' ? 'GitHub' : 'GitLab'} only when you want to
-									inspect repository changes made after commit {sourceConnection.commit.slice(
-										0,
-										7
-									)}.
-								</p>
-							</div>
-						</div>
-					{:else if !sourceControlBusy && sourceConnectionStatus !== 'checking'}
-						<div class="source-onboarding">
-							<ShieldCheck size={22} />
-							<div>
-								<strong>Repository credentials stay in tend.host.</strong>
-								<p>
-									Sites only receives repository choices and short-lived, read-only evidence.
-									Connect GitHub above, select repository access on GitHub, then refresh this panel.
+									When Sites runs in tend.host, this same panel connects GitHub and immediately
+									continues to repository selection. No second settings workflow is required.
 								</p>
 							</div>
 						</div>
 					{/if}
-				{:else}
-					<div class="source-unavailable">
-						<GitBranch size={22} />
-						<div>
-							<strong>Connect once, use it everywhere.</strong>
-							<p>
-								When Sites runs in tend.host, this same panel connects GitHub and immediately
-								continues to repository selection. No second settings workflow is required.
-							</p>
-						</div>
-					</div>
-				{/if}
-			</section>
+				</section>
 			{/if}
 			{#if adoptionStep === 'mode' || !sourceBridge}
-			<section
-				class="adoption-paths"
-				aria-labelledby="adoption-paths-title"
-				bind:this={adoptionPathsElement}
-			>
-				<div class="section-heading">
-					<div>
-						<span class="eyebrow">Choose how Sites helps</span>
-						<h2 id="adoption-paths-title">Your website does not have to look or work like ours.</h2>
+				<section
+					class="adoption-paths"
+					aria-labelledby="adoption-paths-title"
+					bind:this={adoptionPathsElement}
+				>
+					<div class="section-heading">
+						<div>
+							<span class="eyebrow">Choose how Sites helps</span>
+							<h2 id="adoption-paths-title">
+								Your website does not have to look or work like ours.
+							</h2>
+						</div>
+						<p>
+							Visual building is the easy default. Custom repositories keep their framework,
+							templates, and rendering.
+						</p>
 					</div>
-					<p>
-						Visual building is the easy default. Custom repositories keep their framework,
-						templates, and rendering.
-					</p>
-				</div>
-				<div class="adoption-path-grid">
-					{#each customSiteModes as mode (mode.id)}
-						<article class:selected={selectedAdoptionMode === mode.id}>
-							<span class="path-icon">
-								{#if mode.id === 'visual'}<Paintbrush
-										size={21}
-									/>{:else if mode.id === 'headless'}<Code2 size={21} />{:else}<GitBranch
-										size={21}
-									/>{/if}
-							</span>
-							<small>{mode.bestFor}</small>
-							<h3>{mode.name}</h3>
-							<p>{mode.summary}</p>
-							<button
-								class="secondary"
-								type="button"
-								disabled={sourceSetupStatus === 'saving'}
-								onclick={() => void selectAdoptionMode(mode.id)}
-							>
-								{selectedAdoptionMode === mode.id ? 'Mode selected' : 'Choose this mode'}
-								{#if selectedAdoptionMode === mode.id}<Check size={16} />{:else}<ArrowRight
-										size={16}
-									/>{/if}
-							</button>
-						</article>
-					{/each}
-				</div>
-				{#if sourceSetupMessage}
-					<p
-						class:error={sourceSetupStatus === 'error'}
-						class="source-action-status"
-						role={sourceSetupStatus === 'error' ? 'alert' : 'status'}
-					>
-						{#if sourceSetupStatus === 'saving'}<LoaderCircle class="spin" size={16} />{/if}
-						{sourceSetupMessage}
-					</p>
-				{/if}
-			</section>
+					<div class="adoption-path-grid">
+						{#each customSiteModes as mode (mode.id)}
+							<article class:selected={selectedAdoptionMode === mode.id}>
+								<span class="path-icon">
+									{#if mode.id === 'visual'}<Paintbrush
+											size={21}
+										/>{:else if mode.id === 'headless'}<Code2 size={21} />{:else}<GitBranch
+											size={21}
+										/>{/if}
+								</span>
+								<small>{mode.bestFor}</small>
+								<h3>{mode.name}</h3>
+								<p>{mode.summary}</p>
+								<button
+									class="secondary"
+									type="button"
+									disabled={sourceSetupStatus === 'saving'}
+									onclick={() => void selectAdoptionMode(mode.id)}
+								>
+									{selectedAdoptionMode === mode.id ? 'Mode selected' : 'Choose this mode'}
+									{#if selectedAdoptionMode === mode.id}<Check size={16} />{:else}<ArrowRight
+											size={16}
+										/>{/if}
+								</button>
+							</article>
+						{/each}
+					</div>
+					{#if sourceSetupMessage}
+						<p
+							class:error={sourceSetupStatus === 'error'}
+							class="source-action-status"
+							role={sourceSetupStatus === 'error' ? 'alert' : 'status'}
+						>
+							{#if sourceSetupStatus === 'saving'}<LoaderCircle class="spin" size={16} />{/if}
+							{sourceSetupMessage}
+						</p>
+					{/if}
+				</section>
 			{/if}
 
 			{#if selectedAdoptionModeDetails && (adoptionStep === 'plan' || !sourceBridge)}
@@ -2757,7 +2889,11 @@
 							</p>
 						{/if}
 						{#if sourceSetupMessage}
-							<p class:error={sourceSetupStatus === 'error'} class="source-action-status" role="status">
+							<p
+								class:error={sourceSetupStatus === 'error'}
+								class="source-action-status"
+								role="status"
+							>
 								{sourceSetupMessage}
 							</p>
 						{/if}
@@ -2769,80 +2905,80 @@
 			{/if}
 
 			{#if adoptionStep === 'plan' || !sourceBridge}
-			<section
-				class="custom-site-proof"
-				aria-label="Connected site setup plan"
-				tabindex="-1"
-				bind:this={adoptionPlanElement}
-			>
-				<div>
-					<span class="eyebrow"
-						>{sourceConnection ? 'Connected site plan' : 'Example custom-site plan'}</span
-					>
-					<h2>
-						{selectedAdoptionMode === 'visual'
-							? 'Prepare visual pages. Preserve the source.'
-							: selectedAdoptionMode === 'hybrid'
-								? 'Map the content. Add visual areas gradually.'
-								: 'Keep the renderer. Map only the content.'}
-					</h2>
-					<p>
-						A detected {sourceConnection?.framework ?? demoCustomSitePlan.framework} site keeps every
-						component, route, style, and build decision in its repository during review.
-					</p>
-				</div>
-				<dl>
+				<section
+					class="custom-site-proof"
+					aria-label="Connected site setup plan"
+					tabindex="-1"
+					bind:this={adoptionPlanElement}
+				>
 					<div>
-						<dt>Editing mode</dt>
-						<dd>{selectedAdoptionModeDetails?.name ?? 'Not selected'}</dd>
+						<span class="eyebrow"
+							>{sourceConnection ? 'Connected site plan' : 'Example custom-site plan'}</span
+						>
+						<h2>
+							{selectedAdoptionMode === 'visual'
+								? 'Prepare visual pages. Preserve the source.'
+								: selectedAdoptionMode === 'hybrid'
+									? 'Map the content. Add visual areas gradually.'
+									: 'Keep the renderer. Map only the content.'}
+						</h2>
+						<p>
+							A detected {sourceConnection?.framework ?? demoCustomSitePlan.framework} site keeps every
+							component, route, style, and build decision in its repository during review.
+						</p>
 					</div>
-					<div>
-						<dt>Detected content paths</dt>
-						<dd>
-							{sourceConnection?.contentPaths.length ?? demoCustomSitePlan.collectionIds.length}
-						</dd>
-					</div>
-					<div>
-						<dt>Renderer</dt>
-						<dd>Preserved</dd>
-					</div>
-					<div>
-						<dt>Repository changes</dt>
-						<dd>Review required</dd>
-					</div>
-				</dl>
-				{#if sourceConnection && selectedAdoptionMode}
-					<div class="source-plan-action" aria-live="polite">
+					<dl>
 						<div>
-							<strong>
-								{sourceConnection.onboarding.stage === 'plan_reviewed'
-									? 'Setup plan reviewed'
-									: 'Confirm this source-specific plan'}
-							</strong>
-							<p>
-								{sourceConnection.onboarding.stage === 'plan_reviewed'
-									? 'Your next step is to review the isolated preview requirements for this exact revision.'
-									: 'This records your choice in tend.host. It does not change or publish the repository.'}
-							</p>
+							<dt>Editing mode</dt>
+							<dd>{selectedAdoptionModeDetails?.name ?? 'Not selected'}</dd>
 						</div>
-						{#if sourceConnection.onboarding.stage === 'plan_reviewed'}
-							<button class="primary" type="button" onclick={continueToPreviewReadiness}>
-								Review preview requirements <ArrowRight size={16} />
-							</button>
-						{:else}
-							<button
-								class="primary"
-								type="button"
-								disabled={sourceSetupStatus === 'saving'}
-								onclick={() => void reviewConnectedAdoptionPlan()}
-							>
-								{sourceSetupStatus === 'saving' ? 'Saving…' : 'Confirm plan and continue'}
-								<ArrowRight size={16} />
-							</button>
-						{/if}
-					</div>
-				{/if}
-			</section>
+						<div>
+							<dt>Detected content paths</dt>
+							<dd>
+								{sourceConnection?.contentPaths.length ?? demoCustomSitePlan.collectionIds.length}
+							</dd>
+						</div>
+						<div>
+							<dt>Renderer</dt>
+							<dd>Preserved</dd>
+						</div>
+						<div>
+							<dt>Repository changes</dt>
+							<dd>Review required</dd>
+						</div>
+					</dl>
+					{#if sourceConnection && selectedAdoptionMode}
+						<div class="source-plan-action" aria-live="polite">
+							<div>
+								<strong>
+									{sourceConnection.onboarding.stage === 'plan_reviewed'
+										? 'Setup plan reviewed'
+										: 'Confirm this source-specific plan'}
+								</strong>
+								<p>
+									{sourceConnection.onboarding.stage === 'plan_reviewed'
+										? 'Your next step is to review the isolated preview requirements for this exact revision.'
+										: 'This records your choice in tend.host. It does not change or publish the repository.'}
+								</p>
+							</div>
+							{#if sourceConnection.onboarding.stage === 'plan_reviewed'}
+								<button class="primary" type="button" onclick={continueToPreviewReadiness}>
+									Review preview requirements <ArrowRight size={16} />
+								</button>
+							{:else}
+								<button
+									class="primary"
+									type="button"
+									disabled={sourceSetupStatus === 'saving'}
+									onclick={() => void reviewConnectedAdoptionPlan()}
+								>
+									{sourceSetupStatus === 'saving' ? 'Saving…' : 'Confirm plan and continue'}
+									<ArrowRight size={16} />
+								</button>
+							{/if}
+						</div>
+					{/if}
+				</section>
 			{/if}
 
 			<section class="adapter-catalog" aria-labelledby="adapter-catalog-title">
@@ -4490,20 +4626,113 @@
 				><ArrowLeft size={17} /> Studio</button
 			>
 			<div class="wizard-heading">
-				<span class="eyebrow">Durable publishing</span>
-				<h1>Publishing “Field Notes”</h1>
-				<p>This truthful preview shows the workflow shape. No deployment has been requested.</p>
+				<span class="eyebrow">Durable source update</span>
+				<h1>Save your changes to the site source.</h1>
+				<p>
+					Commit the current visual draft to its versioned repository, then review that exact
+					revision in an isolated preview. This does not deploy production traffic.
+				</p>
 			</div>
 			<div class="publish-grid">
-				<section class="progress-card">
-					{#each [['Saved content', 'Your draft is safely stored.'], ['Repository update', 'A proposed changeset will be created.'], ['Build preview', 'The standard project build must pass.'], ['Deploy', 'Requires durable host job authority.'], ['Verify', 'Health and route checks must pass.']] as item, index (item[0])}
-						<div class:done={index < 2} class:current={index === 2} class="progress-row">
-							<span
-								>{#if index < 2}<Check size={16} />{:else}{index + 1}{/if}</span
-							>
-							<div><strong>{item[0]}</strong><small>{item[1]}</small></div>
+				<section class="progress-card source-commit-card" aria-labelledby="source-commit-title">
+					<div class="source-commit-heading">
+						<span><GitBranch size={22} /></span>
+						<div>
+							<small>Versioned repository</small>
+							<h2 id="source-commit-title">Save changes</h2>
+							<p>
+								The host validates every file and commits through its fixed, network-isolated
+								renderer.
+							</p>
 						</div>
-					{/each}
+					</div>
+					{#if createdSites.length}
+						<label class="source-target-field">
+							<span>Site source</span>
+							<select
+								value={sourceCommitTarget?.projectId ?? createdSites[0].projectId}
+								onchange={(event) =>
+									chooseSourceCommitTarget((event.currentTarget as HTMLSelectElement).value)}
+							>
+								{#each createdSites as site (site.projectId)}
+									<option value={site.projectId}>{site.name} · {site.serverName}</option>
+								{/each}
+							</select>
+						</label>
+						{@const commitTarget = sourceCommitTarget ?? createdSites[0]}
+						<dl class="source-target-evidence">
+							<div>
+								<dt>Current commit</dt>
+								<dd>{commitTarget.gitCommit.slice(0, 10)}…</dd>
+							</div>
+							<div>
+								<dt>Draft</dt>
+								<dd>{saveStatus === 'saved' ? 'Autosaved' : 'Ready in this session'}</dd>
+							</div>
+							<div>
+								<dt>Production</dt>
+								<dd>Unchanged</dd>
+							</div>
+						</dl>
+						<button
+							class="primary source-commit-button"
+							type="button"
+							disabled={!sourceBridge?.commitCreatedSite ||
+								['preparing', 'committing'].includes(sourceCommitStatus)}
+							onclick={() => void commitDraftToSource()}
+						>
+							{#if sourceCommitStatus === 'preparing'}
+								<LoaderCircle class="spin" size={18} /> Preparing source…
+							{:else if sourceCommitStatus === 'committing'}
+								<LoaderCircle class="spin" size={18} /> Committing safely…
+							{:else if sourceCommitStatus === 'error'}
+								<GitBranch size={18} /> Retry exact save
+							{:else}
+								<GitBranch size={18} /> Save changes to source
+							{/if}
+						</button>
+						<p
+							class:error={sourceCommitStatus === 'error'}
+							class:success={sourceCommitStatus === 'succeeded'}
+							class="source-commit-status"
+							role={sourceCommitStatus === 'error' ? 'alert' : 'status'}
+						>
+							{sourceCommitMessage ||
+								(sourceBridge?.commitCreatedSite
+									? 'Ready to create one auditable commit. The previous revision remains recoverable.'
+									: 'Update tend.host to enable safe source commits from Sites.')}
+						</p>
+						{#if sourceCommitStatus === 'succeeded' && sourceCommitTarget}
+							<div class="source-commit-next">
+								<div>
+									<Check size={18} />
+									<span
+										><strong>Source updated</strong><small
+											>Next: inspect the committed revision.</small
+										></span
+									>
+								</div>
+								<button
+									class="secondary"
+									type="button"
+									onclick={() => openPreviewLauncher(sourceCommitTarget!)}
+								>
+									<MonitorPlay size={17} /> Create new preview
+								</button>
+							</div>
+						{/if}
+					{:else}
+						<div class="source-commit-empty">
+							<DatabaseZap size={24} />
+							<div>
+								<strong>Create a site source first</strong>
+								<p>New sites appear here after the host creates their protected repository.</p>
+							</div>
+							<button class="primary" type="button" onclick={() => open('create')}
+								>Create site</button
+							>
+						</div>
+					{/if}
 				</section>
 				<aside>
 					<article class="source-export-card">
@@ -4532,29 +4761,30 @@
 						</p>
 					</article>
 					<article class="honesty-note">
-						<Rocket size={22} />
+						<ShieldCheck size={22} />
 						<div>
-							<strong>Not connected to deployment authority</strong>
+							<strong>Safe by default</strong>
 							<p>
-								The extension cannot publish until tend.host grants a typed, assigned-project
-								durable job capability.
+								Original media stays untouched, active files are rejected, and this action cannot
+								deploy or change a domain.
 							</p>
 						</div>
 					</article>
-					<article class="details">
-						<span>Proposed files</span><strong>{demoChangePreview.files.length}</strong><span
-							>Creates</span
-						><strong>{demoChangePreview.counts.create}</strong><span>Updates</span><strong
-							>{demoChangePreview.counts.update}</strong
-						><span>Deletes</span><strong>{demoChangePreview.counts.delete}</strong><span
-							>Operation</span
-						><strong>Not created</strong><span>Current site</span><strong
-							>Online and unchanged</strong
-						><span>Rollback</span><strong>Previous revision retained</strong><span>Artifact</span
-						><strong>Not built</strong><span>Traffic</span><strong>Current site stays online</strong
-						><span>Domain</span><strong>Unchanged</strong><span>Outage policy</span><strong
-							>Reconcile before retry</strong
-						>
+					<article class="source-workflow-card" aria-label="Source update workflow">
+						{#each [['1', 'Draft ready', 'Your local edits are prepared into portable source.'], ['2', 'Commit source', 'The host verifies and records one exact repository revision.'], ['3', 'Preview next', 'Build the new commit in isolation before any later deployment.']] as item, index (item[0])}
+							<div
+								class:done={index === 0 || sourceCommitStatus === 'succeeded'}
+								class:current={index === 1 && sourceCommitStatus !== 'succeeded'}
+								class="progress-row"
+							>
+								<span
+									>{#if index === 0 || sourceCommitStatus === 'succeeded'}<Check
+											size={16}
+										/>{:else}{item[0]}{/if}</span
+								>
+								<div><strong>{item[1]}</strong><small>{item[2]}</small></div>
+							</div>
+						{/each}
 					</article>
 				</aside>
 			</div>
@@ -5301,8 +5531,12 @@
 	}
 	.created-site-actions {
 		display: grid;
-		grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 8px;
+	}
+	.created-site-actions .card-action {
+		min-width: 0;
+		padding-inline: 10px;
 	}
 	.preview-action {
 		color: #071812;
@@ -8083,7 +8317,7 @@
 		color: color-mix(in srgb, var(--site-ink) 72%, transparent);
 	}
 	.publish-page {
-		max-width: 1000px;
+		max-width: 1180px;
 	}
 	.publish-grid {
 		display: grid;
@@ -8092,6 +8326,126 @@
 	}
 	.progress-card {
 		padding: 28px;
+	}
+	.source-commit-card {
+		display: grid;
+		align-content: start;
+		gap: 22px;
+	}
+	.source-commit-heading {
+		display: grid;
+		grid-template-columns: 46px minmax(0, 1fr);
+		gap: 14px;
+	}
+	.source-commit-heading > span {
+		display: grid;
+		place-items: center;
+		width: 46px;
+		height: 46px;
+		color: var(--green);
+		border-radius: 14px;
+		background: rgba(86, 230, 173, 0.1);
+	}
+	.source-commit-heading small,
+	.source-target-field > span {
+		color: var(--green);
+		font-size: 11px;
+		font-weight: 850;
+		letter-spacing: 0.11em;
+		text-transform: uppercase;
+	}
+	.source-commit-heading h2 {
+		margin: 4px 0 7px;
+		font-size: clamp(24px, 4vw, 34px);
+	}
+	.source-commit-heading p,
+	.source-commit-empty p {
+		margin: 0;
+		color: var(--muted);
+		line-height: 1.55;
+	}
+	.source-target-field {
+		display: grid;
+		gap: 8px;
+	}
+	.source-target-field select {
+		width: 100%;
+		min-height: 52px;
+		padding: 0 14px;
+		color: #edf5f1;
+		border: 1px solid var(--border);
+		border-radius: 13px;
+		background: #0b1412;
+	}
+	.source-target-evidence {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+		margin: 0;
+	}
+	.source-target-evidence div {
+		min-width: 0;
+		padding: 13px;
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.018);
+	}
+	.source-target-evidence dt {
+		color: var(--muted);
+		font-size: 11px;
+	}
+	.source-target-evidence dd {
+		overflow: hidden;
+		margin: 5px 0 0;
+		font-size: 13px;
+		font-weight: 800;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.source-commit-button {
+		width: 100%;
+		min-height: 52px;
+	}
+	.source-commit-status {
+		min-height: 20px;
+		margin: -10px 0 0;
+		color: var(--muted);
+		font-size: 13px;
+		line-height: 1.5;
+	}
+	.source-commit-status.error {
+		color: #ffaaa3;
+	}
+	.source-commit-status.success {
+		color: var(--green);
+	}
+	.source-commit-next,
+	.source-commit-empty {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 16px;
+		border: 1px solid #285543;
+		border-radius: 14px;
+		background: #10271f;
+	}
+	.source-commit-next > div,
+	.source-commit-empty > div {
+		display: flex;
+		align-items: center;
+		gap: 11px;
+	}
+	.source-commit-next small {
+		display: block;
+		margin-top: 3px;
+		color: var(--muted);
+	}
+	.source-workflow-card {
+		padding: 20px;
+		border: 1px solid var(--border);
+		border-radius: 18px;
+		background: var(--surface);
 	}
 	.progress-row {
 		display: grid;
@@ -8186,6 +8540,19 @@
 	}
 
 	@media (max-width: 900px) {
+		.created-site-actions,
+		.source-target-evidence {
+			grid-template-columns: 1fr;
+		}
+		.source-commit-next,
+		.source-commit-empty {
+			align-items: stretch;
+			flex-direction: column;
+		}
+		.source-commit-next button,
+		.source-commit-empty button {
+			width: 100%;
+		}
 		.connected-source-handoff {
 			grid-template-columns: 1fr;
 		}

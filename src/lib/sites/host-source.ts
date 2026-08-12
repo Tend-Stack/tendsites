@@ -8,6 +8,7 @@ import {
 import { RepositoryInspectionResultSchema } from '../contracts/repository-inspection';
 import type { HostCreationBridge } from './host-creation';
 import type { HostPreviewBridge } from './host-preview';
+import type { HostSourceCommitBridge } from './host-source-commit';
 
 export const ConnectedRepositorySchema = z
 	.object({
@@ -104,7 +105,10 @@ export const ConnectedSourceEvidenceSchema = z
 		repositoryMutationAvailable: z.literal(false),
 		publishingAvailable: z.literal(false)
 	})
-	.strict();
+	// The host may add non-authoritative onboarding/presentation evidence between
+	// extension releases. Strip those additive fields while keeping repository,
+	// digest, mutation, and publishing claims fully validated above.
+	.strip();
 
 export type ConnectedSourceEvidence = z.infer<typeof ConnectedSourceEvidenceSchema>;
 
@@ -175,7 +179,9 @@ export const SourceControlConnectionsSchema = z
 
 export type SourceControlConnections = z.infer<typeof SourceControlConnectionsSchema>;
 
-export type HostSourceBridge = Partial<HostCreationBridge & HostPreviewBridge> & {
+export type HostSourceBridge = Partial<
+	HostCreationBridge & HostPreviewBridge & HostSourceCommitBridge
+> & {
 	getSourceControlConnections(): Promise<SourceControlConnections>;
 	beginSourceControlConnection(provider: string): Promise<void>;
 	manageSourceControlAccess(provider: string): Promise<void>;

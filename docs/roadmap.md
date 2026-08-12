@@ -262,9 +262,19 @@ shell does not yet expose setup-stage persistence. The source remains connected,
 the user receives an immediate next step, and provider reinstallation is never
 presented as the repair.
 
-- [ ] Reviewable commit plan and durable publish operation.
-  - **Complete:** The immutable non-committing plan plus an assigned-deployment execution intent bound to explicit review and health-gated prior-artifact retention.
-  - **Pending:** Durable host execution and evidence persistence.
+TEND Sites 0.31.0 makes the next source-changing step real for host-created
+sites. A visual draft can be saved through a bounded portable archive, fixed
+host renderer, no-network Git worker, exact replay identity, encrypted
+resumable-draft ledger, and verified source-revision acknowledgement. The
+created-site card advances to the newly committed revision and guides the user
+to an isolated preview without implying a production deployment. Connected
+repository evidence now tolerates additive host presentation/onboarding fields
+across release skew while still strictly rejecting mutation or publishing
+authority. This fixes the production `unrecognized_keys: onboarding` failure.
+
+- [x] Reviewable source commit plan and durable repository update operation.
+  - **Complete integration:** Host-created sites use actor/project/source/revision-bound requests, bounded raster-only archives, a fixed renderer, deterministic replay recovery, exact Git commit evidence, and source-ledger advancement only after verified acknowledgement.
+  - **Pending deployment integration:** Production publish remains a separate health-gated authority.
 - [ ] Build-once artifact identity and deployment handoff.
   - Commit/recipe/platform/SBOM/provenance artifact identity is complete; handoff remains pending.
 - [ ] Health-gated traffic switch with retained last-good rollback.

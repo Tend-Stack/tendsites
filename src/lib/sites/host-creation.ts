@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-import { AssignedHostContextSchema, HostOperationRequestSchema } from '../contracts/host-operations';
+import {
+	AssignedHostContextSchema,
+	HostOperationRequestSchema
+} from '../contracts/host-operations';
 import { SourceLocationSchema } from '../contracts/source-storage';
 import { IdentifierSchema, Sha256HexSchema } from '../contracts/sites';
 import { StarterArchiveSchema, type StarterArchive } from '../starters/archives';
@@ -57,7 +60,8 @@ export const CreatedSiteSummarySchema = z
 		gitCommit: z.string().regex(/^[a-f0-9]{40}$/),
 		serverName: z.string().min(1).max(120),
 		durability: z.literal('versioned_only'),
-		createdAt: z.iso.datetime({ offset: true })
+		createdAt: z.iso.datetime({ offset: true }),
+		updatedAt: z.iso.datetime({ offset: true }).optional()
 	})
 	.strict();
 

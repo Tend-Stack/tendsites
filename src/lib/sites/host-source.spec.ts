@@ -111,10 +111,41 @@ describe('connected repository boundary', () => {
 			cached.onboarding
 		);
 		expect(
-			reconcileConnectedSourceCache(
-				authoritative,
-				{ ...cached, commit: 'd'.repeat(40) }
-			).onboarding.stage
+			reconcileConnectedSourceCache(authoritative, { ...cached, commit: 'd'.repeat(40) }).onboarding
+				.stage
 		).toBe('source_connected');
+	});
+
+	it('accepts additive host evidence without weakening authority claims', () => {
+		const base = {
+			contract: 'tend.host/sites-connected-source-evidence/v1',
+			connectionId: '33333333-3333-4333-8333-333333333333',
+			projectId: 'connected-site',
+			provider: 'github',
+			repository: report.repository,
+			commit: 'a'.repeat(40),
+			treeSha256: 'b'.repeat(64),
+			archiveSha256: 'c'.repeat(64),
+			framework: 'sveltekit',
+			contentPaths: ['src/routes'],
+			pagesDeployment: report.pagesDeployment,
+			connectedAt: '2026-08-11T20:00:00Z',
+			verifiedAt: '2026-08-11T20:00:00Z',
+			onboarding: {
+				editingMode: 'visual',
+				stage: 'mode_selected',
+				updatedAt: '2026-08-12T01:00:00Z'
+			},
+			repositoryMutationAvailable: false,
+			publishingAvailable: false,
+			hostPresentationVersion: 2
+		} as const;
+
+		const parsed = ConnectedSourceEvidenceSchema.parse(base);
+		expect(parsed.onboarding.editingMode).toBe('visual');
+		expect('hostPresentationVersion' in parsed).toBe(false);
+		expect(() =>
+			ConnectedSourceEvidenceSchema.parse({ ...base, repositoryMutationAvailable: true })
+		).toThrow();
 	});
 });

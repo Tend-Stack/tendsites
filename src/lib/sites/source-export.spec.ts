@@ -69,6 +69,21 @@ describe('portable site source export', () => {
 		expect(result.warnings).toHaveLength(1);
 	});
 
+	it('omits active SVG media before the host source boundary', async () => {
+		const site = createDemoSite();
+		const result = await createPortableSource(site, async () => ({
+			bytes: new TextEncoder().encode('<svg><script>alert(1)</script></svg>'),
+			mimeType: 'image/svg+xml'
+		}));
+		const files = unzipSync(result.archive);
+		const siteJson = strFromU8(files['site.json']);
+
+		expect(Object.keys(files).some((path) => path.endsWith('.svg'))).toBe(false);
+		expect(siteJson).not.toContain('/assets/');
+		expect(result.assetCount).toBe(0);
+		expect(result.warnings.length).toBeGreaterThan(0);
+	});
+
 	it('fails closed when a draft exceeds the bounded unique-media inventory', async () => {
 		const site = createDemoSite();
 		site.pages[0].sections = Array.from({ length: MAX_EXPORT_ASSETS + 1 }, (_, index) => ({
