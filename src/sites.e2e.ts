@@ -104,6 +104,37 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 	await expect(story).toHaveValue('> A useful field note');
 	await expect(page.locator('.post-preview blockquote')).toContainText('A useful field note');
 
+	await story.fill('Lake');
+	await story.evaluate((element: HTMLTextAreaElement) =>
+		element.setSelectionRange(0, element.value.length)
+	);
+	await page
+		.getByRole('toolbar', { name: 'Story formatting tools' })
+		.getByRole('button', { name: 'Table' })
+		.click();
+	await expect(page.locator('.post-preview table')).toContainText('Lake');
+
+	await story.fill('Remember this');
+	await story.evaluate((element: HTMLTextAreaElement) =>
+		element.setSelectionRange(0, element.value.length)
+	);
+	await page
+		.getByRole('toolbar', { name: 'Story formatting tools' })
+		.getByRole('button', { name: 'Callout' })
+		.click();
+	await expect(page.locator('.post-preview .markdown-callout')).toContainText('Remember this');
+
+	await story.fill('Field observation');
+	await story.evaluate((element: HTMLTextAreaElement) =>
+		element.setSelectionRange(0, element.value.length)
+	);
+	await page
+		.getByRole('toolbar', { name: 'Story formatting tools' })
+		.getByRole('button', { name: 'Footnote' })
+		.click();
+	await expect(story).toHaveValue(/Field observation\[\^1\]/);
+	await expect(page.locator('.post-preview .footnotes')).toContainText('Footnote details');
+
 	await page.getByLabel('Status').selectOption('published');
 	await expect(page.locator('.post-list em.published')).toHaveCount(3);
 	await page.getByLabel('Status').selectOption('scheduled');

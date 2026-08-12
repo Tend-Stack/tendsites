@@ -54,4 +54,30 @@ describe('rich text Markdown', () => {
 		expect(rendered).toContain('<hr>');
 		expect(rendered).not.toContain('<script>');
 	});
+
+	it('renders safe portable tables, callouts, and footnotes', () => {
+		const rendered = renderRichMarkdown(
+			'| Place | Note |\n| --- | --- |\n| Lake | **Quiet** |\n\n> [!TIP]\n> Leave before sunrise.\n\nPack lightly[^route].\n\n[^route]: Check the <script>weather</script>.'
+		);
+
+		expect(rendered).toContain('<div class="table-scroll"><table>');
+		expect(rendered).toContain('<th scope="col">Place</th>');
+		expect(rendered).toContain('<td><strong>Quiet</strong></td>');
+		expect(rendered).toContain(
+			'<aside class="markdown-callout" data-kind="tip"><strong>Tip</strong>'
+		);
+		expect(rendered).toContain('href="#fn-route"');
+		expect(rendered).toContain('<section class="footnotes" aria-label="Footnotes">');
+		expect(rendered).toContain('&lt;script&gt;weather&lt;/script&gt;');
+		expect(rendered).not.toContain('<script>');
+	});
+
+	it('leaves malformed advanced structures inert', () => {
+		const rendered = renderRichMarkdown(
+			'| One | Two |\n| -- | --- |\n\n> [!SCRIPT]\n> unsafe\n\nMissing[^unknown]'
+		);
+		expect(rendered).not.toContain('<table>');
+		expect(rendered).not.toContain('markdown-callout');
+		expect(rendered).toContain('Missing[^unknown]');
+	});
 });

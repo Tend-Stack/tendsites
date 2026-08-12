@@ -122,11 +122,14 @@ Completion is measured only from the top-level product milestones below. Nested 
     actions for numbered and bulleted lists, quotes, fenced code, dividers, links, headings, and
     emphasis. The shared renderer safely projects those ordinary Markdown structures in both Studio
     and visitor views while escaping raw HTML.
+  - **Complete advanced-writing slice:** Selection-aware table, note-callout, and footnote actions
+    remain ordinary portable Markdown. Responsive semantic tables, labelled callouts, and linked
+    footnotes render consistently in editor and visitor views while unsafe input remains escaped.
   - **Complete typed embed slice:** A normal YouTube, Vimeo, X-post, or Twitch link creates a typed
     responsive section. Arbitrary embed code and scripts are rejected; supported video previews use
     reviewed player origins and load only after an explicit privacy choice.
-  - **Pending:** Stable rich-text node IDs, tables, callouts, footnotes, repository media, reviewed
-    typography tokens, cross-block selection, and selection-aware history in
+  - **Pending:** Stable rich-text node IDs, repository media, reviewed typography tokens,
+    cross-block selection, and selection-aware history in
     [`rich-editor-plan.md`](rich-editor-plan.md).
 - [ ] Complete visitor-facing site capability set.
   - **Plan:** Blog collections/post editing, reusable blocks, cross-content previews, templates,

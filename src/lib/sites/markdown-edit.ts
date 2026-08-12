@@ -10,6 +10,9 @@ export type MarkdownEditAction =
 	| 'quote'
 	| 'code-block'
 	| 'divider'
+	| 'table'
+	| 'callout'
+	| 'footnote'
 	| 'link';
 
 export interface MarkdownEditResult {
@@ -98,6 +101,26 @@ export function applyMarkdownEdit(
 			5,
 			content.length
 		);
+	}
+	if (action === 'table') {
+		const content = selection || 'Value';
+		const replacement = `\n\n| Column | Column |\n| --- | --- |\n| ${content} | Value |\n\n`;
+		return replaceSelection(value, start, end, replacement, 4, 6);
+	}
+	if (action === 'callout') {
+		const content = selection || 'Helpful context';
+		const replacement = `\n\n> [!NOTE]\n> ${content}\n\n`;
+		const contentStart = replacement.indexOf(content);
+		return replaceSelection(value, start, end, replacement, contentStart, content.length);
+	}
+	if (action === 'footnote') {
+		let sequence = 1;
+		while (new RegExp(`\\[\\^${sequence}\\]:`).test(value) && sequence < 99) sequence += 1;
+		const content = selection || 'Reference';
+		const definition = 'Footnote details';
+		const replacement = `${content}[^${sequence}]\n\n[^${sequence}]: ${definition}`;
+		const definitionStart = replacement.lastIndexOf(definition);
+		return replaceSelection(value, start, end, replacement, definitionStart, definition.length);
 	}
 	return replaceSelection(value, start, end, '\n\n---\n\n', 7, 0);
 }

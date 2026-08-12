@@ -71,7 +71,12 @@ blocks where an adapter proves safe round-tripping.
   - **Complete portable-structure slice:** The post composer provides keyboard-labelled insertion
     tools for numbered lists, block quotes, fenced code, and dividers alongside the existing
     headings, bullets, links, and emphasis. The shared safe renderer covers Studio and visitor
-    previews. Tables, callouts, footnotes, and selection-aware history remain pending.
+    previews.
+  - **Complete advanced-writing slice:** The composer now inserts ordinary Markdown tables,
+    GitHub-compatible note callouts, and uniquely numbered footnotes from the current selection.
+    Studio and visitor renderers provide responsive table overflow, semantic column headers,
+    labelled callouts, linked footnotes, and escaped unsafe input. Selection-aware history remains
+    pending.
 - [ ] Repository image insertion by upload, paste, drag, or library selection with required alt
       text, optional caption/credit/link, crop/focal point, and responsive variants.
 - [ ] Gallery, comparison, carousel, hero, card grid, feature list, statistics, FAQ/accordion,

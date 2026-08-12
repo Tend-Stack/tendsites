@@ -512,6 +512,44 @@
 		border: 0;
 		border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent);
 	}
+	.article-body :global(.table-scroll) {
+		overflow-x: auto;
+		margin: 1.6rem 0;
+	}
+	.article-body :global(table) {
+		width: 100%;
+		border-collapse: collapse;
+	}
+	.article-body :global(th),
+	.article-body :global(td) {
+		padding: 0.75rem 0.85rem;
+		text-align: left;
+		border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+	}
+	.article-body :global(th) {
+		background: color-mix(in srgb, currentColor 7%, transparent);
+	}
+	.article-body :global(.markdown-callout) {
+		margin: 1.6rem 0;
+		padding: 1rem 1.1rem;
+		border: 1px solid color-mix(in srgb, var(--visitor-accent, #168b62) 42%, transparent);
+		border-radius: 0.85rem;
+		background: color-mix(in srgb, var(--visitor-accent, #168b62) 8%, transparent);
+	}
+	.article-body :global(.markdown-callout strong) {
+		display: block;
+		margin-bottom: 0.25rem;
+		color: var(--visitor-accent, #168b62);
+	}
+	.article-body :global(.footnotes) {
+		margin-top: 2rem;
+		padding-top: 1rem;
+		border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+		font-size: 0.9rem;
+	}
+	.article-body :global(.footnote-ref a) {
+		color: var(--visitor-accent, #168b62);
+	}
 	.share-row {
 		display: flex;
 		flex-wrap: wrap;

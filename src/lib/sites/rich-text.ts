@@ -9,12 +9,17 @@ function escapeHtml(value: string): string {
 		.replaceAll("'", '&#39;');
 }
 
-function renderSimpleMarkdown(value: string): string {
+function renderSimpleMarkdown(value: string, footnoteIds: ReadonlySet<string>): string {
 	return escapeHtml(value)
 		.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
 		.replace(/_([^_\n]+)_/g, '<em>$1</em>')
 		.replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-		.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+		.replace(/`([^`\n]+)`/g, '<code>$1</code>')
+		.replace(/\[\^([a-z0-9_-]{1,32})\]/gi, (reference, id: string) =>
+			footnoteIds.has(id.toLowerCase())
+				? `<sup class="footnote-ref"><a href="#fn-${id.toLowerCase()}" aria-label="Footnote ${id}">${id}</a></sup>`
+				: reference
+		);
 }
 
 export function normalizeRichTextLink(value: string): string | null {
@@ -29,23 +34,46 @@ export function normalizeRichTextLink(value: string): string | null {
 	}
 }
 
-function renderInlineMarkdown(value: string): string {
+function renderInlineMarkdown(value: string, footnoteIds: ReadonlySet<string>): string {
 	const linkPattern = /\[([^\]\n]{1,240})\]\(([^)\s]{1,500})\)/g;
 	let cursor = 0;
 	let output = '';
 	for (const match of value.matchAll(linkPattern)) {
 		const index = match.index ?? 0;
-		output += renderSimpleMarkdown(value.slice(cursor, index));
+		output += renderSimpleMarkdown(value.slice(cursor, index), footnoteIds);
 		const safeHref = normalizeRichTextLink(match[2]);
 		output += safeHref
-			? `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${renderSimpleMarkdown(match[1])}</a>`
-			: renderSimpleMarkdown(match[0]);
+			? `<a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${renderSimpleMarkdown(match[1], footnoteIds)}</a>`
+			: renderSimpleMarkdown(match[0], footnoteIds);
 		cursor = index + match[0].length;
 	}
-	return output + renderSimpleMarkdown(value.slice(cursor));
+	return output + renderSimpleMarkdown(value.slice(cursor), footnoteIds);
+}
+
+function tableCells(line: string): string[] {
+	return line
+		.trim()
+		.replace(/^\|/, '')
+		.replace(/\|$/, '')
+		.split('|')
+		.map((cell) => cell.trim());
+}
+
+function isTableDivider(line: string, columns: number): boolean {
+	const cells = tableCells(line);
+	return cells.length === columns && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
 }
 
 export function renderRichMarkdown(value: string): string {
+	const footnotes = new Map<string, string>();
+	const lines = value.replace(/\r\n?/g, '\n').split('\n');
+	const contentLines = lines.filter((line) => {
+		const definition = /^\[\^([a-z0-9_-]{1,32})\]:\s+(.+)$/i.exec(line);
+		if (!definition) return true;
+		footnotes.set(definition[1].toLowerCase(), definition[2]);
+		return false;
+	});
+	const footnoteIds = new Set(footnotes.keys());
 	const output: string[] = [];
 	let listItems: string[] = [];
 	let listKind: 'ordered' | 'unordered' | null = null;
@@ -58,20 +86,32 @@ export function renderRichMarkdown(value: string): string {
 		const tag = listKind === 'ordered' ? 'ol' : 'ul';
 		const start = tag === 'ol' && orderedStart !== 1 ? ` start="${orderedStart}"` : '';
 		output.push(
-			`<${tag}${start}>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</${tag}>`
+			`<${tag}${start}>${listItems.map((item) => `<li>${renderInlineMarkdown(item, footnoteIds)}</li>`).join('')}</${tag}>`
 		);
 		listItems = [];
 		listKind = null;
 	};
 	const flushQuote = () => {
 		if (!quoteLines.length) return;
-		output.push(
-			`<blockquote>${quoteLines.map((line) => `<div>${renderInlineMarkdown(line)}</div>`).join('')}</blockquote>`
-		);
+		const callout = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$/i.exec(quoteLines[0] ?? '');
+		if (callout) {
+			const kind = callout[1].toLowerCase();
+			output.push(
+				`<aside class="markdown-callout" data-kind="${kind}"><strong>${callout[1][0] + callout[1].slice(1).toLowerCase()}</strong>${quoteLines
+					.slice(1)
+					.map((line) => `<div>${renderInlineMarkdown(line, footnoteIds)}</div>`)
+					.join('')}</aside>`
+			);
+		} else {
+			output.push(
+				`<blockquote>${quoteLines.map((line) => `<div>${renderInlineMarkdown(line, footnoteIds)}</div>`).join('')}</blockquote>`
+			);
+		}
 		quoteLines = [];
 	};
 
-	for (const line of value.replace(/\r\n?/g, '\n').split('\n')) {
+	for (let lineIndex = 0; lineIndex < contentLines.length; lineIndex += 1) {
+		const line = contentLines[lineIndex];
 		if (codeLines) {
 			if (/^```\s*$/.test(line)) {
 				const language = /^[a-z0-9+-]{1,24}$/i.test(codeLanguage)
@@ -115,14 +155,34 @@ export function renderRichMarkdown(value: string): string {
 			continue;
 		}
 		flushQuote();
+		const headerCells = tableCells(line);
+		if (
+			line.includes('|') &&
+			headerCells.length >= 2 &&
+			isTableDivider(contentLines[lineIndex + 1] ?? '', headerCells.length)
+		) {
+			const rows: string[][] = [];
+			lineIndex += 2;
+			while (lineIndex < contentLines.length && contentLines[lineIndex].includes('|')) {
+				const cells = tableCells(contentLines[lineIndex]);
+				if (cells.length !== headerCells.length) break;
+				rows.push(cells);
+				lineIndex += 1;
+			}
+			lineIndex -= 1;
+			output.push(
+				`<div class="table-scroll"><table><thead><tr>${headerCells.map((cell) => `<th scope="col">${renderInlineMarkdown(cell, footnoteIds)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdown(cell, footnoteIds)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+			);
+			continue;
+		}
 		const heading = /^(#{1,3})\s+(.+)$/.exec(line);
 		if (heading) {
 			const level = heading[1].length;
-			output.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+			output.push(`<h${level}>${renderInlineMarkdown(heading[2], footnoteIds)}</h${level}>`);
 		} else if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) {
 			output.push('<hr>');
 		} else if (line.trim()) {
-			output.push(`<div>${renderInlineMarkdown(line)}</div>`);
+			output.push(`<div>${renderInlineMarkdown(line, footnoteIds)}</div>`);
 		} else {
 			output.push('<div><br></div>');
 		}
@@ -132,6 +192,16 @@ export function renderRichMarkdown(value: string): string {
 	if (codeLines) {
 		output.push(
 			`<pre><code>${escapeHtml(['```' + codeLanguage, ...codeLines].join('\n'))}</code></pre>`
+		);
+	}
+	if (footnotes.size) {
+		output.push(
+			`<section class="footnotes" aria-label="Footnotes"><ol>${[...footnotes]
+				.map(
+					([id, definition]) =>
+						`<li id="fn-${id}">${renderInlineMarkdown(definition, footnoteIds)}</li>`
+				)
+				.join('')}</ol></section>`
 		);
 	}
 	return output.join('');

@@ -17,11 +17,14 @@
 		ListOrdered,
 		LoaderCircle,
 		Minus,
+		MessageSquareText,
 		Quote,
 		Search,
 		Save,
 		Star,
 		Strikethrough,
+		Superscript,
+		Table2,
 		Trash2,
 		TriangleAlert
 	} from '@lucide/svelte';
@@ -74,6 +77,9 @@
 		['quote', 'Quote', Quote],
 		['code-block', 'Code block', Code2],
 		['divider', 'Divider', Minus],
+		['table', 'Table', Table2],
+		['callout', 'Callout', MessageSquareText],
+		['footnote', 'Footnote', Superscript],
 		['link', 'Link', Link2]
 	] as const;
 
@@ -1204,6 +1210,45 @@
 		border: 0;
 		border-top: 1px solid #2b443c;
 		margin: 1.4rem 0;
+	}
+	.preview-body :global(.table-scroll) {
+		overflow-x: auto;
+		margin: 1rem 0;
+	}
+	.preview-body :global(table) {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.9rem;
+	}
+	.preview-body :global(th),
+	.preview-body :global(td) {
+		padding: 0.6rem 0.7rem;
+		text-align: left;
+		border: 1px solid #29423a;
+	}
+	.preview-body :global(th) {
+		background: #10201b;
+	}
+	.preview-body :global(.markdown-callout) {
+		margin: 1rem 0;
+		padding: 0.8rem 0.9rem;
+		border: 1px solid #2e5d4d;
+		border-radius: 10px;
+		background: #0b1b16;
+	}
+	.preview-body :global(.markdown-callout strong) {
+		display: block;
+		margin-bottom: 0.25rem;
+		color: #56e6ad;
+	}
+	.preview-body :global(.footnotes) {
+		margin-top: 1.5rem;
+		padding-top: 0.8rem;
+		border-top: 1px solid #29423a;
+		font-size: 0.86rem;
+	}
+	.preview-body :global(.footnote-ref a) {
+		color: #56e6ad;
 	}
 	.post-editor > footer {
 		display: flex;

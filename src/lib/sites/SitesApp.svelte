@@ -5359,6 +5359,29 @@
 	.preview-section .preview-body :global(*) {
 		margin: 0 0 8px;
 	}
+	.preview-section .preview-body :global(.table-scroll) {
+		overflow-x: auto;
+	}
+	.preview-section .preview-body :global(table) {
+		width: 100%;
+		border-collapse: collapse;
+	}
+	.preview-section .preview-body :global(th),
+	.preview-section .preview-body :global(td) {
+		padding: 0.6rem;
+		text-align: left;
+		border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+	}
+	.preview-section .preview-body :global(.markdown-callout) {
+		padding: 0.8rem;
+		border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+		border-radius: 10px;
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+	}
+	.preview-section .preview-body :global(.markdown-callout strong) {
+		display: block;
+		color: var(--accent);
+	}
 	.preview-section.story img,
 	.preview-section.gallery img {
 		order: -1;
