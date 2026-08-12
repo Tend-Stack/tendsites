@@ -99,7 +99,10 @@ export const ImportedSiteProjectionSchema = z
 						path: z.string().min(1).max(240),
 						title: z.string().min(1).max(120),
 						summary: z.string().max(500),
-						body: z.string().max(20_000)
+						body: z.string().max(20_000),
+						publishedAt: z.string().max(40).nullable().optional(),
+						tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+						hero: z.string().max(240).nullable().optional()
 					})
 					.strict()
 			)
@@ -142,7 +145,7 @@ export const ConnectedSourceEvidenceSchema = z
 			.strict()
 			.optional()
 			.default({ editingMode: null, stage: 'source_connected', updatedAt: null }),
-		repositoryMutationAvailable: z.literal(false),
+		repositoryMutationAvailable: z.boolean(),
 		publishingAvailable: z.literal(false)
 	})
 	// The host may add non-authoritative onboarding/presentation evidence between
@@ -243,6 +246,25 @@ export type HostSourceBridge = Partial<
 	getConnection(projectId: string): Promise<ConnectedSourceEvidence | null>;
 	listConnections?(): Promise<ConnectedSourceEvidence[]>;
 	loadWorkspace?(projectId: string): Promise<ImportedSiteProjection>;
+	publishConnectedPost?(input: {
+		operationId: string;
+		projectId: string;
+		connectionId: string;
+		baseGitCommit: string;
+		slug: string;
+		title: string;
+		excerpt: string;
+		body: string;
+		tags: string[];
+		publishedAt: string | null;
+	}): Promise<{
+		contract: 'tend.host/sites-connected-content-result/v1';
+		operationId: string;
+		projectId: string;
+		path: string;
+		gitCommit: string;
+		state: 'committed' | 'committed_refresh_required';
+	}>;
 	updateConnectionSetup?(input: {
 		projectId: string;
 		connectionId: string;

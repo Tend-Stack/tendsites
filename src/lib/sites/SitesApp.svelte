@@ -117,6 +117,7 @@
 		sectionLabels,
 		uniquePageSlug,
 		type DemoSectionKind,
+		type DemoPost,
 		type DemoSite
 	} from './demo-site';
 	import { DemoDraftStore, type DraftStorage } from './draft-storage';
@@ -266,6 +267,8 @@
 		'idle'
 	);
 	let sourceCommitMessage = $state('');
+	let importedPublishStatus = $state<'idle' | 'publishing' | 'succeeded' | 'error'>('idle');
+	let importedPublishMessage = $state('');
 	let sourceCommitAttempt = $state<{
 		targetRevision: string;
 		request: SourceCommitRequest;
@@ -1456,9 +1459,40 @@
 		if (!sourceConnection) return;
 		try {
 			await activateSiteDraft(sourceConnection.projectId, sourceConnection.repository.name, true);
-			open('studio');
+			open(sourceConnection.onboarding.editingMode === 'visual' ? 'studio' : 'content');
 		} catch {
 			view = 'home';
+		}
+	}
+
+	async function publishImportedPost(post: DemoPost) {
+		if (!sourceConnection || !sourceBridge?.publishConnectedPost) return;
+		importedPublishStatus = 'publishing';
+		importedPublishMessage = 'Committing this post to the connected repository…';
+		try {
+			const result = await sourceBridge.publishConnectedPost({
+				operationId: crypto.randomUUID(),
+				projectId: sourceConnection.projectId,
+				connectionId: sourceConnection.connectionId,
+				baseGitCommit: sourceConnection.commit,
+				slug: post.slug,
+				title: post.title,
+				excerpt: post.summary,
+				body: post.body,
+				tags: post.tags,
+				publishedAt: post.publishedAt
+			});
+			importedPublishStatus = 'succeeded';
+			importedPublishMessage =
+				result.state === 'committed'
+					? `Published as commit ${result.gitCommit.slice(0, 7)}. The site's existing deployment can now rebuild it.`
+					: `Published as commit ${result.gitCommit.slice(0, 7)}. Refresh this workspace before the next edit.`;
+			const refreshed = await sourceBridge.getConnection(sourceConnection.projectId);
+			if (refreshed) sourceConnection = ConnectedSourceEvidenceSchema.parse(refreshed);
+		} catch (error) {
+			importedPublishStatus = 'error';
+			importedPublishMessage =
+				error instanceof Error ? error.message : 'This post could not be published safely.';
 		}
 	}
 
@@ -2433,6 +2467,11 @@
 			canRedo={redoHistory.length > 0}
 			onundo={undoDraft}
 			onredo={redoDraft}
+			onpublish={activeImportedConnection?.repositoryMutationAvailable
+				? publishImportedPost
+				: undefined}
+			publishStatus={importedPublishStatus}
+			publishMessage={importedPublishMessage}
 		/>
 	{:else if view === 'structure'}
 		<StructureWorkspace
@@ -3629,8 +3668,11 @@
 							aria-label="Preview site"
 							title="Preview site"
 							onclick={() => {
-								previewPostId = null;
-								showPreview = true;
+								if (activeCustomDesign && customRendererUrl) openSitePreview(customRendererUrl);
+								else {
+									previewPostId = null;
+									showPreview = true;
+								}
 							}}><MonitorPlay size={16} /><span>Preview site</span></button
 						><button
 							class="primary"
@@ -5260,12 +5302,14 @@
 										: 'Update tend.host and approve Production publishing to enable this action.')}
 							</p>
 							{#if publishOperation?.state === 'ready' && publishOperation.url}
+								<!-- eslint-disable svelte/no-navigation-without-resolve -->
 								<a
 									class="secondary source-export-button"
 									href={publishOperation.url}
 									target="_blank"
 									rel="noreferrer">Open production site <ArrowRight size={17} /></a
 								>
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
 							{/if}
 						{:else}
 							<div class="production-preview-required">

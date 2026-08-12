@@ -589,12 +589,12 @@ export function createImportedSite(name: string, projection: ImportedSiteProject
 		: [
 				{
 					path: '/',
-					title: 'Repository content',
-					summary: 'No static page copy could be mapped safely from this custom renderer.',
+					title: 'Custom site design',
+					summary: 'Sites manages only the content collection approved by this repository.',
 					sections: [
 						{
-							title: 'Custom site connected',
-							body: 'The repository remains connected and its custom components and styles stay in source.'
+							title: 'Your existing design stays in place',
+							body: 'Write and publish content here while the repository keeps responsibility for application pages, components, and styles.'
 						}
 					]
 				}
@@ -633,11 +633,11 @@ export function createImportedSite(name: string, projection: ImportedSiteProject
 						summary: post.summary,
 						body: post.body,
 						author: name,
-						tags: [],
+						tags: post.tags ?? [],
 						relatedPostIds: [],
 						status: 'published',
 						featured: index === 0,
-						publishedAt: '2026-01-01T00:00:00.000Z',
+						publishedAt: importedPostDate(post.publishedAt),
 						scheduledAt: null,
 						seo: createDefaultEntrySeo(post.title, post.summary)
 					}))
@@ -659,6 +659,12 @@ export function createImportedSite(name: string, projection: ImportedSiteProject
 		redirects: [],
 		structure: createDefaultSiteStructure(pages)
 	};
+}
+
+function importedPostDate(value: string | null | undefined): string {
+	if (!value) return new Date(0).toISOString();
+	const timestamp = Date.parse(value);
+	return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : new Date(0).toISOString();
 }
 
 function purePostName(path: string, fallback: string): string {

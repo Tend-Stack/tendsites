@@ -53,7 +53,10 @@
 		canUndo = false,
 		canRedo = false,
 		onundo,
-		onredo
+		onredo,
+		onpublish,
+		publishStatus = 'idle',
+		publishMessage = ''
 	}: {
 		site: DemoSite;
 		onchange: (mutator: (next: DemoSite) => void, historyKey?: string) => void;
@@ -65,6 +68,9 @@
 		canRedo?: boolean;
 		onundo?: () => void;
 		onredo?: () => void;
+		onpublish?: (post: DemoPost) => Promise<void>;
+		publishStatus?: 'idle' | 'publishing' | 'succeeded' | 'error';
+		publishMessage?: string;
 	} = $props();
 
 	let selectedPostId = $state('');
@@ -358,6 +364,20 @@
 			<p>Write once, then place posts on your home page, journal, or future collections.</p>
 		</div>
 		<div class="content-heading-actions">
+			{#if onpublish && selectedPost}
+				<div class="repository-publish">
+					<small class:error={publishStatus === 'error'} aria-live="polite"
+						>{publishMessage || 'Publishes this post to the connected repository'}</small
+					>
+					<button
+						class="primary"
+						disabled={publishStatus === 'publishing'}
+						onclick={() => void onpublish(selectedPost)}
+					>
+						{publishStatus === 'publishing' ? 'Publishing…' : 'Publish post'}
+					</button>
+				</div>
+			{/if}
 			<div class="history-actions" aria-label="Editing history">
 				<button type="button" disabled={!canUndo} onclick={onundo} aria-label="Undo last edit"
 					><Undo2 size={17} /> Undo</button
@@ -664,8 +684,9 @@
 
 				<footer>
 					<p>
-						Changes are saved with this local site draft. Publishing is still intentionally
-						disconnected.
+						{onpublish
+							? 'Draft changes stay in this panel until you explicitly publish this post to the connected repository.'
+							: 'Changes are saved with this local site draft. Publishing is still intentionally disconnected.'}
 					</p>
 					<button class="danger" onclick={() => (showDelete = true)}
 						><Trash2 size={16} /> Delete post</button
@@ -739,6 +760,20 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
+	}
+	.repository-publish {
+		display: grid;
+		justify-items: end;
+		gap: 5px;
+	}
+	.repository-publish small {
+		max-width: 320px;
+		color: #8fa59d;
+		font-size: 0.72rem;
+		text-align: right;
+	}
+	.repository-publish small.error {
+		color: #ff9b94;
 	}
 	.history-actions {
 		padding: 4px;

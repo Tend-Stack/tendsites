@@ -144,8 +144,9 @@ describe('connected repository boundary', () => {
 		const parsed = ConnectedSourceEvidenceSchema.parse(base);
 		expect(parsed.onboarding.editingMode).toBe('visual');
 		expect('hostPresentationVersion' in parsed).toBe(false);
-		expect(() =>
+		expect(
 			ConnectedSourceEvidenceSchema.parse({ ...base, repositoryMutationAvailable: true })
-		).toThrow();
+				.repositoryMutationAvailable
+		).toBe(true);
 	});
 });
