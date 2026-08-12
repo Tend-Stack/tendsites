@@ -168,6 +168,7 @@
 	);
 	let sourceError = $state('');
 	let sourceConnectionNotice = $state('');
+	let sourceConnectionLoadError = $state('');
 	let connectedSourceJustAdded = $state(false);
 	let sourceReport = $state<ConnectedRepositoryReport | null>(null);
 	let sourceResultElement = $state<HTMLElement | null>(null);
@@ -932,9 +933,13 @@
 		view = next;
 		mobileMenu = false;
 		if (next === 'adopt' && sourceBridge && sourceStatus === 'idle') {
-			void loadSourceControlConnections();
-			void loadSourceConnection();
+			void hydrateSourceAdoption();
 		}
+	}
+
+	async function hydrateSourceAdoption() {
+		await loadSourceConnection();
+		await loadSourceControlConnections();
 	}
 
 	async function continueConnectedSource() {
@@ -951,6 +956,9 @@
 
 	async function selectAdoptionMode(mode: (typeof customSiteModes)[number]['id']) {
 		selectedAdoptionMode = mode;
+		sourceConnectionNotice = sourceConnection
+			? `${sourceConnection.repository.fullName} remains connected. ${customSiteModes.find((item) => item.id === mode)?.name ?? 'Editing mode'} is ready to review.`
+			: '';
 		await tick();
 		modeSetupElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 		modeSetupElement?.focus({ preventScroll: true });
@@ -978,8 +986,14 @@
 			}
 			if (activeSourceConnection?.available) await loadSourceRepositories();
 		} catch (error) {
-			sourceError =
+			const message =
 				error instanceof Error ? error.message : 'Source connections could not be loaded.';
+			if (sourceConnection) {
+				sourceControlPrompt =
+					`${sourceConnection.repository.fullName} is still connected. Provider access could not be refreshed, but you can continue setup.`;
+			} else {
+				sourceError = message;
+			}
 		} finally {
 			sourceControlBusy = false;
 		}
@@ -1034,10 +1048,17 @@
 		if (!sourceBridge) return;
 		try {
 			const connection = await sourceBridge.getConnection(sourceProjectId);
-			sourceConnection = connection ? ConnectedSourceEvidenceSchema.parse(connection) : null;
-			if (sourceConnection) selectedSourceProvider = sourceConnection.provider;
-		} catch {
-			sourceConnection = null;
+			if (connection) sourceConnection = ConnectedSourceEvidenceSchema.parse(connection);
+			sourceConnectionLoadError = '';
+			if (sourceConnection) {
+				selectedSourceProvider = sourceConnection.provider;
+			}
+		} catch (error) {
+			// A provider or host refresh failure must never erase a source that this
+			// mounted session already proved and saved. Reauthentication is only
+			// needed to inspect a newer revision, not to choose an editing mode.
+			sourceConnectionLoadError =
+				error instanceof Error ? error.message : 'The saved source could not be refreshed.';
 		}
 	}
 
@@ -1755,6 +1776,12 @@
 								</p>
 							</div>
 						</div>
+						{#if sourceConnectionLoadError}
+							<p class="source-provider-prompt" role="status">
+								The saved source is still available. Its host record could not be refreshed just
+								now, so Sites kept the last verified connection for setup.
+							</p>
+						{/if}
 					{/if}
 					{#if activeSourceConnection?.available}
 						<div class="source-search">

@@ -203,6 +203,9 @@ Completion is measured only from the top-level product milestones below. Nested 
     the Your Sites dashboard. Analysis and connection outcomes use the full workspace width, keep
     action feedback visible, and lead directly into an explicit visual, custom-renderer, or hybrid
     editing-mode choice without implying repository writes or deployment authority.
+  - **Complete resilient handoff:** Editing-mode setup uses the last verified source binding even
+    when provider access or a host refresh is temporarily unavailable. Reauthentication is reserved
+    for inspecting a newer repository revision and no longer resets the connected setup flow.
 - [x] Repository media lifecycle with accessible variants.
   - **Complete:** Digest-bound assets, localized alt text, deterministic variants, and review-only upload/retain/transform/remove plans.
   - **Complete connected picker:** A sealed, read-only tend.host Files bridge exposes sanitized image
