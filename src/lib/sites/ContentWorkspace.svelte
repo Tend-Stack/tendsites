@@ -378,6 +378,15 @@
 							><Star size={16} /> Featured</button
 						>
 						<div class="save-control">
+							<small class:error={saveStatus === 'error'} aria-live="polite">
+								{saveStatus === 'loading'
+									? 'Saving changes'
+									: saveStatus === 'saved'
+										? 'Autosaved'
+										: saveStatus === 'error'
+											? saveError || 'Save failed'
+											: 'Session only'}
+							</small>
 							<button
 								type="button"
 								class="save-button"
@@ -389,15 +398,6 @@
 								{:else if saveStatus === 'error'}<TriangleAlert size={16} /> Retry save
 								{:else}<Save size={16} /> Save changes{/if}
 							</button>
-							<small class:error={saveStatus === 'error'} aria-live="polite">
-								{saveStatus === 'loading'
-									? 'Saving changes'
-									: saveStatus === 'saved'
-										? 'Autosaved'
-										: saveStatus === 'error'
-											? saveError || 'Save failed'
-											: 'Session only'}
-							</small>
 						</div>
 					</div>
 				</header>
@@ -886,9 +886,15 @@
 		background: #2a1716;
 	}
 	.save-control small {
+		min-height: 1em;
+		max-width: 180px;
+		overflow: hidden;
 		color: #6f887f;
 		font-size: 0.62rem;
 		line-height: 1;
+		text-align: center;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.save-control small.error {
 		color: #e49c94;

@@ -2,7 +2,7 @@
 	"schema": 2,
 	"id": "host.tend.sites",
 	"name": "TEND Sites",
-	"version": "0.20.0",
+	"version": "0.20.1",
 	"author": "TEND Stack",
 	"description": "A calm, guided website studio for tend.host.",
 	"category": "productivity",

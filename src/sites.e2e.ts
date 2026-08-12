@@ -71,6 +71,11 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 	await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
 	await expect(page.getByText('Session only')).toBeVisible();
+	const saveButtonBox = await page.getByRole('button', { name: 'Save changes' }).boundingBox();
+	const saveLabelBox = await page.locator('.save-control small').boundingBox();
+	expect(saveButtonBox).not.toBeNull();
+	expect(saveLabelBox).not.toBeNull();
+	expect(saveLabelBox!.y + saveLabelBox!.height).toBeLessThanOrEqual(saveButtonBox!.y);
 	await expect(
 		page.getByLabel('Filter posts').getByRole('button', { name: /All/ })
 	).toHaveAttribute('aria-pressed', 'true');
@@ -945,6 +950,12 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await page.getByRole('button', { name: 'Content', exact: true }).click();
 	await page.getByRole('button', { name: 'Replace image' }).click();
 	await expect(page.getByRole('heading', { name: 'Prepare a cover image' })).toBeVisible();
+	const mediaDialog = page.getByRole('dialog', { name: 'Prepare a cover image' });
+	const libraryControlBox = await mediaDialog.getByLabel('Library').boundingBox();
+	const searchControlBox = await mediaDialog.getByLabel('Search').boundingBox();
+	expect(libraryControlBox).not.toBeNull();
+	expect(searchControlBox).not.toBeNull();
+	expect(Math.abs(libraryControlBox!.y - searchControlBox!.y)).toBeLessThanOrEqual(1);
 	await page.getByRole('button', { name: 'quiet-lake.jpg' }).click();
 	await expect(page.getByRole('heading', { name: 'Frame the cover' })).toBeVisible();
 	await expect(page.locator('.large-canvas .thirds')).toHaveCount(0);

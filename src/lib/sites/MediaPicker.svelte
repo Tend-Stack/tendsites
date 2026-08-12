@@ -340,16 +340,17 @@
 			</section>
 		{:else if sourceMode === 'files'}
 			<div class="library-controls">
-				<label
-					><span>Library</span><select
+				<div class="library-field">
+					<label for="media-library">Library</label><select
+						id="media-library"
 						bind:value={libraryId}
 						disabled={libraries.length === 0}
 						onchange={() => void loadImages(true)}
 						>{#each libraries as library (library.id)}<option value={library.id}
 								>{library.name} · {library.itemCount}</option
 							>{/each}</select
-					></label
-				>
+					>
+				</div>
 				<form
 					onsubmit={(event) => {
 						event.preventDefault();
@@ -848,6 +849,7 @@
 	.library-controls {
 		display: grid;
 		grid-template-columns: minmax(190px, 280px) minmax(280px, 520px);
+		align-items: end;
 		gap: 12px;
 		padding: 10px 20px;
 		border-bottom: 1px solid #17342a;
@@ -860,6 +862,16 @@
 		color: #9fb0aa;
 		font-size: 0.72rem;
 		font-weight: 750;
+	}
+	.library-field,
+	.library-controls form {
+		display: grid;
+		grid-template-rows: auto 42px;
+		gap: 6px;
+	}
+	.library-controls .library-field > label,
+	.library-controls form > label {
+		margin: 0;
 	}
 	.library-controls select,
 	.search-input,
@@ -878,6 +890,7 @@
 	.search-row {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto;
+		height: 42px;
 		gap: 8px;
 	}
 	.search-input {
