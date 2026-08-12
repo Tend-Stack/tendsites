@@ -67,3 +67,11 @@ encryption, billing, and restore guarantees; no existing workflow may depend on 
 Local version history is not a backup. The product reports `protected`, `external_repository`,
 `versioned_only`, or `at_risk` from revision-bound evidence and keeps source, media, and history
 separate from replaceable containers, build workspaces, caches, and artifacts.
+
+## D-012 — Source-control authentication is shared host infrastructure
+
+TEND Sites does not own GitHub, GitLab, Bitbucket, or Forgejo/Gitea secrets.
+It uses a versioned credential-free tend.host bridge and may start host-owned
+connection or repository-access flows in context. GitHub App access is reused
+by Sites and app deployments; future providers must plug into that shared seam
+instead of adding provider settings inside the extension.

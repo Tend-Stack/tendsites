@@ -66,10 +66,14 @@
 		ConnectedRepositoryBranchSchema,
 		ConnectedRepositoryReportSchema,
 		ConnectedRepositorySchema,
+		ConnectedSourceEvidenceSchema,
+		SourceControlConnectionsSchema,
 		assessConnectedRepository,
 		type ConnectedRepository,
 		type ConnectedRepositoryBranch,
 		type ConnectedRepositoryReport,
+		type ConnectedSourceEvidence,
+		type SourceControlConnections,
 		type HostSourceBridge
 	} from './host-source';
 	import PostFeed from './PostFeed.svelte';
@@ -159,9 +163,15 @@
 	let selectedSourceRepository = $state<ConnectedRepository | null>(null);
 	let selectedSourceRef = $state('');
 	let sourceQuery = $state('');
-	let sourceStatus = $state<'idle' | 'loading' | 'inspecting' | 'ready' | 'error'>('idle');
+	let sourceStatus = $state<'idle' | 'loading' | 'inspecting' | 'connecting' | 'ready' | 'error'>(
+		'idle'
+	);
 	let sourceError = $state('');
 	let sourceReport = $state<ConnectedRepositoryReport | null>(null);
+	let sourceConnection = $state<ConnectedSourceEvidence | null>(null);
+	let sourceControlConnections = $state<SourceControlConnections | null>(null);
+	let sourceControlBusy = $state(false);
+	let sourceControlPrompt = $state('');
 	let selectedModules = $state<string[]>(['Home', 'About', 'Blog', 'Gallery', 'Contact']);
 	let siteName = $state('Weekend Notes');
 	let accent = $state('#56e6ad');
@@ -243,6 +253,19 @@
 	const activeAdoptionReport = $derived(
 		sourceReport ? assessConnectedRepository(sourceReport) : demoAdoptionReport
 	);
+	const sourceProjectId = 'connected-site';
+	const githubConnection = $derived(
+		sourceControlConnections?.providers.find((provider) => provider.id === 'github') ?? null
+	);
+	const reportIsConnected = $derived(
+		Boolean(
+			sourceReport &&
+			sourceConnection &&
+			sourceConnection.repository.fullName === sourceReport.repository.fullName &&
+			sourceConnection.repository.ref === sourceReport.repository.ref &&
+			sourceConnection.commit === sourceReport.inspection.snapshot.commit
+		)
+	);
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -302,9 +325,20 @@
 	}
 
 	onMount(() => {
+		const handleSourceConnection = (event: MessageEvent) => {
+			if (event.origin !== window.location.origin) return;
+			if (event.data?.type !== 'tend.github-manifest') return;
+			if (event.data.ok === true) {
+				sourceControlPrompt = 'GitHub connected. Repository access is refreshing…';
+				void loadSourceControlConnections();
+			} else {
+				sourceError = 'GitHub did not complete the connection. You can try again here.';
+			}
+		};
+		window.addEventListener('message', handleSourceConnection);
 		if (!storage) {
 			saveStatus = 'local';
-			return;
+			return () => window.removeEventListener('message', handleSourceConnection);
 		}
 		draftStore = new DemoDraftStore(storage, draftStorageKey);
 		void draftStore
@@ -320,6 +354,7 @@
 						? reason.message.slice(0, 180)
 						: 'The saved draft could not be read.';
 			});
+		return () => window.removeEventListener('message', handleSourceConnection);
 	});
 
 	function saveDraft(next: DemoSite): Promise<void> {
@@ -879,7 +914,62 @@
 		view = next;
 		mobileMenu = false;
 		if (next === 'adopt' && sourceBridge && sourceStatus === 'idle') {
-			void loadSourceRepositories();
+			void loadSourceControlConnections();
+			void loadSourceConnection();
+		}
+	}
+
+	async function loadSourceControlConnections() {
+		if (!sourceBridge) return;
+		sourceControlBusy = true;
+		sourceError = '';
+		try {
+			sourceControlConnections = SourceControlConnectionsSchema.parse(
+				await sourceBridge.getSourceControlConnections()
+			);
+			if (githubConnection?.available) await loadSourceRepositories();
+		} catch (error) {
+			sourceError =
+				error instanceof Error ? error.message : 'Source connections could not be loaded.';
+		} finally {
+			sourceControlBusy = false;
+		}
+	}
+
+	async function beginGithubConnection() {
+		if (!sourceBridge || sourceControlBusy) return;
+		sourceControlBusy = true;
+		sourceError = '';
+		try {
+			await sourceBridge.beginSourceControlConnection('github');
+			sourceControlPrompt =
+				'Finish the GitHub steps in the new tab, then refresh repository access here.';
+		} catch (error) {
+			sourceError =
+				error instanceof Error ? error.message : 'GitHub connection could not be started.';
+		} finally {
+			sourceControlBusy = false;
+		}
+	}
+
+	async function manageGithubAccess() {
+		if (!sourceBridge || sourceControlBusy) return;
+		try {
+			await sourceBridge.manageSourceControlAccess('github');
+			sourceControlPrompt = 'Add or remove repositories on GitHub, then refresh access here.';
+		} catch (error) {
+			sourceError =
+				error instanceof Error ? error.message : 'GitHub repository access could not be opened.';
+		}
+	}
+
+	async function loadSourceConnection() {
+		if (!sourceBridge) return;
+		try {
+			const connection = await sourceBridge.getConnection(sourceProjectId);
+			sourceConnection = connection ? ConnectedSourceEvidenceSchema.parse(connection) : null;
+		} catch {
+			sourceConnection = null;
 		}
 	}
 
@@ -932,7 +1022,7 @@
 					owner: selectedSourceRepository.owner,
 					repository: selectedSourceRepository.name,
 					ref: selectedSourceRef,
-					projectId: 'connected-site'
+					projectId: sourceProjectId
 				})
 			);
 			sourceStatus = 'ready';
@@ -940,6 +1030,30 @@
 			sourceStatus = 'error';
 			sourceError =
 				error instanceof Error ? error.message : 'Repository analysis was safely stopped.';
+		}
+	}
+
+	async function connectSourceRepository() {
+		if (!sourceBridge || !sourceReport) return;
+		sourceStatus = 'connecting';
+		sourceError = '';
+		try {
+			sourceConnection = ConnectedSourceEvidenceSchema.parse(
+				await sourceBridge.connectRepository({
+					owner: sourceReport.repository.owner,
+					repository: sourceReport.repository.name,
+					ref: sourceReport.repository.ref,
+					projectId: sourceProjectId,
+					expectedCommit: sourceReport.inspection.snapshot.commit,
+					expectedTreeSha256: sourceReport.inspection.snapshot.treeSha256,
+					expectedArchiveSha256: sourceReport.inspection.snapshot.archiveSha256,
+					confirmation: sourceReport.repository.fullName
+				})
+			);
+			sourceStatus = 'ready';
+		} catch (error) {
+			sourceStatus = 'error';
+			sourceError = error instanceof Error ? error.message : 'The source could not be connected.';
 		}
 	}
 
@@ -1360,155 +1474,280 @@
 			<section class="source-connect" aria-labelledby="source-connect-title">
 				<div class="source-connect-heading">
 					<div>
-						<span class="eyebrow">Connected source</span>
+						<span class="eyebrow">Shared source control</span>
 						<h2 id="source-connect-title">Bring in the site you already own.</h2>
 						<p>
-							Credentials stay in tend.host. TEND Sites receives a short-lived snapshot report
-							without secrets or production access.
+							Connect an account once in tend.host, then reuse its repository access for Sites, app
+							deployments, and future Git workflows.
 						</p>
 					</div>
-					<span class:available={Boolean(sourceBridge)} class="source-capability">
-						{sourceBridge ? 'Host connection ready' : 'Open inside tend.host to connect'}
+					<span class:available={githubConnection?.available === true} class="source-capability">
+						{githubConnection?.available ? 'Repository access ready' : 'Connection needed'}
 					</span>
 				</div>
 				{#if sourceBridge}
-					<div class="source-search">
-						<label for="source-search-input">Find a GitHub repository</label>
-						<div>
-							<Search size={17} />
-							<input
-								id="source-search-input"
-								bind:value={sourceQuery}
-								placeholder="Repository name"
-								onkeydown={(event) => {
-									if (event.key === 'Enter') void loadSourceRepositories();
-								}}
-							/>
-							<button
-								type="button"
-								disabled={sourceStatus === 'loading' || sourceStatus === 'inspecting'}
-								onclick={() => void loadSourceRepositories()}
-								>{sourceStatus === 'loading' ? 'Loading…' : 'Search'}</button
-							>
+					<div class="source-provider-card" aria-live="polite">
+						<div class="source-provider-identity">
+							<span><GitBranch size={21} /></span>
+							<div>
+								<strong>GitHub</strong>
+								<p>
+									{#if githubConnection?.available}
+										Connected for repository imports and deployments.
+									{:else if githubConnection?.configured}
+										The shared App is connected. Choose which repositories it may access.
+									{:else}
+										Connect the shared GitHub App without leaving this Sites workflow.
+									{/if}
+								</p>
+							</div>
 						</div>
-					</div>
-					{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
-					<div class="source-connect-grid">
-						<div class="source-repository-list" aria-label="Connected GitHub repositories">
-							{#each sourceRepositories as repository (repository.fullName)}
-								<button
-									type="button"
-									class:selected={selectedSourceRepository?.fullName === repository.fullName}
-									onclick={() => void selectSourceRepository(repository)}
-								>
-									<GitBranch size={17} />
-									<span
-										><strong>{repository.fullName}</strong><small
-											>{repository.description || 'No repository description'}</small
-										></span
-									>
-									<em>{repository.private ? 'Private' : 'Public'}</em>
-								</button>
-							{:else}
-								{#if sourceStatus !== 'loading'}
-									<p>No connected repositories matched this search.</p>
-								{/if}
-							{/each}
-						</div>
-						<div class="source-review">
-							{#if selectedSourceRepository}
-								<span class="eyebrow">Selected source</span>
-								<h3>{selectedSourceRepository.fullName}</h3>
-								<label>
-									Branch
-									<select bind:value={selectedSourceRef}>
-										{#each sourceBranches as branch (branch.name)}
-											<option value={branch.name}
-												>{branch.name}{branch.protected ? ' · protected' : ''}</option
-											>
-										{/each}
-									</select>
-								</label>
-								<div class="source-safety">
-									<ShieldCheck size={18} />
-									<span
-										><strong>Analysis only</strong><small
-											>No scripts, builds, writes, secrets, or deployment destination.</small
-										></span
-									>
-								</div>
+						{#if githubConnection?.installations.length}
+							<div class="source-installations" aria-label="Connected GitHub accounts">
+								{#each githubConnection.installations as installation (installation.owner)}
+									<span>
+										{installation.owner}
+										<small
+											>{installation.repositorySelection === 'all'
+												? 'All repositories'
+												: 'Selected repositories'}</small
+										>
+									</span>
+								{/each}
+							</div>
+						{/if}
+						<div class="source-provider-actions">
+							{#if !githubConnection?.configured || githubConnection?.authMode === 'personal_access_token'}
 								<button
 									class="primary"
 									type="button"
-									disabled={!selectedSourceRef || sourceStatus === 'inspecting'}
-									onclick={() => void inspectSourceRepository()}
+									disabled={sourceControlBusy}
+									onclick={() => void beginGithubConnection()}
 								>
-									{#if sourceStatus === 'inspecting'}<LoaderCircle class="spin" size={17} />
-										Analyzing safely…{:else}<FileSearch size={17} /> Analyze repository{/if}
+									{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Opening…{:else}<GitBranch
+											size={17}
+										/>
+										{githubConnection?.authMode === 'personal_access_token'
+											? 'Upgrade connection'
+											: 'Connect GitHub'}{/if}
 								</button>
 							{:else}
-								<FileSearch size={28} />
-								<h3>Select a repository</h3>
-								<p>Then choose its branch and request a disposable analysis.</p>
+								<button type="button" onclick={() => void manageGithubAccess()}>
+									<Settings2 size={17} /> Add or change repository access
+								</button>
 							{/if}
+							<button
+								type="button"
+								disabled={sourceControlBusy}
+								onclick={() => void loadSourceControlConnections()}
+							>
+								{#if sourceControlBusy}<LoaderCircle class="spin" size={17} /> Checking…{:else}<Search
+										size={17}
+									/> Refresh access{/if}
+							</button>
 						</div>
+						{#if sourceControlPrompt}<p class="source-provider-prompt">
+								{sourceControlPrompt}
+							</p>{/if}
 					</div>
-					{#if sourceReport}
-						<div class="source-result" aria-live="polite">
+					{#if githubConnection?.available}
+						{#if sourceConnection}
+							<div class="source-connected" aria-live="polite">
+								<span><Check size={18} /></span>
+								<div>
+									<strong>{sourceConnection.repository.fullName} is connected</strong>
+									<p>
+										{sourceConnection.repository.ref} · commit {sourceConnection.commit.slice(
+											0,
+											10
+										)}… This records the selected source for reviewed work; repository writes and
+										publishing remain unavailable.
+									</p>
+								</div>
+							</div>
+						{/if}
+						<div class="source-search">
+							<label for="source-search-input">Find a GitHub repository</label>
 							<div>
-								<span class="eyebrow">Live compatibility evidence</span>
-								<h3>{sourceReport.framework} site · {activeAdoptionReport.status}</h3>
+								<Search size={17} />
+								<input
+									id="source-search-input"
+									bind:value={sourceQuery}
+									placeholder="Repository name"
+									onkeydown={(event) => {
+										if (event.key === 'Enter') void loadSourceRepositories();
+									}}
+								/>
+								<button
+									type="button"
+									disabled={sourceStatus === 'loading' ||
+										sourceStatus === 'inspecting' ||
+										sourceStatus === 'connecting'}
+									onclick={() => void loadSourceRepositories()}
+									>{sourceStatus === 'loading' ? 'Loading…' : 'Search'}</button
+								>
+							</div>
+						</div>
+						{#if sourceError}<p class="source-error" role="alert">{sourceError}</p>{/if}
+						<div class="source-connect-grid">
+							<div class="source-repository-list" aria-label="Connected GitHub repositories">
+								{#each sourceRepositories as repository (repository.fullName)}
+									<button
+										type="button"
+										class:selected={selectedSourceRepository?.fullName === repository.fullName}
+										onclick={() => void selectSourceRepository(repository)}
+									>
+										<GitBranch size={17} />
+										<span
+											><strong>{repository.fullName}</strong><small
+												>{repository.description || 'No repository description'}</small
+											></span
+										>
+										<em>{repository.private ? 'Private' : 'Public'}</em>
+									</button>
+								{:else}
+									{#if sourceStatus !== 'loading'}
+										<p>No connected repositories matched this search.</p>
+									{/if}
+								{/each}
+							</div>
+							<div class="source-review">
+								{#if selectedSourceRepository}
+									<span class="eyebrow">Selected source</span>
+									<h3>{selectedSourceRepository.fullName}</h3>
+									<label>
+										Branch
+										<select bind:value={selectedSourceRef}>
+											{#each sourceBranches as branch (branch.name)}
+												<option value={branch.name}
+													>{branch.name}{branch.protected ? ' · protected' : ''}</option
+												>
+											{/each}
+										</select>
+									</label>
+									<div class="source-safety">
+										<ShieldCheck size={18} />
+										<span
+											><strong>Analysis only</strong><small
+												>No scripts, builds, writes, secrets, or deployment destination.</small
+											></span
+										>
+									</div>
+									<button
+										class="primary"
+										type="button"
+										disabled={!selectedSourceRef || sourceStatus === 'inspecting'}
+										onclick={() => void inspectSourceRepository()}
+									>
+										{#if sourceStatus === 'inspecting'}<LoaderCircle class="spin" size={17} />
+											Analyzing safely…{:else}<FileSearch size={17} /> Analyze repository{/if}
+									</button>
+								{:else}
+									<FileSearch size={28} />
+									<h3>Select a repository</h3>
+									<p>Then choose its branch and request a disposable analysis.</p>
+								{/if}
+								{#if sourceReport}<div class="source-connect-action">
+										<div>
+											<strong
+												>{reportIsConnected ? 'Source connected' : 'Keep this selection'}</strong
+											>
+											<p>
+												The host re-verifies the exact commit before saving this repository
+												selection. It does not grant Git write or deployment access.
+											</p>
+										</div>
+										<button
+											class="primary"
+											type="button"
+											disabled={reportIsConnected || sourceStatus === 'connecting'}
+											onclick={() => void connectSourceRepository()}
+										>
+											{#if sourceStatus === 'connecting'}
+												<LoaderCircle class="spin" size={17} /> Re-verifying…
+											{:else if reportIsConnected}
+												<Check size={17} /> Connected
+											{:else}
+												<GitBranch size={17} /> Connect source
+											{/if}
+										</button>
+									</div>{/if}
+							</div>
+						</div>
+						{#if sourceReport}
+							<div class="source-result" aria-live="polite">
+								<div>
+									<span class="eyebrow">Live compatibility evidence</span>
+									<h3>{sourceReport.framework} site · {activeAdoptionReport.status}</h3>
+									<p>
+										Commit {sourceReport.inspection.snapshot.commit.slice(0, 10)}… was inspected and
+										the checkout was removed.
+									</p>
+								</div>
+								<dl>
+									<div>
+										<dt>Files</dt>
+										<dd>{sourceReport.inspection.snapshot.fileCount}</dd>
+									</div>
+									<div>
+										<dt>Source size</dt>
+										<dd>
+											{Math.max(
+												1,
+												Math.round(sourceReport.inspection.snapshot.archiveBytes / 1024)
+											)} KB
+										</dd>
+									</div>
+									<div>
+										<dt>Secrets</dt>
+										<dd>0 delivered</dd>
+									</div>
+									<div>
+										<dt>Checkout</dt>
+										<dd>Removed</dd>
+									</div>
+								</dl>
+								{#if sourceReport.pagesDeployment}
+									<div class="source-pages">
+										<GitBranch size={18} />
+										<div>
+											<strong>Published with GitHub Pages</strong>
+											<p>
+												GitHub Actions builds
+												{sourceReport.pagesDeployment.artifactPath
+													? ` ${sourceReport.pagesDeployment.artifactPath}/`
+													: ' a site artifact'}
+												from {sourceReport.repository.ref}.
+												{#if sourceReport.pagesDeployment.customDomain}
+													It is mapped to {sourceReport.pagesDeployment.customDomain}.
+												{/if}
+											</p>
+										</div>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					{:else if !sourceControlBusy}
+						<div class="source-onboarding">
+							<ShieldCheck size={22} />
+							<div>
+								<strong>Repository credentials stay in tend.host.</strong>
 								<p>
-									Commit {sourceReport.inspection.snapshot.commit.slice(0, 10)}… was inspected and
-									the checkout was removed.
+									Sites only receives repository choices and short-lived, read-only evidence.
+									Connect GitHub above, select repository access on GitHub, then refresh this panel.
 								</p>
 							</div>
-							<dl>
-								<div>
-									<dt>Files</dt>
-									<dd>{sourceReport.inspection.snapshot.fileCount}</dd>
-								</div>
-								<div>
-									<dt>Source size</dt>
-									<dd>
-										{Math.max(1, Math.round(sourceReport.inspection.snapshot.archiveBytes / 1024))} KB
-									</dd>
-								</div>
-								<div>
-									<dt>Secrets</dt>
-									<dd>0 delivered</dd>
-								</div>
-								<div>
-									<dt>Checkout</dt>
-									<dd>Removed</dd>
-								</div>
-							</dl>
-							{#if sourceReport.pagesDeployment}
-								<div class="source-pages">
-									<GitBranch size={18} />
-									<div>
-										<strong>Published with GitHub Pages</strong>
-										<p>
-											GitHub Actions builds
-											{sourceReport.pagesDeployment.artifactPath
-												? ` ${sourceReport.pagesDeployment.artifactPath}/`
-												: ' a site artifact'}
-											from {sourceReport.repository.ref}.
-											{#if sourceReport.pagesDeployment.customDomain}
-												It is mapped to {sourceReport.pagesDeployment.customDomain}.
-											{/if}
-										</p>
-									</div>
-								</div>
-							{/if}
 						</div>
 					{/if}
 				{:else}
 					<div class="source-unavailable">
 						<GitBranch size={22} />
 						<div>
-							<strong>Repository connection is available in the installed app.</strong>
-							<p>This standalone preview cannot receive host credentials or repository access.</p>
+							<strong>Connect once, use it everywhere.</strong>
+							<p>
+								When Sites runs in tend.host, this same panel connects GitHub and immediately
+								continues to repository selection. No second settings workflow is required.
+							</p>
 						</div>
 					</div>
 				{/if}
@@ -3930,6 +4169,129 @@
 		border-color: #28634f;
 		background: #0d2a20;
 	}
+	.source-provider-card {
+		display: grid;
+		grid-template-columns: minmax(240px, 1fr) auto;
+		gap: 14px 22px;
+		align-items: center;
+		margin-bottom: 16px;
+		padding: 15px;
+		border: 1px solid #29483e;
+		border-radius: 14px;
+		background: #091713;
+	}
+	.source-provider-identity {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 0;
+	}
+	.source-provider-identity > span {
+		display: grid;
+		width: 40px;
+		height: 40px;
+		place-items: center;
+		flex: 0 0 auto;
+		color: var(--green);
+		border-radius: 11px;
+		background: #103226;
+	}
+	.source-provider-identity p,
+	.source-provider-prompt {
+		margin: 3px 0 0;
+		color: var(--muted);
+		font-size: 12px;
+	}
+	.source-provider-actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+	.source-provider-actions button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
+		min-height: 40px;
+		padding: 0 13px;
+		color: #c6d6d0;
+		font-weight: 750;
+		border: 1px solid #315448;
+		border-radius: 10px;
+		background: #0b1d17;
+	}
+	.source-provider-actions button.primary {
+		color: #07130f;
+		border-color: var(--green);
+		background: var(--green);
+	}
+	.source-installations {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 7px;
+		grid-column: 1 / -1;
+	}
+	.source-installations > span {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		padding: 6px 9px;
+		color: #c8d9d2;
+		font-size: 12px;
+		border: 1px solid #2a5143;
+		border-radius: 999px;
+		background: #0d241c;
+	}
+	.source-installations small {
+		color: #7f978e;
+	}
+	.source-provider-prompt {
+		grid-column: 1 / -1;
+		padding-top: 10px;
+		border-top: 1px solid #203b32;
+	}
+	.source-onboarding {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 12px;
+		align-items: start;
+		padding: 15px;
+		color: var(--green);
+		border: 1px solid #2a5143;
+		border-radius: 12px;
+		background: #0a1b15;
+	}
+	.source-onboarding p {
+		margin: 4px 0 0;
+		color: var(--muted);
+	}
+	.source-connected {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 11px;
+		align-items: start;
+		margin-bottom: 14px;
+		padding: 13px;
+		border: 1px solid #367a62;
+		border-radius: 12px;
+		background: #0d291f;
+	}
+	.source-connected > span {
+		display: grid;
+		width: 32px;
+		height: 32px;
+		place-items: center;
+		color: #07130f;
+		border-radius: 9px;
+		background: var(--green);
+	}
+	.source-connected p {
+		margin: 4px 0 0;
+		color: #9db2aa;
+		font-size: 12px;
+		line-height: 1.5;
+	}
 	.source-search {
 		display: grid;
 		gap: 6px;
@@ -4072,6 +4434,24 @@
 	.source-pages p {
 		margin: 3px 0 0;
 		color: #a4b8b1;
+	}
+	.source-connect-action {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		padding-top: 14px;
+		border-top: 1px solid #244038;
+	}
+	.source-connect-action > div {
+		min-width: 0;
+	}
+	.source-connect-action p {
+		margin-top: 3px;
+		font-size: 12px;
+	}
+	.source-connect-action .primary {
+		flex: 0 0 auto;
 	}
 	.source-safety {
 		display: grid;
@@ -6363,6 +6743,19 @@
 		}
 		.source-connect-heading {
 			flex-direction: column;
+		}
+		.source-provider-card {
+			grid-template-columns: 1fr;
+		}
+		.source-provider-actions {
+			justify-content: flex-start;
+		}
+		.source-connect-action {
+			align-items: stretch;
+			flex-direction: column;
+		}
+		.source-connect-action .primary {
+			width: 100%;
 		}
 		.section-heading {
 			align-items: start;

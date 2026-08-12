@@ -50,7 +50,7 @@ npm run build
 - `artifacts/tendsites-<version>.zip` — a tend.host extension v2 package;
 - `artifacts/extension.json` — the generated integrity manifest for inspection.
 
-The package requests scoped extension storage, `files.read`, and `sites.source.read`. Files access exposes only owner-authorized image-library summaries and opaque image URLs. Source access exposes only sanitized repository/branch summaries plus a bounded inert compatibility report; GitHub credentials, provider paths, mutations, builds, deployment, and production authority remain in tend.host. Future repository writes, preview execution, publishing, domain, media mutation, and AI work will be added only after each typed host capability exists and is independently reviewed.
+The package requests scoped extension storage, `files.read`, `sites.source.read`, and `sites.source.connect`. Files access exposes only owner-authorized image-library summaries and opaque image URLs. Source access exposes credential-free shared-provider status, sanitized repository/branch summaries, a bounded inert compatibility report, and exact re-verified selected-source evidence. GitHub App setup and repository-access changes are initiated in the Sites panel but remain host-owned; private keys, installation tokens, legacy PATs, provider paths, mutations, builds, deployment, and production authority never enter the extension. Future Git provider adapters, repository writes, preview execution, publishing, domain, media mutation, and AI work will be added only after each typed host capability exists and is independently reviewed.
 
 ## Documentation
 

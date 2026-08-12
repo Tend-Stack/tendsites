@@ -29,6 +29,8 @@ Target repositories, site templates, themes, community components, user content,
 
 Source adoption is bound to provider installation, repository, immutable commit/tree/archive digests, actor, trust class, size limits, and an explicit expiry. The current pure assessor does not fetch or trust browser-provided repository contents. Authenticated checkout and digest verification remain host responsibilities.
 
+The shared source-control bridge may initiate a host-owned GitHub App manifest flow or reopen GitHub's repository-access selector, but it never receives the App private key, installation token, legacy PAT, or callback code. Persisting a source selection requires the host to re-inspect it and match the reviewed actor, project, provider, repository, ref, commit, tree digest, archive digest, and typed repository name. The resulting record is evidence, not write, build, deployment, or publishing authority.
+
 13. Publishing never replaces the last healthy site until checks pass and the durable deployment operation commits.
 
 14. Every project has exactly one explicit canonical source adapter. Customer-server repositories

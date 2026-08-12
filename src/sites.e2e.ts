@@ -1119,6 +1119,44 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 				id: 'host.tend.sites',
 				onUnmount() {},
 				sites: {
+					async getSourceControlConnections() {
+						return {
+							contract: 'tend.host/source-control-connections/v1',
+							providers: [
+								{
+									id: 'github',
+									name: 'GitHub',
+									configured: true,
+									available: true,
+									authMode: 'github_app',
+									installUrl: 'https://github.com/apps/tend-test/installations/new',
+									installations: [
+										{
+											owner: 'Tend-Stack',
+											ownerType: 'Organization',
+											repositorySelection: 'selected',
+											manageUrl: null
+										}
+									],
+									supports: ['repository-list', 'branches', 'read', 'deploy'],
+									error: null
+								},
+								...['gitlab', 'forgejo', 'bitbucket'].map((id) => ({
+									id,
+									name: id,
+									configured: false,
+									available: false,
+									authMode: null,
+									installUrl: null,
+									installations: [],
+									supports: [],
+									error: null
+								}))
+							]
+						};
+					},
+					async beginSourceControlConnection() {},
+					async manageSourceControlAccess() {},
 					async listRepositories() {
 						return [
 							{
@@ -1181,6 +1219,12 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 							},
 							productionDestinationAvailable: false
 						};
+					},
+					async getConnection() {
+						return null;
+					},
+					async connectRepository() {
+						throw new Error('not used in this test');
 					}
 				}
 			})
@@ -1188,13 +1232,97 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	});
 
 	await page.getByRole('button', { name: 'View safe analysis' }).click();
-	await expect(page.getByText('Host connection ready')).toBeVisible();
+	await expect(page.getByText('Repository access ready')).toBeVisible();
+	await expect(page.getByText('Connected for repository imports and deployments.')).toBeVisible();
 	await page.getByRole('button', { name: /Tend-Stack\/tendsites/ }).click();
 	await expect(page.getByLabel('Branch')).toHaveValue('main');
 	await page.getByRole('button', { name: 'Analyze repository' }).click();
 	await expect(page.getByText('sveltekit site · compatible')).toBeVisible();
 	await expect(page.getByText(/checkout was removed/)).toBeVisible();
 	await expect(page.getByText('0 delivered')).toBeVisible();
+});
+
+test('starts the shared GitHub connection without sending users to a second settings area', async ({
+	page
+}) => {
+	await page.route('**/test-extension/**', async (route) => {
+		const filename = new URL(route.request().url()).pathname.split('/').at(-1);
+		if (filename !== 'index.js' && filename !== 'style.css') {
+			await route.fulfill({ status: 404, body: 'Not found' });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: filename === 'index.js' ? 'text/javascript' : 'text/css',
+			body: await readFile(resolve(extensionDistribution, filename))
+		});
+	});
+
+	await page.goto('/');
+	await page.evaluate(async () => {
+		(window as unknown as { sharedGithubStarted: boolean }).sharedGithubStarted = false;
+		const extensionUrl = '/test-extension/index.js?v=connect';
+		const extension = await import(/* @vite-ignore */ extensionUrl);
+		const container = document.createElement('div');
+		document.body.replaceChildren(container);
+		await extension
+			.default({
+				id: 'host.tend.sites',
+				onUnmount() {},
+				sites: {
+					async getSourceControlConnections() {
+						return {
+							contract: 'tend.host/source-control-connections/v1',
+							providers: ['github', 'gitlab', 'forgejo', 'bitbucket'].map((id) => ({
+								id,
+								name: id,
+								configured: false,
+								available: false,
+								authMode: null,
+								installUrl: null,
+								installations: [],
+								supports: [],
+								error: null
+							}))
+						};
+					},
+					async beginSourceControlConnection() {
+						(window as unknown as { sharedGithubStarted: boolean }).sharedGithubStarted = true;
+					},
+					async manageSourceControlAccess() {},
+					async listRepositories() {
+						return [];
+					},
+					async listBranches() {
+						return [];
+					},
+					async inspectRepository() {
+						throw new Error('not used');
+					},
+					async getConnection() {
+						return null;
+					},
+					async connectRepository() {
+						throw new Error('not used');
+					}
+				}
+			})
+			.mount(container);
+	});
+
+	await page.getByRole('button', { name: 'View safe analysis' }).click();
+	await expect(
+		page.getByText('Connect the shared GitHub App without leaving this Sites workflow.')
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Connect GitHub' }).click();
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() => (window as unknown as { sharedGithubStarted: boolean }).sharedGithubStarted
+			)
+		)
+		.toBe(true);
+	await expect(page.getByText(/Finish the GitHub steps in the new tab/)).toBeVisible();
 });
 
 test('mounts and unmounts the packaged extension without leaking its application tree', async ({

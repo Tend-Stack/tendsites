@@ -59,6 +59,11 @@ Completion is measured only from the top-level product milestones below. Nested 
     repository code, removes the temporary archive, and returns immutable digest evidence without
     credentials, paths, or production authority. Reports include framework/content-path detection
     and discover GitHub Pages Actions, artifact folders, and custom domains from inert source files.
+  - **Complete shared connection path:** GitHub App setup, repository-access expansion, and refresh
+    happen inside the Sites import panel while remaining host-owned. The same App installation powers
+    tend.host app repository picks and deployments. An exact re-inspection must match the reviewed
+    commit, tree digest, and archive digest before the host records the selected source. The shared
+    status contract is provider-neutral; GitLab, Bitbucket, and Forgejo/Gitea adapters remain host work.
   - **Complete product path:** The adoption workspace now explains visual, custom headless, and hybrid
     modes; previews an exact content-only mapping that preserves the site's renderer; and presents
     reviewed versus unavailable community starters without pretending to clone or create them.
