@@ -140,6 +140,12 @@
 		type SourceCommitRequest
 	} from './host-source-commit';
 	import {
+		createSitePublishRequest,
+		SitePublishResultSchema,
+		validateSitePublishResult,
+		type SitePublishResult
+	} from './host-publishing';
+	import {
 		navigationChildren,
 		navigationRoots,
 		removeNavigationPage,
@@ -261,6 +267,10 @@
 	} | null>(null);
 	const publishTarget = $derived(sourceCommitTarget ?? createdSites[0] ?? null);
 	const publishPreview = $derived(publishTarget ? sitePreviews[publishTarget.projectId] : null);
+	let publishHostname = $state('');
+	let publishOperation = $state<SitePublishResult | null>(null);
+	let publishStatus = $state<'idle' | 'requesting' | 'watching' | 'ready' | 'error'>('idle');
+	let publishMessage = $state('');
 	let newPageName = $state('');
 	let deleteTarget = $state<
 		| { kind: 'page'; id: string; name: string }
@@ -410,6 +420,7 @@
 		if (sourceBridge) void loadSourceConnection();
 		if (sourceBridge?.listCreatedSites) void loadCreatedSites();
 		if (sourceBridge?.listPreviews) void loadSitePreviews();
+		if (sourceBridge?.listPublishes) void loadPublishes();
 		if (!storage) {
 			saveStatus = 'local';
 			return () => window.removeEventListener('message', handleSourceConnection);
@@ -1022,6 +1033,69 @@
 			sitePreviews = current;
 		} catch {
 			// Created sites remain usable when preview status is temporarily unavailable.
+		}
+	}
+
+	async function loadPublishes() {
+		if (!sourceBridge?.listPublishes) return;
+		try {
+			const rows = SitePublishResultSchema.array().parse(await sourceBridge.listPublishes());
+			publishOperation = rows[0] ?? null;
+			if (publishOperation) {
+				publishHostname = publishOperation.hostname;
+				publishStatus = publishOperation.state === 'ready' ? 'ready' : publishOperation.state === 'failed' ? 'error' : 'watching';
+			}
+		} catch {
+			// Publishing remains opt-in even if status recovery is temporarily unavailable.
+		}
+	}
+
+	async function publishReviewedArtifact() {
+		if (
+			!publishTarget || !publishPreview?.artifact || !sourceBridge?.publishSite ||
+			publishStatus === 'requesting' || publishStatus === 'watching'
+		) return;
+		publishStatus = 'requesting';
+		publishMessage = 'Submitting the exact reviewed artifact…';
+		try {
+			const request = createSitePublishRequest({
+				projectId: publishTarget.projectId,
+				sourceId: publishTarget.sourceId,
+				sourceRevision: publishPreview.sourceRevision,
+				gitCommit: publishPreview.gitCommit,
+				previewId: publishPreview.previewId,
+				previewArtifactSha256: publishPreview.artifact.sha256,
+				previewRecipeSha256: publishPreview.artifact.recipeSha256!,
+				previewSbomSha256: publishPreview.artifact.sbomSha256!,
+				previewPlatform: publishPreview.artifact.platform!,
+				hostname: publishHostname.trim().toLowerCase()
+			});
+			let result = validateSitePublishResult(
+				request,
+				SitePublishResultSchema.parse(await sourceBridge.publishSite(request))
+			);
+			publishOperation = result;
+			publishStatus = 'watching';
+			publishMessage = 'Deploying privately, then checking DNS, TLS, and HTTPS before traffic switches…';
+			for (let attempt = 0; attempt < 180 && ['queued', 'running'].includes(result.state); attempt += 1) {
+				await new Promise((resolve) => setTimeout(resolve, 2000));
+				if (!sourceBridge.getPublish) break;
+				const next = SitePublishResultSchema.parse(await sourceBridge.getPublish(request.operationId));
+				result = validateSitePublishResult(request, next, result);
+				publishOperation = result;
+			}
+			if (result.state === 'ready') {
+				publishStatus = 'ready';
+				publishMessage = 'Published. DNS, trusted TLS, and the public HTTPS response are verified.';
+			} else if (result.state === 'failed') {
+				publishStatus = 'error';
+				publishMessage = result.traffic?.rollbackRetained
+					? 'Publishing failed, and the previous healthy release remains live.'
+					: 'Publishing failed before traffic was assigned. No partial site remains live.';
+			}
+		} catch (error) {
+			publishStatus = 'error';
+			publishMessage = error instanceof Error ? error.message : 'The reviewed artifact could not be published.';
 		}
 	}
 
@@ -4749,6 +4823,16 @@
 							</div>
 						</div>
 						{#if publishPreview?.state === 'ready' && publishPreview.artifact}
+							<label class="publish-hostname-field">
+								<span>Production hostname</span>
+								<input
+									type="text"
+									placeholder="www.example.com"
+									bind:value={publishHostname}
+									disabled={publishStatus === 'requesting' || publishStatus === 'watching'}
+								/>
+								<small>The host can create managed DNS or verify an existing record.</small>
+							</label>
 							<dl class="publish-artifact-evidence">
 								<div>
 									<dt>Commit</dt>
@@ -4783,13 +4867,28 @@
 									<dd>Ready preview</dd>
 								</div>
 							</dl>
-							<button class="primary source-export-button" type="button" disabled>
-								<Rocket size={18} /> Publish reviewed artifact
+							<button
+								class="primary source-export-button"
+								type="button"
+								disabled={!sourceBridge?.publishSite || !publishHostname.trim() || !publishPreview.artifact.recipeSha256 || !publishPreview.artifact.sbomSha256 || !publishPreview.artifact.platform || publishStatus === 'requesting' || publishStatus === 'watching'}
+								onclick={publishReviewedArtifact}
+							>
+								{#if publishStatus === 'requesting' || publishStatus === 'watching'}
+									<LoaderCircle class="spin" size={18} /> Publishing safely…
+								{:else if publishStatus === 'ready'}
+									<Check size={18} /> Publish another release
+								{:else}
+									<Rocket size={18} /> Publish reviewed artifact
+								{/if}
 							</button>
-							<p class="source-export-status">
-								Production publishing awaits the separately authorized host deployment capability.
-								No traffic or domain has changed.
+							<p class:error={publishStatus === 'error'} class:success={publishStatus === 'ready'} class="source-export-status" role={publishStatus === 'error' ? 'alert' : 'status'}>
+								{publishMessage || (sourceBridge?.publishSite
+									? 'Ready. Traffic changes only after the candidate passes every health check.'
+									: 'Update tend.host and approve Production publishing to enable this action.')}
 							</p>
+							{#if publishOperation?.state === 'ready' && publishOperation.url}
+								<a class="secondary source-export-button" href={publishOperation.url} target="_blank" rel="noreferrer">Open production site <ArrowRight size={17} /></a>
+							{/if}
 						{:else}
 							<div class="production-preview-required">
 								<MonitorPlay size={20} />
@@ -8575,6 +8674,26 @@
 		border: 1px solid color-mix(in srgb, var(--green) 34%, var(--border));
 		border-radius: 18px;
 		background: linear-gradient(145deg, rgba(86, 230, 173, 0.09), rgba(14, 20, 23, 0.96));
+	}
+	.publish-hostname-field {
+		display: grid;
+		gap: 0.45rem;
+		margin-bottom: 1rem;
+	}
+	.publish-hostname-field span {
+		font-weight: 750;
+	}
+	.publish-hostname-field small {
+		color: var(--muted);
+	}
+	.publish-hostname-field input {
+		width: 100%;
+		min-height: 46px;
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		background: #0a1213;
+		color: #edf5f1;
+		padding: 0.75rem 0.9rem;
 	}
 	.source-export-heading {
 		display: grid;

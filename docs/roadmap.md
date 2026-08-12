@@ -280,7 +280,7 @@ Publish workspace shows that evidence and keeps the production action disabled
 until its separate permanent-app, traffic, and domain authority is explicitly
 approved. No production route or domain mutation is exposed by this checkpoint.
 
-TEND Sites 0.32.1 hardens that inactive boundary before execution exists. Every
+TEND Sites 0.32.1 hardened the inactive boundary before execution existed. Every
 result must correlate to the exact request and reviewed artifact, recipe, SBOM,
 platform, source, commit, preview, hostname, and timestamp. State can only move
 forward, terminal replay must remain identical, and a ready result requires
@@ -288,18 +288,23 @@ complete health, rollback, DNS ownership, TLS, and canonical HTTPS evidence.
 The host promotion lookup applies the same exact reviewed-evidence matching
 without exposing an execution route.
 
+TEND Sites 0.33.0 completes the host-owned production executor. Publishing is
+an explicit, separately authorized action that copies (never rebuilds) the exact
+reviewed preview artifact into a release volume, health-gates Caddy traffic,
+verifies DNS, trusted TLS, and public HTTPS, persists recovery state, and restores
+the previous healthy release automatically when any final check fails.
+
 - [x] Reviewable source commit plan and durable repository update operation.
   - **Complete integration:** Host-created sites use actor/project/source/revision-bound requests, bounded raster-only archives, a fixed renderer, deterministic replay recovery, exact Git commit evidence, and source-ledger advancement only after verified acknowledgement.
-  - **Pending deployment integration:** Production publish remains a separate health-gated authority.
-- [ ] Build-once artifact identity and deployment handoff.
+  - **Complete deployment integration:** Production publish remains a separate, explicit host authority.
+- [x] Build-once artifact identity and deployment handoff.
   - **Complete immutable-artifact foundation:** Preview builds retain exact artifact, recipe, SBOM,
     and platform digests, and the future request contract is bound to the reviewed preview identity.
-  - **Pending deployment integration:** Permanent artifact promotion and health-gated traffic remain
-    behind a separately approved host capability.
-- [ ] Health-gated traffic switch with retained last-good rollback.
-  - The decision contract retains the prior artifact unless all checks pass; host routing remains pending.
-- [ ] Assigned-domain flow with TLS and DNS evidence.
-  - Canonical hostname, DNS ownership, and TLS evidence contracts are complete; assignment remains pending.
+  - **Complete deployment integration:** The host copies the reviewed bytes into an owned release volume and verifies their digest before deployment.
+- [x] Health-gated traffic switch with retained last-good rollback.
+  - The host deploys through the transactional reconciler, switches routing only after container checks, and restores the previous release after failed edge verification.
+- [x] Assigned-domain flow with TLS and DNS evidence.
+  - Managed Cloudflare records or existing DNS are verified before trusted TLS and public HTTPS evidence complete the operation.
 - [x] Recovery matrix for provider, queue, worker, registry, destination, and acknowledgement outages.
 
 ## 5. Ecosystem and optional AI

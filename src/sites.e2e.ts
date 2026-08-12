@@ -1770,6 +1770,7 @@ test('commits a visual draft once, retries the exact request, and exposes the ne
 			updatedAt: '2026-08-12T00:00:00.000Z'
 		};
 		let firstRequest = '';
+		let publishRequest: Record<string, string> | null = null;
 		(window as unknown as { sourceCommitAttempts: number }).sourceCommitAttempts = 0;
 		const extensionUrl = '/test-extension/index.js?v=source-commit';
 		const extension = await import(/* @vite-ignore */ extensionUrl);
@@ -1817,6 +1818,58 @@ test('commits a visual draft once, retries the exact request, and exposes the ne
 							}
 						];
 					},
+					async listPublishes() {
+						return [];
+					},
+					async publishSite(input: Record<string, string>) {
+						publishRequest = input;
+						return {
+							...input,
+							contract: 'tend.host/sites-publish-result/v1',
+							url: null,
+							state: 'queued',
+							artifact: null,
+							traffic: null,
+							domain: null,
+							completedAt: null,
+							errorCode: null
+						};
+					},
+					async getPublish() {
+						if (!publishRequest) throw new Error('publish was not requested');
+						return {
+							...publishRequest,
+							contract: 'tend.host/sites-publish-result/v1',
+							url: `https://${publishRequest.hostname}`,
+							state: 'ready',
+							artifact: {
+								sha256: publishRequest.previewArtifactSha256,
+								files: 8,
+								bytes: 4096,
+								recipeSha256: publishRequest.previewRecipeSha256,
+								sbomSha256: publishRequest.previewSbomSha256,
+								provenanceSha256: '1'.repeat(64),
+								platform: publishRequest.previewPlatform
+							},
+							traffic: {
+								deploymentId: publishRequest.operationId,
+								decision: 'switch',
+								health: 'passed',
+								readinessChecks: 4,
+								passedChecks: 4,
+								previousArtifactSha256: null,
+								rollbackRetained: false
+							},
+							domain: {
+								ownership: 'verified',
+								dnsSha256: '2'.repeat(64),
+								tls: 'ready',
+								certificateSha256: '3'.repeat(64)
+							},
+							completedAt: '2026-08-12T02:00:00.000Z',
+							errorCode: null
+						};
+					},
 					async commitCreatedSite(input: {
 						request: { operationId: string; baseRevision: string };
 						archive: Uint8Array;
@@ -1863,8 +1916,10 @@ test('commits a visual draft once, retries the exact request, and exposes the ne
 	).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Production handoff' })).toBeVisible();
 	await expect(page.getByText('linux/amd64')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Publish reviewed artifact' })).toBeDisabled();
-	await expect(page.getByText('No traffic or domain has changed.')).toBeVisible();
+	await page.getByLabel('Production hostname').fill('www.example.com');
+	await page.getByRole('button', { name: 'Publish reviewed artifact' }).click();
+	await expect(page.getByText(/DNS, trusted TLS, and the public HTTPS response are verified/)).toBeVisible({ timeout: 5_000 });
+	await expect(page.getByRole('link', { name: 'Open production site' })).toHaveAttribute('href', 'https://www.example.com');
 	await page.getByRole('button', { name: 'Save changes to source' }).click();
 	await expect(page.getByRole('alert')).toContainText('Temporary host interruption');
 	await page.getByRole('button', { name: 'Retry exact save' }).click();
