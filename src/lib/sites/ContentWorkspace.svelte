@@ -28,7 +28,8 @@
 		Table2,
 		Trash2,
 		TriangleAlert,
-		Undo2
+		Undo2,
+		X
 	} from '@lucide/svelte';
 
 	import {
@@ -78,6 +79,7 @@
 	let statusFilter = $state<'all' | DemoPost['status']>('all');
 	let deleteConfirmation = $state('');
 	let showDelete = $state(false);
+	let showPreview = $state(false);
 	let showMediaPicker = $state(false);
 	let storyEditor = $state<HTMLTextAreaElement>();
 	let editorAnnouncement = $state('');
@@ -204,6 +206,10 @@
 	}
 
 	function handleHistoryShortcut(event: KeyboardEvent) {
+		if (event.key === 'Escape' && showPreview) {
+			showPreview = false;
+			return;
+		}
 		if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
 		const key = event.key.toLowerCase();
 		if (key === 'z' && event.shiftKey && canRedo) {
@@ -446,6 +452,9 @@
 						<h2>{selectedPost.title}</h2>
 					</div>
 					<div class="editor-status">
+						<button class="preview-button" type="button" onclick={() => (showPreview = true)}
+							><BookOpen size={16} /> Preview story</button
+						>
 						<label>
 							<span>Status</span>
 							<select
@@ -661,25 +670,6 @@
 							<small>Unpublished choices stay hidden from visitors until they are published.</small>
 						</section>
 					</div>
-					<aside class="post-preview">
-						<span class="eyebrow">Reader preview</span>
-						{#if selectedPost.coverImage}<img
-								src={selectedPost.coverImage}
-								alt={selectedPost.coverImageAlt ?? ''}
-								style:aspect-ratio={selectedPost.coverImagePresentation?.aspect === 'square'
-									? '1 / 1'
-									: selectedPost.coverImagePresentation?.aspect === 'portrait'
-										? '4 / 5'
-										: '16 / 9'}
-								style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
-								style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
-								style:transform={`scale(${selectedPost.coverImagePresentation?.zoom ?? 1})`}
-								style:transform-origin={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
-							/>{/if}
-						<h2>{selectedPost.title}</h2>
-						<p>{selectedPost.summary}</p>
-						<div class="preview-body" use:richPreview={selectedPost.body}></div>
-					</aside>
 				</div>
 
 				<footer>
@@ -702,6 +692,40 @@
 		{/if}
 	</div>
 </main>
+
+{#if showPreview && selectedPost}
+	<div class="dialog-backdrop preview-backdrop" role="presentation">
+		<div
+			class="story-preview-dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="story-preview-title"
+		>
+			<header>
+				<div><span class="eyebrow">Reader preview</span><small>Desktop article view</small></div>
+				<button type="button" aria-label="Close story preview" onclick={() => (showPreview = false)}
+					><X size={20} /></button
+				>
+			</header>
+			<article class="post-preview">
+				{#if selectedPost.coverImage}<img
+						src={selectedPost.coverImage}
+						alt={selectedPost.coverImageAlt ?? ''}
+						style:aspect-ratio={selectedPost.coverImagePresentation?.aspect === 'square'
+							? '1 / 1'
+							: selectedPost.coverImagePresentation?.aspect === 'portrait'
+								? '4 / 5'
+								: '16 / 9'}
+						style:object-fit={selectedPost.coverImagePresentation?.fit ?? 'cover'}
+						style:object-position={`${selectedPost.coverImagePresentation?.focalX ?? 50}% ${selectedPost.coverImagePresentation?.focalY ?? 50}%`}
+					/>{/if}
+				<h2 id="story-preview-title">{selectedPost.title}</h2>
+				<p>{selectedPost.summary}</p>
+				<div class="preview-body" use:richPreview={selectedPost.body}></div>
+			</article>
+		</div>
+	</div>
+{/if}
 
 {#if showDelete && selectedPost}
 	<div class="dialog-backdrop" role="presentation">
@@ -1026,6 +1050,20 @@
 		gap: 10px;
 		align-items: end;
 	}
+	.preview-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
+		height: 43px;
+		padding: 0 13px;
+		color: #bdeedf;
+		border: 1px solid #2e6653;
+		border-radius: 11px;
+		background: #10281f;
+		font-weight: 750;
+		white-space: nowrap;
+	}
 	.save-control {
 		display: grid;
 		justify-items: center;
@@ -1117,12 +1155,20 @@
 	}
 	.editor-grid {
 		display: grid;
-		grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
-		gap: 22px;
+		grid-template-columns: minmax(0, 1fr);
+		align-items: start;
 	}
 	.editor-fields {
 		display: grid;
+		align-content: start;
+		align-self: start;
+		grid-auto-rows: max-content;
 		gap: 15px;
+	}
+	.editor-fields > label,
+	.split-fields > label {
+		align-content: start;
+		align-self: start;
 	}
 	.relationship-field {
 		display: grid;
@@ -1209,6 +1255,7 @@
 	}
 	.story-field {
 		display: grid;
+		align-content: start;
 		gap: 7px;
 	}
 	.cover-field {
@@ -1317,6 +1364,8 @@
 	.story-toolbar {
 		display: flex;
 		flex-wrap: wrap;
+		align-content: start;
+		align-items: center;
 		gap: 5px;
 		padding: 7px;
 		border: 1px solid #263f38;
@@ -1406,17 +1455,12 @@
 	.split-fields {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
+		align-items: start;
 		gap: 12px;
 	}
 	.post-preview {
-		align-self: start;
-		position: sticky;
-		top: 16px;
-		border: 1px solid #203a32;
-		background: #0d1715;
-		border-radius: 17px;
-		padding: 18px;
-		overflow: hidden;
+		width: min(760px, 100%);
+		margin: 0 auto;
 	}
 	.post-preview img {
 		display: block;
@@ -1536,6 +1580,60 @@
 		padding: 20px;
 		background: #000b;
 	}
+	.preview-backdrop {
+		align-items: start;
+		overflow-y: auto;
+		padding: clamp(16px, 4vw, 48px);
+		background: #020806ed;
+	}
+	.story-preview-dialog {
+		width: min(980px, 100%);
+		min-height: min(820px, calc(100vh - 96px));
+		border: 1px solid #315349;
+		border-radius: 22px;
+		background: #0d1715;
+		box-shadow: 0 28px 100px #000c;
+		overflow: hidden;
+	}
+	.story-preview-dialog > header {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		padding: 16px 20px;
+		border-bottom: 1px solid #203a32;
+		background: #091310f5;
+		backdrop-filter: blur(16px);
+	}
+	.story-preview-dialog > header small {
+		display: block;
+		margin-top: 3px;
+		color: #7e918b;
+	}
+	.story-preview-dialog > header button {
+		display: grid;
+		place-items: center;
+		width: 40px;
+		height: 40px;
+		color: #b7c8c2;
+		border: 1px solid #29443b;
+		border-radius: 11px;
+		background: #0c1a16;
+	}
+	.story-preview-dialog .post-preview {
+		padding: clamp(28px, 5vw, 64px);
+	}
+	.story-preview-dialog .post-preview h2 {
+		font-size: clamp(2.2rem, 5vw, 4.4rem);
+		line-height: 1.02;
+	}
+	.story-preview-dialog .preview-body {
+		font-size: 1.05rem;
+		line-height: 1.75;
+	}
 	.confirm-dialog {
 		width: min(460px, 100%);
 		border: 1px solid #345047;
@@ -1586,9 +1684,6 @@
 		}
 		.editor-grid {
 			grid-template-columns: 1fr;
-		}
-		.post-preview {
-			position: static;
 		}
 	}
 	@media (max-width: 640px) {

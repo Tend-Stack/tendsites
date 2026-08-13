@@ -229,6 +229,8 @@
 	let sourceSetupMessage = $state('');
 	let workspaceLoadStatus = $state<'idle' | 'loading' | 'error'>('idle');
 	let workspaceLoadMessage = $state('');
+	let customRendererRevision = $state(0);
+	let customRendererLoading = $state(false);
 	let adoptionStep = $state<'source' | 'mode' | 'plan'>('source');
 	let sourceControlConnections = $state<SourceControlConnections | null>(null);
 	let selectedSourceProvider = $state<'github' | 'gitlab'>('github');
@@ -379,6 +381,9 @@
 			selectedPage?.slug ?? '/'
 		)
 	);
+	$effect(() => {
+		if (customRendererUrl) customRendererLoading = true;
+	});
 
 	const stepLabels = ['Goal', 'Look', 'Structure', 'Identity', 'Review'];
 	const selectedGoalName = $derived(
@@ -1232,6 +1237,11 @@
 
 	function openSitePreview(url: string | null) {
 		if (url) window.open(url, '_blank', 'noopener,noreferrer');
+	}
+
+	function reloadCustomRenderer() {
+		customRendererLoading = true;
+		customRendererRevision += 1;
 	}
 
 	function resolveCustomRendererUrl(baseUrl: string, pagePath: string): string | null {
@@ -3689,14 +3699,31 @@
 							>
 						</div>
 						{#if customRendererUrl}
-							<iframe
-								class="custom-renderer-iframe"
-								src={customRendererUrl}
-								title="Live custom design for {siteDraft.name}"
-								loading="eager"
-								referrerpolicy="no-referrer"
-								sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
-							></iframe>
+							<div class="custom-renderer-controls" aria-label="Live page controls">
+								<div>
+									<strong>Live page · {selectedPage?.name ?? 'Home'}</strong><span
+										>{customRendererLoading
+											? 'Loading the selected route…'
+											: 'Selected route loaded. If the canvas is blank, this site may block embedded previews.'}</span
+									>
+								</div>
+								<button type="button" onclick={reloadCustomRenderer}>Reload page</button>
+								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- exact validated HTTPS renderer URL. -->
+								<a href={customRendererUrl} target="_blank" rel="noopener noreferrer"
+									>Open in browser</a
+								>
+							</div>
+							{#key `${customRendererUrl}:${customRendererRevision}`}
+								<iframe
+									class="custom-renderer-iframe"
+									src={customRendererUrl}
+									title="Live custom design for {siteDraft.name}"
+									loading="eager"
+									referrerpolicy="no-referrer"
+									sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+									onload={() => (customRendererLoading = false)}
+								></iframe>
+							{/key}
 							<div class="custom-renderer-note">
 								<div>
 									<strong>Repository-owned design</strong>
@@ -4686,6 +4713,7 @@
 	{:else if view === 'seo'}
 		<SeoWorkspace
 			site={siteDraft}
+			{media}
 			onchange={(next) => changeDraft((draft) => Object.assign(draft, next))}
 			bind:area={seoArea}
 			bind:selectedPageId={seoPageId}
@@ -7685,6 +7713,39 @@
 		height: clamp(620px, 72vh, 920px);
 		border: 0;
 		background: #fff;
+	}
+	.custom-renderer-controls {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		align-items: center;
+		gap: 10px;
+		padding: 11px 13px;
+		color: #c9d8d2;
+		background: #0d1815;
+		border-bottom: 1px solid #21352e;
+	}
+	.custom-renderer-controls div {
+		display: grid;
+		gap: 2px;
+	}
+	.custom-renderer-controls strong,
+	.custom-renderer-controls span {
+		font-size: 11px;
+	}
+	.custom-renderer-controls span {
+		color: #789087;
+	}
+	.custom-renderer-controls button,
+	.custom-renderer-controls a {
+		padding: 8px 10px;
+		color: #bdebd8;
+		font-size: 11px;
+		font-weight: 800;
+		text-decoration: none;
+		background: #12231d;
+		border: 1px solid #2b4b3f;
+		border-radius: 8px;
+		cursor: pointer;
 	}
 	.custom-renderer-note,
 	.custom-renderer-preview-bar {

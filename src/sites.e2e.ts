@@ -78,6 +78,29 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 	expect(saveButtonBox).not.toBeNull();
 	expect(saveLabelBox).not.toBeNull();
 	expect(saveLabelBox!.y + saveLabelBox!.height).toBeLessThanOrEqual(saveButtonBox!.y);
+	const editorDensity = await page.locator('.post-editor').evaluate((editor) => {
+		const title = editor.querySelector<HTMLInputElement>('.editor-fields > label input');
+		const toolbar = editor.querySelector<HTMLElement>('.story-toolbar');
+		const author = editor.querySelector<HTMLInputElement>('.split-fields input');
+		const related = editor.querySelector<HTMLElement>('.relationship-options button');
+		return {
+			titleHeight: Math.round(title?.getBoundingClientRect().height ?? 0),
+			toolbarHeight: Math.round(toolbar?.getBoundingClientRect().height ?? 0),
+			authorHeight: Math.round(author?.getBoundingClientRect().height ?? 0),
+			relatedHeight: Math.round(related?.getBoundingClientRect().height ?? 0)
+		};
+	});
+	expect(editorDensity.titleHeight).toBeLessThanOrEqual(48);
+	expect(editorDensity.toolbarHeight).toBeLessThanOrEqual(92);
+	expect(editorDensity.authorHeight).toBeLessThanOrEqual(48);
+	expect(editorDensity.relatedHeight).toBeLessThanOrEqual(72);
+	await expect(page.locator('.post-editor .post-preview')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Preview story' }).click();
+	const storyPreview = page.getByRole('dialog', { name: /Field Notes from the long way home/ });
+	await expect(storyPreview).toBeVisible();
+	await expect(storyPreview.locator('.post-preview')).toBeVisible();
+	await storyPreview.getByRole('button', { name: 'Close story preview' }).click();
+	await expect(storyPreview).not.toBeVisible();
 	const relatedStories = page.getByRole('group', { name: 'Related stories' });
 	await expect(relatedStories.getByRole('button', { name: /Morning at the lake/ })).toHaveAttribute(
 		'aria-pressed',
@@ -121,7 +144,11 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 		.getByRole('button', { name: 'Quote' })
 		.click();
 	await expect(story).toHaveValue('> A useful field note');
-	await expect(page.locator('.post-preview blockquote')).toContainText('A useful field note');
+	await page.getByRole('button', { name: 'Preview story' }).click();
+	await expect(page.locator('.story-preview-dialog .post-preview blockquote')).toContainText(
+		'A useful field note'
+	);
+	await page.getByRole('button', { name: 'Close story preview' }).click();
 
 	await story.fill('Lake');
 	await story.evaluate((element: HTMLTextAreaElement) =>
@@ -131,7 +158,9 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 		.getByRole('toolbar', { name: 'Story formatting tools' })
 		.getByRole('button', { name: 'Table' })
 		.click();
-	await expect(page.locator('.post-preview table')).toContainText('Lake');
+	await page.getByRole('button', { name: 'Preview story' }).click();
+	await expect(page.locator('.story-preview-dialog .post-preview table')).toContainText('Lake');
+	await page.getByRole('button', { name: 'Close story preview' }).click();
 
 	await story.fill('Remember this');
 	await story.evaluate((element: HTMLTextAreaElement) =>
@@ -141,7 +170,11 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 		.getByRole('toolbar', { name: 'Story formatting tools' })
 		.getByRole('button', { name: 'Callout' })
 		.click();
-	await expect(page.locator('.post-preview .markdown-callout')).toContainText('Remember this');
+	await page.getByRole('button', { name: 'Preview story' }).click();
+	await expect(page.locator('.story-preview-dialog .post-preview .markdown-callout')).toContainText(
+		'Remember this'
+	);
+	await page.getByRole('button', { name: 'Close story preview' }).click();
 
 	await story.fill('Field observation');
 	await story.evaluate((element: HTMLTextAreaElement) =>
@@ -152,7 +185,11 @@ test('edits real posts in a focused content workspace', async ({ page }) => {
 		.getByRole('button', { name: 'Footnote' })
 		.click();
 	await expect(story).toHaveValue(/Field observation\[\^1\]/);
-	await expect(page.locator('.post-preview .footnotes')).toContainText('Footnote details');
+	await page.getByRole('button', { name: 'Preview story' }).click();
+	await expect(page.locator('.story-preview-dialog .post-preview .footnotes')).toContainText(
+		'Footnote details'
+	);
+	await page.getByRole('button', { name: 'Close story preview' }).click();
 
 	await page.getByLabel('Status').selectOption('published');
 	await expect(page.locator('.post-list em.published')).toHaveCount(3);
@@ -255,6 +292,7 @@ test('edits search identity, page metadata, sharing previews, and generated file
 	await page.getByRole('button', { name: /Sharing preview/ }).click();
 	await page.getByLabel('Sharing title').fill('A quieter way to travel');
 	await expect(page.getByText('A quieter way to travel')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Choose from Media' })).toBeDisabled();
 	await page.getByRole('button', { name: /Redirects/ }).click();
 	await page.getByRole('button', { name: 'Add redirect' }).click();
 	await page.getByLabel('Old address').fill('/journal-old');
@@ -1062,7 +1100,9 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await page.getByLabel('Image description').fill('A quiet green lake at dawn');
 	await page.getByRole('button', { name: 'Use image' }).click();
 	await expect(page.getByText('Connected preview · repository copy pending')).toBeVisible();
+	await page.getByRole('button', { name: 'Preview story' }).click();
 	await expect(page.getByAltText('A quiet green lake at dawn')).toBeVisible();
+	await page.getByRole('button', { name: 'Close story preview' }).click();
 	await expect(page.locator('.cover-thumbnail')).toHaveCSS('overflow', 'hidden');
 	expect(
 		await page.evaluate(() => {
@@ -1096,6 +1136,16 @@ test('selects an accessible cover image through the packaged tend.host Files bri
 	await page.getByLabel('Image description').fill('A newly uploaded editorial cover');
 	await page.getByRole('button', { name: 'Use image' }).click();
 	await expect(page.getByText('Optimized upload · saved with this draft')).toBeVisible();
+
+	await page.getByRole('button', { name: 'Search and sharing' }).click();
+	await page.getByRole('button', { name: /Sharing preview/ }).click();
+	await page.getByRole('button', { name: 'Choose from Media' }).click();
+	await expect(page.getByRole('heading', { name: 'Prepare a sharing image' })).toBeVisible();
+	await page.getByRole('button', { name: 'quiet-lake.jpg' }).click();
+	await expect(page.getByRole('heading', { name: 'Frame the sharing image' })).toBeVisible();
+	await page.getByLabel('Image description').fill('A quiet green lake shared with this page');
+	await page.getByRole('button', { name: 'Use image' }).click();
+	await expect(page.getByLabel('Sharing image URL')).toHaveValue(/^data:image\/svg\+xml/);
 });
 
 test('connects and safely analyzes an existing GitHub repository through tend.host', async ({
@@ -1392,6 +1442,12 @@ test('connects and safely analyzes an existing GitHub repository through tend.ho
 	await expect(page.locator('.site-canvas.complete-demo')).not.toBeVisible();
 	await expect(page.getByTitle('Live custom design for tendsites')).toHaveAttribute(
 		'src',
+		'https://example.com/'
+	);
+	await expect(page.getByLabel('Live page controls')).toContainText('Live page · Home');
+	await expect(page.getByRole('button', { name: 'Reload page' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Open in browser' })).toHaveAttribute(
+		'href',
 		'https://example.com/'
 	);
 	await expect(

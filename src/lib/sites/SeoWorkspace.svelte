@@ -5,6 +5,7 @@
 		Eye,
 		FileText,
 		Globe2,
+		Images,
 		Link2,
 		Newspaper,
 		Search,
@@ -13,6 +14,9 @@
 	} from '@lucide/svelte';
 
 	import { cloneDemoSite, type DemoSite } from './demo-site';
+	import type { DemoImagePresentation } from './demo-site';
+	import type { HostImageItem, HostMediaBridge } from './host-media';
+	import MediaPicker from './MediaPicker.svelte';
 	import {
 		analyzeRedirects,
 		generateSeoArtifacts,
@@ -27,13 +31,16 @@
 		site,
 		onchange,
 		area = $bindable('overview'),
-		selectedPageId = $bindable('home')
+		selectedPageId = $bindable('home'),
+		media
 	}: {
 		site: DemoSite;
 		onchange: (site: DemoSite) => void;
 		area?: SeoArea;
 		selectedPageId?: string;
+		media?: HostMediaBridge;
 	} = $props();
+	let showSocialImagePicker = $state(false);
 
 	const selectedPage = $derived(
 		site.pages.find((page) => page.id === selectedPageId) ?? site.pages[0]
@@ -88,6 +95,15 @@
 				status: 301
 			})
 		);
+	}
+
+	function selectSocialImage(
+		image: HostImageItem,
+		_alt: string,
+		_presentation: DemoImagePresentation
+	) {
+		updatePage('socialImage', image.contentUrl);
+		showSocialImagePicker = false;
 	}
 </script>
 
@@ -406,12 +422,25 @@
 							oninput={(event) => updatePage('socialDescription', event.currentTarget.value)}
 						></textarea></label
 					>
-					<label
-						>Sharing image<input
-							value={selectedPage.seo.socialImage ?? ''}
-							oninput={(event) => updatePage('socialImage', event.currentTarget.value)}
-						/><small>Choose from Media or paste a reviewed image URL.</small></label
-					>
+					<div class="sharing-image-field">
+						<span>Sharing image</span>
+						<div class="image-input-row">
+							<input
+								aria-label="Sharing image URL"
+								placeholder="https://example.com/share-image.jpg"
+								value={selectedPage.seo.socialImage ?? ''}
+								oninput={(event) => updatePage('socialImage', event.currentTarget.value)}
+							/>
+							<button type="button" disabled={!media} onclick={() => (showSocialImagePicker = true)}
+								><Images size={17} /> Choose from Media</button
+							>
+						</div>
+						<small
+							>{media
+								? 'Pick from Files, upload and optimize, or paste an image URL.'
+								: 'Paste a reviewed image URL. Update tend.host to browse Files here.'}</small
+						>
+					</div>
 				</div>
 				<article class="share-card">
 					{#if projection.socialImage}<img src={projection.socialImage} alt="" />{:else}<div
@@ -531,6 +560,17 @@
 		</section>
 	{/if}
 </main>
+
+{#if showSocialImagePicker && media}
+	<MediaPicker
+		{media}
+		title="Prepare a sharing image"
+		description="Choose an existing image or upload one, then frame it for link previews."
+		frameTitle="Frame the sharing image"
+		onselect={selectSocialImage}
+		onclose={() => (showSocialImagePicker = false)}
+	/>
+{/if}
 
 <style>
 	.seo-workspace {
@@ -669,6 +709,36 @@
 		color: #dce9e4;
 		font-size: 13px;
 		font-weight: 750;
+	}
+	.sharing-image-field {
+		display: grid;
+		align-content: start;
+		gap: 8px;
+		color: #dce9e4;
+		font-size: 13px;
+		font-weight: 750;
+	}
+	.image-input-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 9px;
+	}
+	.image-input-row button {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0 14px;
+		color: #07130f;
+		font-weight: 850;
+		background: #56e6ad;
+		border: 0;
+		border-radius: 11px;
+		cursor: pointer;
+	}
+	.image-input-row button:disabled {
+		color: #66736e;
+		background: #17201d;
+		cursor: not-allowed;
 	}
 	.form-grid .wide {
 		grid-column: 1/-1;
@@ -897,6 +967,13 @@
 		margin: 0;
 	}
 	@media (max-width: 760px) {
+		.image-input-row {
+			grid-template-columns: 1fr;
+		}
+		.image-input-row button {
+			justify-content: center;
+			min-height: 44px;
+		}
 		.seo-workspace > header {
 			align-items: start;
 			flex-direction: column;
